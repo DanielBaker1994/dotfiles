@@ -1,0 +1,34 @@
+#################### VIM ####################
+# FOR MORE INFORMATION CHECK:
+# https://wiki.archlinux.org/index.php/Readline
+
+# TURN ON VIM (E.G. FOR READLINE)
+set editing-mode vi
+
+# SHOW THE VIM MODE IN THE PROMPT (COMMAND OR INSERT)
+set show-mode-in-prompt on
+set colored-stats on
+set colored-completion-prefix on
+set completion-ignore-case on
+
+# SET THE MODE STRING AND CURSOR TO INDICATE THE VIM MODE
+#   FOR THE NUMBER AFTER `\e[`:
+#     0: blinking block
+#     1: blinking block (default)
+#     2: steady block
+#     3: blinking underline
+#     4: steady underline
+#     5: blinking bar (xterm)
+#     6: steady bar (xterm)
+
+# set vi-ins-mode-string "\1\e[33m\2(INS)\1\e[0m\2"
+# set vi-cmd-mode-string "\1\e[1;37m\2(CMD)\1\e[0m\2"
+set vi-ins-mode-string "\1\e[33m\2(INS) \1\e[5 q\2"
+set vi-cmd-mode-string "\1\e[1;37m\2(CMD) \1\e[1 q\2"
+# set vi-ins-mode-string "INS"
+# set vi-cmd-mode-string "CMD"
+set mark-symlinked-directories on
+set enable-bracketed-paste on
+set show-all-if-ambiguous on
+set visible-stats on
+set page-completions off

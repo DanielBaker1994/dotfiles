@@ -1,0 +1,30 @@
+-- local capabilities = vim.lsp.protocol.make_client_capabilities()
+--
+--
+-- vim.lsp.config('marksman', {
+--     -- on_attach function to set keymaps and other buffer-specific options when the LSP attaches
+--     capabilities = capabilities,
+--     on_attach = function(client, bufnr)
+--         -- Example keymaps:
+--         -- vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<cmd>lua vim.lsp.buf.definition()<CR>', {noremap = true, silent = true})
+--         -- vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>', {noremap = true, silent = true})
+--         -- Add other on_attach logic here
+--     end,
+--     -- Optional: Add specific settings for marksman.
+--     -- The default configuration often works fine with Mason.
+--     settings = {
+--         -- Example: You can adjust settings if needed
+--         -- marksman.trace.server = "off"
+--     },
+-- })
+--
+-- vim.lsp.enable('marksman')
+--
+--
+-- vim.api.nvim_create_autocmd('BufWritePre', {
+--     pattern = '*.lua',
+--     desc = 'Format Lua with lua_ls on save',
+--     callback = function()
+--         vim.lsp.buf.format()
+--     end,
+-- })

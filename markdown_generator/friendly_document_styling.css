@@ -1,0 +1,461 @@
+<style>
+
+@font-face {
+  font-family: "Hack Nerd Font";
+  src: url(env( $NERDFONT_PATH_GLOBAL )) format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+.glyph { font-family: "Hack Nerd Font" }
+
+
+html {
+    color: #1a1a1a;
+    background-color: #ffffff;
+}
+body {
+    margin: 0 auto;
+    max-width: 50em;
+    padding-left: 0px;
+    padding-right: 0px;
+    padding-top: 50px;
+    padding-bottom: 50px;
+    hyphens: auto;
+    overflow-wrap: break-word;
+    /* text-rendering: optimizeLegibility; */
+    font-kerning: normal;
+}
+/* @media (max-width: 800px) { */
+/*     body { */
+/*         font-size: 0.9em; */
+/*         padding: 0px; */
+/*     } */
+/**/
+/* } */
+/**/
+
+    div.admonition {
+      display: block;
+      margin: 0.8em 0;
+      padding: 0.8em 1em;
+      border-left: 6px solid transparent;
+      border-radius: 6px;
+      font-family: "Courier New", Courier, monospace;
+      background: rgba(0,0,0,0.03);
+      position: relative;
+      color: inherit;
+      box-sizing: border-box;
+    }
+    div.admonition::before {
+      /* positioning and sizing for admonition icons; actual icon content
+         is provided by the specific variant (::before) rules so we don't
+         get duplicate icons from the base rule. */
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+      font-size: 1.1em;
+      line-height: 1;
+    }
+  /* default */
+  div.admonition > p {    margin-left: 1.6em; margin-bottom: 0.4em; }
+  
+  
+  
+
+  /* log and file admonitions: deeper orange left stripe and matching tint */
+  div.admonition.log {
+    border-left-color: #b07219;
+    background: rgba(176,112,25,0.06);
+    color: #5a3b12;
+  }
+  div.admonition.file {
+    border-left-color: #b07219;
+    background: rgba(176,112,25,0.06);
+    color: #5a3b12;
+  }
+
+    div.admonition.error {
+      border-left-color: #b00020;
+      background: rgba(176,0,32,0.06);
+      color: #5a0b12;
+    }
+    div.admonition.warning {
+      border-left-color: #e09b00;
+      background: rgba(224,155,0,0.06);
+      color: #5b3b00;
+    }
+    div.admonition.warning::before {
+      content: ""; 
+      color: inherit;
+      font-family: "Hack Nerd Font", monospace;
+      font-size: 1.1em;
+      line-height: 1;
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+    }
+    div.admonition.tip {
+      border-left-color: #0a8a3a;
+      background: rgba(10,138,58,0.05);
+      color: #064e2a;
+    }
+    div.admonition.tip::before {
+      content: "󰌶"; 
+      color: inherit;
+      font-family: "Hack Nerd Font", monospace;
+      font-size: 1.1em;
+      line-height: 1;
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+    }
+    div.admonition.info {
+      border-left-color: #0b66c3;
+      background: rgba(11,102,195,0.05);
+      color: #063a63;
+    }
+    div.admonition.info::before {
+      content: ""; 
+      color: inherit;
+      font-family: "Hack Nerd Font", monospace;
+      font-size: 1.1em;
+      line-height: 1;
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+    }
+
+    /* Error variant emits the chosen high-plane glyph with a themed color */
+    div.admonition.error::before {
+      /* emit the high-plane codepoint directly; browser accepts up to 6 hex digits */
+      content: "󱐌"; 
+      color: #9a1b1b;          /* primary icon color */
+      font-family: "Hack Nerd Font", monospace;
+      font-size: 1.1em;
+      line-height: 1;
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+    }
+
+
+    div.admonition.file::before {
+      /* emit the high-plane codepoint directly; browser accepts up to 6 hex digits */
+      content: "";
+      color: #b07219;
+      font-family: "Hack Nerd Font", monospace;
+      font-size: 1.1em;
+      line-height: 1;
+      position: absolute;
+      left: 0.6em;
+      top: 0.6em;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* Consolidated language icon rules.
+   - Emit icon from the <pre> element only (generators sometimes add the
+     class to both <pre> and <code>).
+   - Match both exact language class names and generic class* matches.
+*/
+pre.sourceCode.bash,
+pre.sourceCode.cpp,
+pre.sourceCode.lua,
+pre.sourceCode.python,
+pre.sourceCode.shell,
+pre.sourceCode.java,
+pre.sourceCode.log,
+pre.sourceCode.vim,
+.sourceCode > pre[class*="bash"],
+.sourceCode > pre[class*="cpp"],
+.sourceCode > pre[class*="lua"],
+.sourceCode > pre[class*="python"],
+.sourceCode > pre[class*="shell"],
+.sourceCode > pre[class*="java"],
+.sourceCode > pre[class*="log"],
+.sourceCode > pre[class*="file"],
+.sourceCode > pre[class*="vim"],
+pre[class*="bash"],
+pre[class*="cpp"],
+pre[class*="lua"],
+pre[class*="python"],
+pre[class*="shell"],
+pre[class*="log"],
+pre[class*="file"],
+pre[class*="java"]
+pre[class*="vim"]
+/* Common pseudo-element style for all language icons */
+pre.sourceCode.bash::before,
+pre.sourceCode.cpp::before,
+pre.sourceCode.lua::before,
+pre.sourceCode.python::before,
+pre.sourceCode.shell::before,
+pre.sourceCode.java::before,
+pre.sourceCode.file::before,
+pre.sourceCode.log::before,
+pre[class*="bash"]::before,
+pre[class*="cpp"]::before,
+pre[class*="lua"]::before,
+pre[class*="python"]::before,
+pre[class*="shell"]::before,
+
+pre[class*="log"]::before {
+  font-family: "Hack Nerd Font", monospace;
+  display: block;
+  margin-bottom: 0.4em;
+  font-size: 1.2em;
+  line-height: 1;
+}
+/* Common pseudo-element style for all language icons (single authoritative block) */
+pre.sourceCode.bash::before,
+pre.sourceCode.cpp::before,
+pre.sourceCode.lua::before,
+pre.sourceCode.python::before,
+pre.sourceCode.shell::before,
+pre.sourceCode.java::before,
+pre.sourceCode.file::before,
+pre.sourceCode.log::before,
+pre.sourceCode.vim::before,
+pre[class*="bash"]::before,
+pre[class*="cpp"]::before,
+pre[class*="lua"]::before,
+pre[class*="python"]::before,
+pre[class*="shell"]::before,
+pre[class*="java"]::before,
+pre[class*="file"]::before,
+pre[class*="vim"]::before,
+pre[class*="log"]::before {
+  font-family: "Hack Nerd Font", monospace;
+  display: block;
+  margin-bottom: 0.4em;
+  font-size: 1.2em;
+  line-height: 1;
+}
+
+
+pre.sourceCode.vim::before,
+pre[class*="vim"]::before  { content: ""; color: #000000; }
+
+pre.sourceCode.bash::before,
+pre[class*="bash"]::before  { content: ""; color: #000000; }
+
+pre.sourceCode.cpp::before,
+pre[class*="cpp"]::before   { content: "󰙲"; color: #00599C; }
+
+pre.sourceCode.lua::before,
+pre[class*="lua"]::before   { content: ""; color: #1e4d93; }
+
+pre.sourceCode.python::before,
+pre[class*="python"]::before { content: ""; color: #FFE873; }
+
+pre.sourceCode.shell::before,
+pre[class*="shell"]::before  { content: ""; color: #0f5132; }
+
+pre.sourceCode.java::before,
+pre[class*="java"]::before   { content: "󰬷"; color: #b07219; }
+
+pre.sourceCode.file::before,
+pre[class*="file"]::before   { content: ""; color: #b07219; }
+
+pre.sourceCode.log::before,
+pre[class*="log"]::before    { content: "󱂅"; color: #b07219; }
+
+/* Fenced code block background and rounded corners */
+.sourceCode > pre,
+pre.sourceCode,
+pre[class*="bash"],
+pre[class*="cpp"],
+pre[class*="lua"],
+pre[class*="python"],
+pre[class*="vim"],
+pre[class*="shell"],
+pre[class*="java"],
+pre[class*="log"],
+pre[class*="file"] {
+  background-color: #f5f6f7; /* light grey */
+  border-radius: 8px;
+  padding: 0.8em 1em;
+  margin: 0.8em 0;
+  overflow: auto;
+  -webkit-font-smoothing: antialiased;
+  /* box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); */
+  /* preserve code whitespace behavior; generators decide wrapping */
+  white-space: pre;
+  word-break: normal;
+}
+
+/* Ensure inner <code> does not add its own background or separate corners */
+.sourceCode > pre > code,
+pre.sourceCode > code,
+pre[class*="log"] code,
+pre[class*="file"] code {
+  background: transparent;
+  border-radius: inherit;
+  padding: 0;
+  display: block;
+}
+
+
+/* Use a proportional UI font for log blocks to improve readability */
+pre.sourceCode.log, pre[class*="log"],
+code.sourceCode.log, code[class*="log"] 
+/*{ font-family: "Times New Roman"; font-size: 0.95em; line-height: 1.45; white-space: pre-wrap; /* keep line breaks but allow wrapping word-break: break-word; }*/
+
+
+table {
+  width: 100%;
+  border-collapse: separate;    /* changed to allow border-radius */
+  border-spacing: 0;
+  margin: 25px 0;
+  font-size: 0.95em;
+  min-width: 400px;
+  /* box-shadow: 0 6px 20px rgba(43,108,176,0.06); */
+  border-radius: 8px;           /* rounded corners */
+  overflow: hidden;             /* clip corners for inner cells */
+}
+
+/* Header: Confluence-esque blue */
+thead tr {
+  background: linear-gradient(180deg,#2B6CB0,#1F5190);
+  color: #ffffff;
+  text-align: left;
+}
+
+/* round header top corners */
+thead th:first-child { border-top-left-radius: 8px; }
+thead th:last-child  { border-top-right-radius: 8px; }
+
+/* Cells: use separators instead of full borders so rounded corners show through */
+th,
+td {
+  padding: 12px 15px;
+  border: none; /* remove full cell borders so table radius is visible */
+}
+
+/* vertical separators between adjacent cells */
+th + th,
+td + td {
+  border-left: 1px solid #D6EAF8;
+}
+
+/* horizontal separators between adjacent rows */
+tbody tr + tr td {
+  border-top: 1px solid #D6EAF8;
+}
+
+/* Row striping: soft blues */
+tbody tr:nth-of-type(odd) {
+  background-color: #F7FBFF;
+}
+tbody tr:nth-of-type(even) {
+  background-color: #EAF6FF;
+}
+
+/* Hover: gentle lift */
+tbody tr:hover {
+  background-color: #D6EDFF;
+  transition: background-color 150ms ease-in-out;
+}
+
+/* subtle accent for first column cells */
+tbody td:first-child {
+  background-color: rgba(43,108,176,0.03);
+}
+
+/* round bottom corners on last row */
+tbody tr:last-child td:first-child  { border-bottom-left-radius: 8px; }
+tbody tr:last-child td:last-child   { border-bottom-right-radius: 8px; }
+
+/* last-row accent */
+tbody tr:last-of-type td {
+  border-bottom: 2px solid #BFE6FF;
+}
+
+
+
+
+
+
+
+
+
+
+:root{
+  --md-accent_pretty: #2b6cb0;
+  --md-accent_pretty-2: #1f5190;
+  --md-muted: #6b7c90;
+  --md-bg: #f7fbff;
+  --md-card: #ffffff;
+}
+
+article.enable_pretty_title {
+  margin-bottom: 18px;
+  max-width:50em; margin:0; padding:24px 0;
+}
+article.enable_pretty_title > h1 {
+  margin:0 0 6px 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight:600;
+  font-size:26px;
+  color:var(--md-accent_pretty-2);
+}
+article.enable_pretty_title >  p {
+  margin:6px 0 0 0;
+  color:var(--md-muted);
+  font-size:13px;
+}
+
+
+.article.enable_pretty_headers h1{ margin:18px 0 10px 0; font-size:22px; color:var(--md-accent_pretty); }
+.article.enable_pretty_headers h2{ margin:16px 0 8px 0; font-size:18px; color:var(--md-accent_pretty-2); font-weight:600; display:flex; align-items:center; gap:10px }
+.article.enable_pretty_headers h2 .tag{ display:inline-block; padding:6px 10px; border-radius:999px; background:linear-gradient(180deg,#eaf6ff,#e2f0ff); color:var(--md-accent_pretty-2); font-weight:600; font-size:13px }
+.article.enable_pretty_headers h3{ margin:16px 0 8px 0; font-size:16px; color:var(--md-accent_pretty-2); display:flex; align-items:center; gap:10px; }
+
+.article.enable_pretty_headers h3 .tag{ display:inline-block; padding:4px 8px; border-radius:999px; background:linear-gradient(180deg,#eaf6ff,#e2f0ff); color:var(--md-accent_pretty-2); font-weight:600; font-size:12px; }
+.card{ border-radius:8px; background: linear-gradient(180deg,#fff,#fbfdff); padding:16px; border:1px solid rgba(16,40,80,0.03); margin-top:10px }
+.kicker{ font-size:12px; color:var(--md-muted); text-transform:uppercase; letter-spacing:0.12em; margin-bottom:8px }
+
+/* Pretty lines variant: adds a single blue vertical line at the left edge of the article */
+
+
+
+/* Color only the list marker (bullet/number), not the list item text */
+ul, ol {
+  color: inherit;
+}
+ul li::marker,
+ol li::marker {
+  color: var(--md-accent_pretty);
+}
+
+/* If you have nested lists and want markers to inherit the same accent color */
+ul ul li::marker,
+ol ol li::marker {
+  color: var(--md-accent_pretty);
+}
+
+.article.enable_pretty_lines hr {
+  border: none;
+    border-top-width: medium;
+    border-top-style: none;
+    border-top-color: currentcolor;
+  border-top: 2px solid var(--md-accent_pretty);
+  height: 1px;
+  margin: 1em 0;
+}
+
+</style>
