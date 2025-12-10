@@ -1,0 +1,5 @@
+*.html
+*.pdf
+nvim/lazy-lock.json
+.aider*
+bash/build_deploy.history

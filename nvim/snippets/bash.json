@@ -1,0 +1,43 @@
+{
+  "bash_custom": {
+    "prefix": "bash_map_file",
+    "body": [
+      "mapfile -t target_files < <(find \"\\${HOME}/.config\" -name \"*.xml\")",
+      "target_files=(\"\\${target_files[@]/#/--prepend-to-each-item=}\")",
+      "echo \"\\${target_files[@]}\""
+    ]
+  }
+  ,
+  "bash_directory_only_from_path": {
+    "prefix": "bash_directory_only_from_path",
+    "body": [
+      "sample_file=/tmp/samplefilename.txt",
+      "\"\\${sample_file%/*}\""
+    ]
+  },
+  "bash_file_only_from_path": {
+    "prefix": "bash_file_only_from_path",
+    "body": [
+      "sample_file=/tmp/samplefilename.txt",
+      "\"\\${sample_file##*/}\""
+    ]
+  },
+  "bash_extension_only_from_path": {
+    "prefix": "bash_extension_only_from_path",
+    "body": [
+      "sample_file=/tmp/samplefilename.txt",
+      "\"\\${sample_file##*.}\""
+    ]
+  },
+  "bash_associative_array": {
+    "prefix": "bash_associative_array",
+    "body": [
+      "declare -A dotfiles",
+      "dotfiles[\"\\$HOME/.bashrc\"]=\"\\$HOME/.dotfiles/bash/.bashrc\"",
+      "dotfiles[\"\\$HOME/.inputrc\"]=\"\\$HOME/.dotfiles/bash/.inputrc\"",
+      "for item in \"\\${!dotfiles[@]}\"; do",
+      "    echo \"key=\\$item value=\\${dotfiles[\\$item]}\"",
+      "done"
+    ]
+  }
+}

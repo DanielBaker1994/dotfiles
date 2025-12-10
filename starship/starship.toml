@@ -1,0 +1,29 @@
+"$schema" = 'https://starship.rs/config-schema.json'
+[line_break]
+disabled = true
+add_newline = false
+
+[git_branch]
+format = " [$symbol$branch(:$remote_branch)]($style) "
+symbol = " "
+style = "bold purple"
+only_attached = true
+ignore_bare_repo = true
+
+
+[cpp]
+disabled = true
+
+[c]
+disabled = true
+
+[cmake]
+disabled = true
+
+[directory]
+# Show the full path (no truncation). Set truncation_length > 0 to shorten.
+truncation_length = 5
+disabled = false
+truncate_to_repo = false
+home_symbol = "~"
+

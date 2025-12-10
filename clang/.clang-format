@@ -1,0 +1,4 @@
+BasedOnStyle: Google
+BreakBeforeBraces: Stroustrup
+AllowShortFunctionsOnASingleLine: None
+SeparateDefinitionBlocks: Always
