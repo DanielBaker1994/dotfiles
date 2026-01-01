@@ -1,4 +1,4 @@
-title tab1
+new_tab tab1
 launch /opt/homebrew/bin/bash
 
 new_tab tab2

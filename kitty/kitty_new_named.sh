@@ -1,5 +1,4 @@
 #!/opt/homebrew/bin/bash
-kitten @ set-window-title "promptwindow"
 
 function close_this_window() {
     kitten @ close-window --match "title:promptwindow"
@@ -9,6 +8,7 @@ trap close_this_window SIGINT
 firstSplitId=""
 if [[ "$1" == "tab" ]]; then
 
+    kitten @ set-window-title "promptwindow"
     read -rp "Create New Tab With Name:" new_tab
     if [[ -z "$new_tab" || "${new_tab,,}" == 'q' ]]; then
         close_this_window
@@ -18,7 +18,5 @@ if [[ "$1" == "tab" ]]; then
         kitty @ focus-tab --match id:"$firstSplitId"
     fi
 
-    #active_window=""
-    #active_window=$(kitten @ ls | jq '.[].tabs[] | select(.windows[].is_self == true and .windows[].is_focused== true) | .title')
+    close_this_window
 fi
-close_this_window
