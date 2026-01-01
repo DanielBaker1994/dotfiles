@@ -39,12 +39,12 @@ vim.keymap.set('n', '<C-u>', "<C-u>zz")
 local telescope_builtin = require('telescope.builtin')
 vim.keymap.set('n', '<leader>sh', telescope_builtin.help_tags, { desc = '[S]earch [H]elp' })
 vim.keymap.set('n', '<leader>sk', telescope_builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-vim.keymap.set('n', '<leader>sfc', telescope_builtin.find_files, { desc = '[S]earch [F]iles [C]WD' })
+vim.keymap.set('n', '<leader>sf', telescope_builtin.find_files, { desc = '[S]earch [F]iles' })
 vim.keymap.set('n', '<leader>ss', telescope_builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
 vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = '[S]earch current [W]ord' })
 
-local usertelescope = require('user.telescope')
-vim.keymap.set("n", "<leader>sg", usertelescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })
+local user_telescope = require('user.telescope')
+vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })
 vim.keymap.set('n', '<leader>sd', telescope_builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
 vim.keymap.set('n', '<leader><leader>', telescope_builtin.buffers, { desc = '[ ] Find existing buffers' })
 
@@ -94,13 +94,15 @@ vim.keymap.set('n', '<leader>sdg', function()
     vim.list_extend(search_dirs, as_list(vim.fn.stdpath('data')))
     vim.list_extend(search_dirs, as_list(EXTERNAL_PATHS_GLOBAL()))
     --vim.notify(vim.inspect(search_dirs))
-    usertelescope.live_multigrep({ prompt_title = "Dotfile + Lua Grep", search_dirs = search_dirs, file_ignore_patterns = { ".git/" }
+    user_telescope.live_multigrep({ prompt_title = "Dotfile + Lua Grep", search_dirs = search_dirs, file_ignore_patterns = { ".git/" }
     })
 end, { desc = '[S]earch [D]otfile [G]rep' })
+
 vim.keymap.set('n', '<leader>sdf', function()
     telescope_builtin.find_files({
         search_dirs = EXTERNAL_PATHS_GLOBAL(),
         hidden = true,
+        prompt_title = "Dotfile Picker",
         file_ignore_patterns = { ".git/" }
     })
 end, { desc = '[S]earch [D]otfiles [F]iles' })
@@ -139,6 +141,14 @@ vim.keymap.set('n', '<leader>cd', function()
     vim.cmd('cd ' .. dir)
     print('Changed directory to ' .. dir)
 end, { desc = "CD to buffer's dir" })
+
+vim.keymap.set('n', '<leader>obw', ':!open %:p:h<CR>', { desc = "[O]pen [B]buffer [W]indow", silent = true })
+vim.keymap.set('n', '<leader>obe',
+    function()
+        vim.cmd("Oil " .. vim.fn.expand('%:p:h'))
+    end
+    , { desc = "[O]pen [B]buffer [E]explorer (Oil)", silent = true })
+
 
 vim.keymap.set('n', '<leader>yp', function()
     local path = vim.fn.expand('%:p')

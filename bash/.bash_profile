@@ -16,10 +16,9 @@ export DEV_WORKSPACE="$DEV_NOTES/Workspace"
 export MANPAGER="nvim +Man!"
 
 if [ -f ~/.bashrc ]; then
-    source $HOME/.bashrc
+    source "$HOME"/.bashrc
 fi
 
-. "$HOME/.cargo/env"
 eval "$(starship init bash)"
 
 # Must go last or usr bin will come before home brew and then path which fild old bash.

@@ -10,8 +10,7 @@ alias kopen='nvim ~/.config/kitty/kitty.conf'
 #alias topen='nvim ~/.tmux.conf'
 #alias tsource='tmux source ~/.tmux.conf'
 function ksource() {
-    #kitty @ load-config
-    kill -SIGUSR1 $(ps -ef | grep "kitty.app" | grep -v grep | awk '{print $2}')
+    kill -SIGUSR1 $KITTY_PID
 }
 alias vi='nvim'
 alias vim='nvim'
@@ -173,16 +172,17 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
     if [[ -f $html_tmp ]]; then
         rm "$html_tmp"
     fi
-    #--syntax-definition="/Users/danielbaker/.config/markdown_generator/config.xml"
-    pandoc -s -f markdown+raw_html -t html5 \
+    if pandoc -s -f markdown+raw_html -t html5 \
         --resource-path="$ASSET_PICTURES_DIRECTORY_GLOBAL:$DOTDIR/markdown_generator" \
         --lua-filter="$markdown_admontion_file" \
         --syntax-definition="$DOTDIR/markdown_generator/vim.xml" \
         --include-in-header="$markdown_css_styling" \
-        -o "$html_tmp" "$markdown_source" && open "$html_tmp" || {
+        -o "$html_tmp" "$markdown_source"; then
+        open "$html_tmp"
+    else
         echo "Pandoc failed"
         return 3
-    }
+    fi
 
     weasyprint "$html_tmp" "$pdf_file" || {
         echo "weasyprint failed"

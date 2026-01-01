@@ -13,7 +13,7 @@ if [[ "$1" == "tab" ]]; then
     if [[ -z "$new_tab" || "${new_tab,,}" == 'q' ]]; then
         close_this_window
     else
-        firstSplitId=$(kitten @ launch --type=tab --tab_title="$new_tab")
+        firstSplitId=$(kitten @ launch --type=tab --cwd=current --tab_title="$new_tab")
         kitten @ set-window-title --match "id:$firstSplitId" "${new_tab}_1"
         kitty @ focus-tab --match id:"$firstSplitId"
     fi
