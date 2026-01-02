@@ -19,6 +19,7 @@ main() {
     dotfiles["$HOME/.inputrc"]="$SCRIPT_DIR/bash/.inputrc"
     dotfiles["$HOME/.config/kitty"]="$SCRIPT_DIR/kitty"
     dotfiles["$HOME/.config/nvim"]="$SCRIPT_DIR/nvim"
+    dotfiles["$HOME/.tmux.conf"]="$SCRIPT_DIR/tmux/.tmux.conf"
     dotfiles["$HOME/.config/starship.toml"]="$SCRIPT_DIR/starship/starship.toml"
 
     for home_path in "${!dotfiles[@]}"; do

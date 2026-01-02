@@ -1,0 +1,3 @@
+new_tab dotfiles
+cd ~/.dotfiles/
+launch /opt/homebrew/bin/bash

@@ -4,11 +4,11 @@ alias f='fzf'
 alias bashr='source ~/.bash_profile'
 alias bbopen='nvim ~/.bash_profile'
 alias bopen='nvim ~/.bashrc'
-alias cdkitty='cd ~/.config/kitty'
-alias cdcpp='cd ~/src/CPP_LEARN'
+#alias cdkitty='cd ~/.config/kitty'
+#alias cdcpp='cd ~/src/CPP_LEARN'
 alias kopen='nvim ~/.config/kitty/kitty.conf'
-#alias topen='nvim ~/.tmux.conf'
-#alias tsource='tmux source ~/.tmux.conf'
+alias topen='nvim ~/.tmux.conf'
+alias tsource='tmux source ~/.tmux.conf'
 function ksource() {
     kill -SIGUSR1 $KITTY_PID
 }
@@ -34,19 +34,20 @@ function unsetdebug() {
     set +x
 }
 
-function kittyconnectdev() {
-    local new_tab="$1"
-    local firstSplitId secondSplitId
-    firstSplitId=$(kitten @ launch --type=tab --tab_title="$new_tab")
-    secondSplitId=$(kitten @ new-window --match "title:^$new_tab")
-
-    kitten @ set-window-title --match "id:$firstSplitId" "${new_tab}_1"
-    kitten @ set-window-title --match "id:$secondSplitId" "${new_tab}_2"
-
-    echo "echo hellowindow1" | kitten @ send-text --match "id:$firstSplitId" --stdin
-    echo "echo hellowindow2" | kitten @ send-text --match "id:$secondSplitId" --stdin
-
-}
+# function kittyconnectdev() {
+#     local new_tab="$1"
+#     local firstSplitId secondSplitId
+#     firstSplitId=$(kitten @ launch --type=tab --tab_title="$new_tab")
+#     secondSplitId=$(kitten @ new-window --match "title:^$new_tab")
+#     goto_session ~/.config/kitty/code_session/ssh_dev.kitty-session
+#
+#     kitten @ set-window-title --match "id:$firstSplitId" "${new_tab}_1"
+#     kitten @ set-window-title --match "id:$secondSplitId" "${new_tab}_2"
+#
+#     echo "echo hellowindow1" | kitten @ send-text --match "id:$firstSplitId" --stdin
+#     echo "echo hellowindow2" | kitten @ send-text --match "id:$secondSplitId" --stdin
+#
+# }
 
 function connect() {
     declare -A server_map

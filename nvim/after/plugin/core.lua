@@ -170,10 +170,10 @@ end, { desc = 'Yank file name' })
 
 
 -- local tmux = require("tmux")
--- vim.keymap.set({ {'t', 'n'}, 'n' }, '<C-h>', tmux.move_left, { silent = true })
--- vim.keymap.set({ {'t', 'n'}, 'n' }, '<C-j>', tmux.move_bottom, { silent = true })
--- vim.keymap.set({ {'t', 'n'}, 'n' }, '<C-k>', tmux.move_top, { silent = true })
--- vim.keymap.set({ {'t', 'n'}, 'n' }, '<C-l>', tmux.move_right, { silent = true })
+-- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-h>', tmux.move_left, { silent = true })
+-- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-j>', tmux.move_bottom, { silent = true })
+-- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-k>', tmux.move_top, { silent = true })
+-- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-l>', tmux.move_right, { silent = true })
 --
 --
 

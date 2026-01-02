@@ -145,6 +145,23 @@ require('lazy').setup({
         dependencies = 'kyazdani42/nvim-web-devicons'
     },
     { 'numToStr/Comment.nvim', config = function() require('Comment').setup() end },
+    {
+        'alexghergh/nvim-tmux-navigation',
+        config = function()
+            local nvim_tmux_nav = require('nvim-tmux-navigation')
+
+            nvim_tmux_nav.setup {
+                disable_when_zoomed = true -- defaults to false
+            }
+
+            vim.keymap.set('n', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
+            vim.keymap.set('n', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
+            vim.keymap.set('n', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
+            vim.keymap.set('n', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)
+            vim.keymap.set('n', "<C-\\>", nvim_tmux_nav.NvimTmuxNavigateLastActive)
+            vim.keymap.set('n', "<C-Space>", nvim_tmux_nav.NvimTmuxNavigateNext)
+        end
+    },
     { 'folke/which-key.nvim',  config = function() require('which-key').setup() end },
     {
         'nvim-telescope/telescope.nvim',
@@ -608,14 +625,14 @@ vim.keymap.set({ 't' }, '<M-j>', function()
 end, { noremap = true, silent = true, desc = 'Decrease window height by 5 (terminal mode)' })
 
 
-vim.keymap.set({ 'n', 't' }, '<C-h>', function() require('kitty-navigator').navigateLeft() end,
-    { silent = true, desc = 'Move left a Split' })
-vim.keymap.set({ 'n', 't' }, '<C-j>', function() require('kitty-navigator').navigateDown() end,
-    { silent = true, desc = 'Move down a Split' })
-vim.keymap.set({ 'n', 't' }, '<C-k>', function() require('kitty-navigator').navigateUp() end,
-    { silent = true, desc = 'Move up a Split', })
-vim.keymap.set({ 'n', 't' }, '<C-l>', function() require('kitty-navigator').navigateRight() end,
-    { silent = true, desc = 'Move right a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-h>', function() require('kitty-navigator').navigateLeft() end,
+--     { silent = true, desc = 'Move left a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-j>', function() require('kitty-navigator').navigateDown() end,
+--     { silent = true, desc = 'Move down a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-k>', function() require('kitty-navigator').navigateUp() end,
+--     { silent = true, desc = 'Move up a Split', })
+-- vim.keymap.set({ 'n', 't' }, '<C-l>', function() require('kitty-navigator').navigateRight() end,
+--     { silent = true, desc = 'Move right a Split' })
 
 
 vim.keymap.set("n", "<space>to", function()
