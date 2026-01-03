@@ -54,7 +54,7 @@ vim.keymap.set('n', '<leader>mdo', db.markdown_open, { desc = 'Convert markdown 
 function EXTERNAL_PATHS_GLOBAL()
     local cmd = { "bash", "-lc", "EXTERNAL_PATHS_GLOBAL" }
     local ret = vim.system(cmd):wait()
-    vim.notify(vim.inspect((ret)))
+    --vim.notify(vim.inspect((ret)))
     local out = vim.trim(ret.stdout or "")
     local parts = out == "" and {} or vim.split(out, "%s+")
     local dirs = { vim.fn.stdpath('config') }
@@ -151,7 +151,7 @@ vim.keymap.set('n', '<leader>yp', function()
     local path = vim.fn.expand('%:p')
     path = path:gsub("^oil://", "")
     vim.fn.setreg('+', path)
-    print('Yanked path: ' .. path)
+    --print('Yanked path: ' .. path)
 end, { desc = 'Yank file path' })
 
 vim.keymap.set('n', '<leader>yd', function()

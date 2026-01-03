@@ -19,6 +19,7 @@ alias bat='bat --no-pager'
 alias clear="TERM=xterm /usr/bin/clear" #terminals database is inaccessible
 alias cls="clear && printf '\e[3J'"
 alias pbcopy="perl -pe 'chomp if eof' | pbcopy"
+alias cddot="cd ~/.dotfiles"
 FILE_LINES=/tmp/files_lines.txt
 parse_git_branch() {
     git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
