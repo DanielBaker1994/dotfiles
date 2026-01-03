@@ -11,9 +11,9 @@ function M.live_multigrep(opts)
     if not opts.search_dirs then
         opts.cwd = opts.cwd or vim.uv.cwd()
     end
-    if not opts.prompt_title then
-        opts.prompt_title = "Custom"
-    end
+    -- if not opts.prompt_title then
+    --     opts.prompt_title = "Custom"
+    -- end
 
     local finder = finders.new_async_job {
         command_generator = function(prompt)

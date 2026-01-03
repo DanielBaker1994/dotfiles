@@ -1,7 +1,3 @@
--- function OpenMarkdownPreview(url)
---     vim.cmd.execute ("silent ! firefox --new-window " .. a:url)
--- end
-
 -- Keymaps
 vim.opt.formatoptions:remove({ 'r', 'o' }) -- stopped the new comment line if on a comment
 
@@ -171,16 +167,6 @@ vim.keymap.set('n', '<leader>yn', function()
 end, { desc = 'Yank file name' })
 
 
--- local tmux = require("tmux")
--- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-h>', tmux.move_left, { silent = true })
--- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-j>', tmux.move_bottom, { silent = true })
--- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-k>', tmux.move_top, { silent = true })
--- vim.keymap.set({ { 't', 'n' }, 'n' }, '<C-l>', tmux.move_right, { silent = true })
---
---
-
-
-
 
 vim.o.ttimeoutlen = 0
 
@@ -252,40 +238,3 @@ vim.api.nvim_create_autocmd('LspAttach', {
 vim.api.nvim_create_autocmd({ "VimEnter", "ColorScheme" }, {
     callback = function() vim.cmd('highlight! link LualineCwd Directory') end,
 })
-
-
-
-
-function ShowCurrentLine()
-    local current_line_text = vim.api.nvim_get_current_line()
-    local current_line_cursor = vim.api.nvim_win_get_cursor(0)[2]
-    if current_line_text == nil then
-        return
-    end
-    local target_start = current_line_cursor + 2
-    local lineAfter    = string.sub(current_line_text, target_start, -1)
-    local delimiters   = { ",", " ", "}", ')' }
-
-    local pattern      = "[^" .. table.concat(delimiters) .. "]+"
-    local matched      = ''
-    for match in string.gmatch(lineAfter, pattern) do
-        matched = match
-        break
-    end
-    local target_end = #matched
-
-    local unmod_start = string.sub(current_line_text, 1, target_start - 1)
-    local unmod_end = string.sub(current_line_text, target_end, -1)
-    local replace = unmod_start .. "\"" .. matched .. "\" " .. unmod_end
-
-
-    --vim.api.nvim_set_current_line(replace)
-    -- replace target start and target end
-
-
-
-    print(replace)
-end
-
--- Map this function to a key (e.g., <leader>cl)
-vim.api.nvim_set_keymap('n', '<Leader>cl', ':lua ShowCurrentLine()<CR>', { noremap = true, silent = true })
