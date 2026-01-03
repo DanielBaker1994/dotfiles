@@ -64,7 +64,7 @@ function M.live_multigrep(opts)
             ---@diagnostic disable-next-line: deprecated
             local rawArg = vim.tbl_flatten {
                 args,
-                { "--color=never", "--no-heading", "--with-filename", "--line-number", "--column", "--smart-case" },
+                { "--color=never", "--no-heading", "--with-filename", "--line-number", "--column", "--smart-case", "--follow" },
             }
             --vim.notify(table.concat(rawArg, " "))
             return rawArg

@@ -3,7 +3,8 @@ local fn = vim.fn
 
 -- get shell aliases
 vim.g.mapleader = ' '
---vim.o.shellcmdflag = '-ilc'
+vim.o.shellcmdflag = '-ilc'
+
 --vim.o.shell = '-lc source ~/.bashrc >/dev/null 2>&1'
 vim.g.maplocalleader = ' '
 -- Options
@@ -147,20 +148,7 @@ require('lazy').setup({
     { 'numToStr/Comment.nvim', config = function() require('Comment').setup() end },
     {
         'alexghergh/nvim-tmux-navigation',
-        config = function()
-            local nvim_tmux_nav = require('nvim-tmux-navigation')
 
-            nvim_tmux_nav.setup {
-                disable_when_zoomed = true -- defaults to false
-            }
-
-            vim.keymap.set('n', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
-            vim.keymap.set('n', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
-            vim.keymap.set('n', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
-            vim.keymap.set('n', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)
-            vim.keymap.set('n', "<C-\\>", nvim_tmux_nav.NvimTmuxNavigateLastActive)
-            vim.keymap.set('n', "<C-Space>", nvim_tmux_nav.NvimTmuxNavigateNext)
-        end
     },
     { 'folke/which-key.nvim',  config = function() require('which-key').setup() end },
     {
@@ -168,7 +156,13 @@ require('lazy').setup({
         dependencies = { 'nvim-lua/plenary.nvim' },
         config = function()
             local telescope = require('telescope')
-            telescope.setup({ follow = true, path_display = { "smart" }, extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) } })
+            telescope.setup({
+                pickers = {
+                    find_files = { follow = true },
+                },
+                path_display = { "smart" },
+                extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) }
+            })
             pcall(telescope.load_extension, 'fzf')
             pcall(telescope.load_extension, 'ui-select')
             pcall(telescope.load_extension, 'live_grep_args')
@@ -256,6 +250,7 @@ require('lazy').setup({
 
             vim.lsp.config['pyright'] = {
                 cmd = { 'pyright-langserver', '--stdio' },
+                filetypes = { 'python' },
                 settings = {
                     inlayHints = {
                         enabled = true,
@@ -786,3 +781,11 @@ vim.keymap.set({ 'n', 't' }, '<C-l>', function() require('kitty-navigator').navi
 -- }
 --
 -- vim.lsp.enable('harper_ls')
+local nvim_tmux_nav = require('nvim-tmux-navigation')
+
+nvim_tmux_nav.setup({})
+
+vim.keymap.set('n', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
+vim.keymap.set('n', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
+vim.keymap.set('n', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
+vim.keymap.set('n', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)

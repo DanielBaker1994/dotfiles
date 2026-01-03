@@ -15,8 +15,7 @@ function M.markdown_open()
     local function sh(s)
         return string.format("'%s'", tostring(s):gsub("'", "'\\''"))
     end
-    local bash_call = 'source ~/.bash_profile >/dev/null 2>&1 && EXTERNAL_BUILD_AND_OPEN_PDF ' ..
-        sh(src) .. ' ' .. ' ' .. sh(out_path)
+    local bash_call = 'EXTERNAL_BUILD_AND_OPEN_PDF ' .. sh(src) .. ' ' .. ' ' .. sh(out_path)
     vim.notify(bash_call)
     local cmd = { 'bash', '-lc', bash_call }
     local ret = vim.system(cmd):wait()

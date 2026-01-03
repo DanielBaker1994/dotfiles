@@ -195,4 +195,5 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
 }
 
 export -f EXTERNAL_TMUX_WINDOW_SWITCH
+export -f EXTERNAL_BUILD_AND_OPEN_PDF
 . "$HOME/.cargo/env"
