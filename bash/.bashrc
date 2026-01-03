@@ -50,16 +50,16 @@ function unsetdebug() {
 #
 # }
 
-function connect() {
-    declare -A server_map
-    server_map["HOST1"]="kittyconnectdev"
-    server_map["HOST2"]="kittyconnectdev"
-    local host="${server_map[$1]}"
-
-    if [[ $host != "" ]]; then
-        ($host "$1")
-    fi
-}
+# function connect() {
+#     declare -A server_map
+#     server_map["HOST1"]="kittyconnectdev"
+#     server_map["HOST2"]="kittyconnectdev"
+#     local host="${server_map[$1]}"
+#
+#     if [[ $host != "" ]]; then
+#         ($host "$1")
+#     fi
+# }
 
 function killshellcheck() {
     ps -ef | grep -i shellcheck | awk -F ' ' '{print $2}' | xargs kill -9
@@ -134,11 +134,6 @@ function EXTERNAL_PATHS_GLOBAL() {
 
 }
 
-#Dont delete me, it is used by tmux
-function EXTERNAL_TMUX_WINDOW_SWITCH() {
-    tmux list-windows -a -F '#S:#I:#W' | fzf | awk -F: '{print "tmux switch-client -t " $1 "; tmux select-window -t " $1 ":" $2}' | sh
-}
-
 function EXTERNAL_BUILD_AND_OPEN_PDF() {
     command -v pandoc &>/dev/null || {
         echo "pandoc must be installed"
@@ -195,6 +190,5 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
     return 0
 }
 
-export -f EXTERNAL_TMUX_WINDOW_SWITCH
 export -f EXTERNAL_BUILD_AND_OPEN_PDF
 . "$HOME/.cargo/env"

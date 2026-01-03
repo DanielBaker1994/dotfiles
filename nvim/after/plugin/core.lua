@@ -51,6 +51,8 @@ vim.keymap.set('n', '<leader>mdo', db.markdown_open, { desc = 'Convert markdown 
 
 
 
+
+
 function EXTERNAL_PATHS_GLOBAL()
     local cmd = { "bash", "-lc", "EXTERNAL_PATHS_GLOBAL" }
     local ret = vim.system(cmd):wait()
@@ -62,7 +64,6 @@ function EXTERNAL_PATHS_GLOBAL()
         if p:match("%S") then table.insert(dirs, p) end
     end
 
-    -- Filter out invalid paths
     local valid_dirs = {}
     for _, dir in ipairs(dirs) do
         if dir and dir ~= "" then
