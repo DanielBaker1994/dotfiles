@@ -1,0 +1,3 @@
+manpages,manpages,$HOME,man bash
+dotfiles,code,$HOME/.dotfiles,nvim $HOME/.dotfiles/bash/.bashrc
+dotfiles,code,$HOME/.dotfiles

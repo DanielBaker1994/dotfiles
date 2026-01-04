@@ -15,8 +15,8 @@ export DEV_WORKSPACE="$DEV_NOTES/Workspace"
 #much nicer man pages from neovim
 export MANPAGER="nvim +Man!"
 
-if [ -f ~/tmux_connect.sh ]; then
-    source "$HOME/tmux_connect.sh"
+if [ -f ~/.dotfiles/bash/tmux_connect.sh ]; then
+    source "$HOME/.dotfiles/bash/tmux_connect.sh"
 fi
 
 if [ -f ~/.bashrc ]; then

@@ -435,6 +435,7 @@ require('lazy').setup({
                             any = {
                                 { find = "E85: There is no listed buffer" },
                                 { find = ".*your config is not supported with lazy.nvim.*$" },
+                                { find = ".*L,.*B written*$" },
                                 { find = "E486: Pattern not found: ?$" },
                                 { find = "E21: Cannot make changes, 'modifiable' is off" },
                                 { find = "E490: No fold found" },
