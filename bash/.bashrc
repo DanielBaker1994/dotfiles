@@ -4,14 +4,9 @@ alias f='fzf'
 alias bashr='source ~/.bash_profile'
 alias bbopen='nvim ~/.bash_profile'
 alias bopen='nvim ~/.bashrc'
-#alias cdkitty='cd ~/.config/kitty'
 #alias cdcpp='cd ~/src/CPP_LEARN'
-alias kopen='nvim ~/.config/kitty/kitty.conf'
 alias topen='nvim ~/.tmux.conf'
 alias tsource='tmux source ~/.tmux.conf'
-function ksource() {
-    kill -SIGUSR1 $KITTY_PID
-}
 alias vi='nvim'
 alias vim='nvim'
 alias vopen='nvim ~/.config/nvim/init.lua'
@@ -166,3 +161,5 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
 
 export -f EXTERNAL_BUILD_AND_OPEN_PDF
 . "$HOME/.cargo/env"
+eval "$(zoxide init bash)"
+#export PATH=$HOME/.local/bin:$PATH

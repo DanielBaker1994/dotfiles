@@ -172,19 +172,19 @@ require('lazy').setup({
     'nvim-telescope/telescope-live-grep-args.nvim',
     { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make', cond = vim.fn.executable('make') == 1 },
     'nvim-pack/nvim-spectre',
-    {
-        'MunsMan/kitty-navigator.nvim',
-        config = function()
-            require('kitty-navigator').setup({
-                keybindings = {
-                    left = "<C-h>",
-                    down = "<C-j>",
-                    up = "<C-k>",
-                    right = "<C-l>",
-                },
-            })
-        end,
-    },
+    -- {
+    --     'MunsMan/kitty-navigator.nvim',
+    --     config = function()
+    --         require('kitty-navigator').setup({
+    --             keybindings = {
+    --                 left = "<C-h>",
+    --                 down = "<C-j>",
+    --                 up = "<C-k>",
+    --                 right = "<C-l>",
+    --             },
+    --         })
+    --     end,
+    -- },
     {
         "saghen/blink.cmp",
         tag = "v1.0.0",
@@ -603,13 +603,13 @@ end
 --[[
     this assume terminal is at bottom so makes sense to invert the logic
 ]]
-vim.keymap.set({ 'n' }, '<M-k>', function()
-    vim.cmd('resize -5')
-end, { noremap = true, silent = true, desc = 'Increase window height by 5 (normal mode)' })
-
-vim.keymap.set({ 'n' }, '<M-j>', function()
-    vim.cmd('resize +5')
-end, { noremap = true, silent = true, desc = 'Decrease window height by 5 (normal mode)' })
+-- vim.keymap.set({ 'n' }, '<M-k>', function()
+--     vim.cmd('resize -5')
+-- end, { noremap = true, silent = true, desc = 'Increase window height by 5 (normal mode)' })
+--
+-- vim.keymap.set({ 'n' }, '<M-j>', function()
+--     vim.cmd('resize +5')
+-- end, { noremap = true, silent = true, desc = 'Decrease window height by 5 (normal mode)' })
 --
 --
 vim.keymap.set({ 't' }, '<M-k>', function()
@@ -761,14 +761,14 @@ vim.keymap.set({ 't' }, '<M-j>', function()
 end, { noremap = true, silent = true, desc = 'Decrease window height by 5 (terminal mode)' })
 
 
-vim.keymap.set({ 'n', 't' }, '<C-h>', function() require('kitty-navigator').navigateLeft() end,
-    { silent = true, desc = 'Move left a Split' })
-vim.keymap.set({ 'n', 't' }, '<C-j>', function() require('kitty-navigator').navigateDown() end,
-    { silent = true, desc = 'Move down a Split' })
-vim.keymap.set({ 'n', 't' }, '<C-k>', function() require('kitty-navigator').navigateUp() end,
-    { silent = true, desc = 'Move up a Split', })
-vim.keymap.set({ 'n', 't' }, '<C-l>', function() require('kitty-navigator').navigateRight() end,
-    { silent = true, desc = 'Move right a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-h>', function() require('kitty-navigator').navigateLeft() end,
+--     { silent = true, desc = 'Move left a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-j>', function() require('kitty-navigator').navigateDown() end,
+--     { silent = true, desc = 'Move down a Split' })
+-- vim.keymap.set({ 'n', 't' }, '<C-k>', function() require('kitty-navigator').navigateUp() end,
+--     { silent = true, desc = 'Move up a Split', })
+-- vim.keymap.set({ 'n', 't' }, '<C-l>', function() require('kitty-navigator').navigateRight() end,
+--     { silent = true, desc = 'Move right a Split' })
 
 -- vim.lsp.config['harper_ls'] = {
 -- 	cmd = { 'harper-ls', '--stdio' },

@@ -165,3 +165,6 @@ font-libertinus
 kitty
 textsniper
 wezterm
+zoxide
+sesh
+fd

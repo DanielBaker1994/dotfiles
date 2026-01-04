@@ -56,5 +56,7 @@ teststring  **.cpp **.h
 
 
 
+> [!INFO]
+> iTerm2 window can be hidden like Kitty.
 
-
+![](/Users/danielbaker/.dotfiles/doc/hiding_menu_bar.png)
