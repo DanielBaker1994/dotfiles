@@ -21,7 +21,7 @@ function tmux_new_window_new_session() {
 
 function tmux_new_window_existing_session() {
     local -n tm_conf=$1
-    tmux new-window -d -c "${tm_conf["START_DIRECTORY"]}" -n "${tm_conf["WINDOW_NAME"]}" -t "${tm_conf["SESSION_NAME"]}" -P -F "#{pane_id}"
+    tmux new-window -a -d -c "${tm_conf["START_DIRECTORY"]}" -n "${tm_conf["WINDOW_NAME"]}" -t "${tm_conf["SESSION_NAME"]}" -P -F "#{pane_id}"
 }
 
 function tmux_send_keys_by_pane_id() {
@@ -32,6 +32,7 @@ function tmux_send_keys_by_pane_id() {
 function restore() {
     mapfile -t target_files < <(cat ~/.dotfiles/bash/tmux_sessions.txt)
     declare -A tmux_session_line
+    set -x
     for item in "${target_files[@]}"; do
         IFS=',' read -r -a my_array <<<"$item"
         declare -A tmux_session_line
@@ -51,6 +52,7 @@ function restore() {
         tmux_session_line["PANE_ID"]="$pane_id"
         tmux_send_keys_by_pane_id tmux_session_line
     done
+    set +x
 
 }
 

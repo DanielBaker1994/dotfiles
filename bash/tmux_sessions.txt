@@ -1,3 +1,5 @@
-manpages,manpages,$HOME,man bash
-dotfiles,code,$HOME/.dotfiles,nvim $HOME/.dotfiles/bash/.bashrc
-dotfiles,code,$HOME/.dotfiles
+manpages,manbash,$HOME,man bash,
+manpages,mantmux,$HOME,man tmux,
+dotfiles,dotfiles_bash,$HOME/.dotfiles,nvim $HOME/.dotfiles/bash/.bashrc,
+dotfiles,dotfiles_neovim,$HOME/.dotfiles,nvim $HOME/.dotfiles/nvim/init.lua,
+dotfiles,dotfiles_tmux,$HOME/.dotfiles,nvim $HOME/.dotfiles/nvim/init.lua,

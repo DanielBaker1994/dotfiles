@@ -35,32 +35,6 @@ function unsetdebug() {
     set +x
 }
 
-# function kittyconnectdev() {
-#     local new_tab="$1"
-#     local firstSplitId secondSplitId
-#     firstSplitId=$(kitten @ launch --type=tab --tab_title="$new_tab")
-#     secondSplitId=$(kitten @ new-window --match "title:^$new_tab")
-#     goto_session ~/.config/kitty/code_session/ssh_dev.kitty-session
-#
-#     kitten @ set-window-title --match "id:$firstSplitId" "${new_tab}_1"
-#     kitten @ set-window-title --match "id:$secondSplitId" "${new_tab}_2"
-#
-#     echo "echo hellowindow1" | kitten @ send-text --match "id:$firstSplitId" --stdin
-#     echo "echo hellowindow2" | kitten @ send-text --match "id:$secondSplitId" --stdin
-#
-# }
-
-# function connect() {
-#     declare -A server_map
-#     server_map["HOST1"]="kittyconnectdev"
-#     server_map["HOST2"]="kittyconnectdev"
-#     local host="${server_map[$1]}"
-#
-#     if [[ $host != "" ]]; then
-#         ($host "$1")
-#     fi
-# }
-
 function killshellcheck() {
     ps -ef | grep -i shellcheck | awk -F ' ' '{print $2}' | xargs kill -9
 }
