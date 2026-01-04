@@ -10,23 +10,23 @@ function EXTERNAL_TMUX_SESSION_SWITCH() {
 }
 
 function tmux_new_pane_existing_window() {
-    local -n tmux_info=$1
-    tmux split-pane -d -c "${tmux_info["START_DIRECTORY"]}" -t "${tmux_info["SESSION_TARGET"]}" -P -F "#{pane_id}"
+    local -n tm_conf=$1
+    tmux split-pane -d -c "${tm_conf["START_DIRECTORY"]}" -t "${tm_conf["SESSION_TARGET"]}" -P -F "#{pane_id}"
 }
 
 function tmux_new_window_new_session() {
-    local -n tmux_info=$1
-    tmux new-session -d -c "${tmux_info["START_DIRECTORY"]}" -s "${tmux_info["SESSION_NAME"]}" -n "${tmux_info["WINDOW_NAME"]}" -P -F "#{pane_id}"
+    local -n tm_conf=$1
+    tmux new-session -d -c "${tm_conf["START_DIRECTORY"]}" -s "${tm_conf["SESSION_NAME"]}" -n "${tm_conf["WINDOW_NAME"]}" -P -F "#{pane_id}"
 }
 
 function tmux_new_window_existing_session() {
-    local -n tmux_info=$1
-    tmux new-window -d -c "${tmux_info["START_DIRECTORY"]}" -n "${tmux_info["WINDOW_NAME"]}" -t "${tmux_info["SESSION_NAME"]}" -P -F "#{pane_id}"
+    local -n tm_conf=$1
+    tmux new-window -d -c "${tm_conf["START_DIRECTORY"]}" -n "${tm_conf["WINDOW_NAME"]}" -t "${tm_conf["SESSION_NAME"]}" -P -F "#{pane_id}"
 }
 
 function tmux_send_keys_by_pane_id() {
-    local -n tmux_info=$1
-    tmux send-keys -t "${tmux_info["PANE_ID"]}" "${tmux_info["SHELL_START_COMMAND"]}" Enter
+    local -n tm_conf=$1
+    tmux send-keys -t "${tm_conf["PANE_ID"]}" "${tm_conf["SHELL_START_COMMAND"]}" Enter
 }
 
 function restore() {
