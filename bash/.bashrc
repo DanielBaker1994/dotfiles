@@ -103,6 +103,9 @@ function EXTERNAL_PATHS_GLOBAL() {
 
 }
 
+#git worktree add -b testworktreebranch /tmp/worktreetemp/
+# git worktree list
+
 function EXTERNAL_BUILD_AND_OPEN_PDF() {
     command -v pandoc &>/dev/null || {
         echo "pandoc must be installed"

@@ -1,0 +1,29 @@
+[[session]]
+name = "manbash"
+path = "$HOME"
+startup_command = "man bash"
+
+[[session]]
+name = "mantmux"
+path = "$HOME"
+startup_command = "man tmux"
+
+[[session]]
+name = "manfzf"
+path = "$HOME"
+startup_command = "man fzf"
+
+[[session]]
+name = "dotfiles_bash"
+path = "$HOME/.dotfiles"
+startup_command = "nvim $HOME/.dotfiles/bash/.bashrc"
+
+[[session]]
+name = "dotfiles_neovim"
+path = "$HOME/.dotfiles"
+startup_command = "nvim $HOME/.dotfiles/nvim/init.lua"
+
+[[session]]
+name = "dotfiles_tmux"
+path = "$HOME/.dotfiles"
+startup_command = "nvim $HOME/.dotfiles/nvim/init.lua"
