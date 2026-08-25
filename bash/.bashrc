@@ -93,23 +93,6 @@ function Oil() {
 }
 function oil() { Oil; }
 
-#Dont delete me, it is used by neovim
-#specifying dot files is ugly trick to show some hidden files in rip grep
-#without having to enable all of them
-function EXTERNAL_PATHS_GLOBAL() {
-    quickpaths=(
-        "$DOTDIR"
-        "$DOTDIR/bash/.bashrc"
-        "$DOTDIR/bash/.inputrc"
-        "$DOTDIR/bash/.bash_profile"
-        "$DOTDIR/clang/.clang-format"
-        "$DOTDIR/tmux/.tmux.conf"
-        "$DOTDIR/git/.gitconfig"
-    )
-    echo "${quickpaths[@]}"
-
-}
-
 #git worktree add -b testworktreebranch /tmp/worktreetemp/
 # git worktree list
 
@@ -173,4 +156,9 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
 export -f EXTERNAL_BUILD_AND_OPEN_PDF
 . "$HOME/.cargo/env"
 eval "$(zoxide init bash)"
+# fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
+eval "$(fzf --bash)"
 #export PATH=$HOME/.local/bin:$PATH
+
+# opencode
+export PATH=/Users/danielbaker/.opencode/bin:$PATH

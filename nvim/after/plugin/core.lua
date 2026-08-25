@@ -64,6 +64,7 @@ vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = '[S]ea
 
 local user_telescope = require('user.telescope')
 vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })
+vim.keymap.set("n", "<leader>sq", user_telescope.live_multigrep_qf, { desc = 'Live multigrep scoped to quickfix files' })
 vim.keymap.set('n', '<leader>sd', telescope_builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
 vim.keymap.set('n', '<leader><leader>', function()
     UserClearNotifications() -- clear notifications first, then the usual picker
@@ -117,17 +118,37 @@ end, { desc = '[R]e[L]oad nvim config' })
 
 
 
-function EXTERNAL_PATHS_GLOBAL()
-    local cmd = { "bash", "-lc", "EXTERNAL_PATHS_GLOBAL" }
-    local ret = vim.system(cmd):wait()
-    local out = vim.trim(ret.stdout or "")
-    local parts = out == "" and {} or vim.split(out, "%s+")
-    local dirs = { vim.fn.stdpath('config') }
-    for _, p in ipairs(parts) do
-        if p:match("%S") then table.insert(dirs, p) end
-    end
-    return dirs
+local external_paths
+local external_path_callbacks = {}
+
+local function finish_external_paths(result)
+    vim.schedule(function()
+        if result.code ~= 0 then
+            vim.notify('EXTERNAL_PATHS_GLOBAL failed: ' .. vim.trim(result.stderr or ''), vim.log.levels.ERROR)
+            external_paths = {}
+        else
+            local output = vim.trim(result.stdout or '')
+            external_paths = output == '' and {} or vim.split(output, '%s+')
+        end
+
+        for _, callback in ipairs(external_path_callbacks) do
+            callback(vim.deepcopy(external_paths))
+        end
+        external_path_callbacks = {}
+    end)
 end
+
+local function with_external_paths(callback)
+    if external_paths then
+        callback(vim.deepcopy(external_paths))
+        return
+    end
+    table.insert(external_path_callbacks, callback)
+end
+
+-- Keep the shell function as the source of truth, but pay its login-shell cost
+-- asynchronously during startup rather than when a Telescope mapping is used.
+vim.system({ 'bash', '-lc', 'EXTERNAL_PATHS_GLOBAL' }, { text = true }, finish_external_paths)
 
 vim.keymap.set('n', '<leader>mlo', function()
     vim.cmd [[Noice all]]
@@ -140,21 +161,27 @@ end, { desc = '[M]essage [D]ismiss [A]ll (clear all popup Noice messages)' })
 
 
 vim.keymap.set('n', '<leader>sdg', function()
-    local function as_list(x) return type(x) == 'table' and x or (x and { x } or {}) end
-    local search_dirs = as_list(vim.fn.stdpath('config'))
-    vim.list_extend(search_dirs, as_list(vim.fn.stdpath('data')))
-    vim.list_extend(search_dirs, as_list(EXTERNAL_PATHS_GLOBAL()))
-    user_telescope.live_multigrep({ prompt_title = "Dotfile + Lua Grep", search_dirs = search_dirs, file_ignore_patterns = { ".git/" }
-    })
+    with_external_paths(function(search_dirs)
+        -- Plugin source is the useful Lua portion of stdpath('data'); excluding
+        -- Mason avoids recursively searching hundreds of MB of installed tools.
+        table.insert(search_dirs, vim.fs.joinpath(vim.fn.stdpath('data'), 'lazy'))
+        user_telescope.live_multigrep({
+            prompt_title = 'Dotfile + Lua Grep',
+            search_dirs = search_dirs,
+            file_ignore_patterns = { '.git/' },
+        })
+    end)
 end, { desc = '[S]earch [D]otfile [G]rep' })
 
 vim.keymap.set('n', '<leader>sdf', function()
-    telescope_builtin.find_files({
-        search_dirs = EXTERNAL_PATHS_GLOBAL(),
-        hidden = true,
-        prompt_title = "Dotfile Picker",
-        file_ignore_patterns = { ".git/" }
-    })
+    with_external_paths(function(search_dirs)
+        telescope_builtin.find_files({
+            search_dirs = search_dirs,
+            hidden = true,
+            prompt_title = 'Dotfile Picker',
+            file_ignore_patterns = { '.git/' },
+        })
+    end)
 end, { desc = '[S]earch [D]otfiles [F]iles' })
 
 vim.keymap.set('n', '<leader>ct', function()

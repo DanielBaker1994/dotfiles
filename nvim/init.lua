@@ -54,18 +54,13 @@ _G.UserWinbarDirectory = function()
     local ok, dir = pcall(function()
         local winid = vim.g.actual_curwin and tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
         local buf = vim.api.nvim_win_get_buf(winid)
-        local bo = vim.bo[buf]
-
-        if bo.buftype == 'terminal' then
+        if vim.bo[buf].buftype == 'terminal' then
             return ''
         end
 
-        local name = vim.api.nvim_buf_get_name(buf)
-        if name == '' then
-            return vim.fn.fnamemodify(vim.fn.getcwd(), ':~')
-        end
-
-        return vim.fn.fnamemodify(vim.fn.fnamemodify(name, ':p:h'), ':~')
+        local winnr = vim.fn.win_id2win(winid)
+        local tabnr = vim.api.nvim_tabpage_get_number(vim.api.nvim_win_get_tabpage(winid))
+        return vim.fn.fnamemodify(vim.fn.getcwd(winnr, tabnr), ':~')
     end)
 
     return ok and dir or ''
@@ -125,414 +120,475 @@ vim.opt.rtp:prepend(lazypath)
 -- warn "Re-sourcing your config is not supported"). On reload the plugins are
 -- already loaded; only options/keymaps/autocmds/user modules get re-applied.
 if not vim.g.lazy_did_setup then
-require('lazy').setup({
-    {
-        'stevearc/oil.nvim',
-        dependencies = "nvim-mini/mini.icons",
-        config = function()
-            require("oil").setup({
-                default_file_explorer = true,
-                keymaps = {
-                    ["<C-u>"] = { "actions.parent", mode = "n" },
-                }
-            })
-        end,
-    },
-    'farmergreg/vim-lastplace',
-    {
-        'nvim-lualine/lualine.nvim',
-        dependencies = { 'nvim-tree/nvim-web-devicons' },
-        config = function()
-            require('lualine').setup({
-                options = {
-                    globalstatus = false,
-                    disabled_filetypes = { 'TelescopePrompt' },
-                },
-                sections = {
-                    lualine_a = { 'mode' },
-                    lualine_b = { 'branch' },
-                    lualine_c = {
-                        {
-                            lualine_file_path,
-                            color = 'LualineCwd',
-                            separator = '',
-                        },
-                    },
-                    lualine_x = {},
-                    lualine_y = {},
-                    lualine_z = {},
-                },
-                inactive_sections = {
-                    lualine_a = {},
-                    lualine_b = {},
-                    lualine_c = {
-                        {
-                            lualine_file_path,
-                            color = 'LualineCwd',
-                            separator = '',
-                        },
-                    },
-                    lualine_x = {},
-                    lualine_y = {},
-                    lualine_z = {},
-                },
-                tabline = {},
-                extensions = {},
-            })
-        end,
-    },
-    {
-        'HakonHarnes/img-clip.nvim',
-        config = function()
-            require('img-clip').setup()
-        end,
-    },
-    {
-        '3rd/image.nvim',
-        opts = {
-            rocks = {
-                enabled = false
-            }
-        },
-        config = function()
-            require("image").setup({
-                integrations = {
-                    markdown = {
-                        only_render_image_at_cursor = true,
-                        max_width = 20,
-                        max_height = 20,
+    require('lazy').setup({
+        {
+            'stevearc/oil.nvim',
+            dependencies = "nvim-mini/mini.icons",
+            config = function()
+                require("oil").setup({
+                    default_file_explorer = true,
+                    keymaps = {
+                        ["<C-u>"] = { "actions.parent", mode = "n" },
                     }
-                }
-            })
-        end,
-    },
-    'tpope/vim-fugitive',
-    {
-        -- Interactive git history: commit list panel + diffs.
-        -- In the panel: <CR> opens a commit diff, <tab>/<s-tab> cycle,
-        -- <C-d> opens the commit in its own Diffview, y yanks the hash,
-        -- g! opens the options panel to change git-log filters on the fly.
-        'sindrets/diffview.nvim',
-        cmd = { 'DiffviewOpen', 'DiffviewFileHistory' },
-    },
-    { 'numToStr/Comment.nvim', config = function() require('Comment').setup() end },
-    { 'alexghergh/nvim-tmux-navigation' },
-    { 'folke/which-key.nvim',  config = function() require('which-key').setup() end },
-    {
-        'nvim-telescope/telescope.nvim',
-        dependencies = { 'nvim-lua/plenary.nvim' },
-        config = function()
-            local telescope = require('telescope')
-            telescope.setup({
-                pickers = {
-                    find_files = { follow = true },
-                },
-                path_display = { "smart" },
-                extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) }
-            })
-            pcall(telescope.load_extension, 'fzf')
-            pcall(telescope.load_extension, 'ui-select')
-            pcall(telescope.load_extension, 'live_grep_args')
-        end,
-    },
-    'nvim-telescope/telescope-ui-select.nvim',
-    'nvim-telescope/telescope-live-grep-args.nvim',
-    { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make', cond = vim.fn.executable('make') == 1 },
-    'nvim-pack/nvim-spectre',
-    {
-        "saghen/blink.cmp",
-        tag = "v1.0.0",
-        dependencies = { "rafamadriz/friendly-snippets", "L3MON4D3/LuaSnip" },
-    },
-    {
-        "L3MON4D3/LuaSnip",
-        build = "make install_jsregexp",
-        config = function()
-            require('luasnip.loaders.from_vscode').lazy_load()
-        end,
-    },
-    {
-        'neovim/nvim-lspconfig',
-        dependencies = {
-            'williamboman/mason.nvim',
-            'williamboman/mason-lspconfig.nvim',
-            'WhoIsSethDaniel/mason-tool-installer.nvim',
-            "saghen/blink.cmp",
-
-            'j-hui/fidget.nvim',
+                })
+            end,
         },
-        event = { 'BufReadPre', 'BufNewFile' },
-        config = function()
-            require('mason').setup()
-            require('mason-tool-installer').setup({
-                ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', 'harper-ls' }
-            })
-
-            local capabilities = vim.lsp.protocol.make_client_capabilities()
-            local ok_blink, blink_cmp = pcall(require, 'blink.cmp')
-            if ok_blink and blink_cmp.get_lsp_capabilities then
-                capabilities = blink_cmp.get_lsp_capabilities(capabilities)
-            end
-            vim.lsp.config['*'] = { capabilities = capabilities }
-
-            vim.lsp.config.bashls = {
-                cmd = { 'bash-language-server', 'start' },
-                filetypes = { 'sh' }
-            }
-            vim.lsp.enable 'bashls'
-
-            vim.lsp.config['pyright'] = {
-                cmd = { 'pyright-langserver', '--stdio' },
-                filetypes = { 'python' },
-                settings = {
-                    inlayHints = {
-                        enabled = true,
-                        inline = true,
+        {
+            'kristijanhusak/vim-dadbod-ui',
+            dependencies = {
+                { 'tpope/vim-dadbod',                     lazy = true },
+                { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'mysql', 'plsql' }, lazy = true }, -- Optional
+            },
+            cmd = {
+                'DBUI',
+                'DBUIToggle',
+                'DBUIAddConnection',
+                'DBUIFindBuffer',
+            },
+            init = function()
+                -- Your DBUI configuration
+                vim.g.db_ui_use_nerd_fonts = 1
+                -- Expose vim-dadbod-completion as the omnifunc on SQL filetypes,
+                -- which blink.cmp consumes via its built-in `omni` provider.
+                vim.api.nvim_create_autocmd('FileType', {
+                    pattern = { 'sql', 'mysql', 'plsql' },
+                    callback = function()
+                        vim.bo.omnifunc = 'vim_dadbod_completion#omni'
+                        -- Run the SQL on the current line only (buffer-local).
+                        vim.keymap.set('n', '<leader>db', ':.DB<CR>',
+                            { buffer = true, desc = 'Execute SQL on current line' })
+                    end,
+                })
+            end,
+        },
+        {
+            'sphamba/smear-cursor.nvim',
+            opts = {},
+        },
+        'farmergreg/vim-lastplace',
+        {
+            'nvim-lualine/lualine.nvim',
+            dependencies = { 'nvim-tree/nvim-web-devicons' },
+            config = function()
+                require('lualine').setup({
+                    options = {
+                        globalstatus = false,
+                        disabled_filetypes = { 'TelescopePrompt' },
                     },
-                    python = { analysis = { typeCheckingMode = 'basic' } }
-                },
-            }
-            vim.lsp.enable('pyright')
-
-            local ok_neodev, neodev = pcall(require, 'neodev')
-            if ok_neodev then
-                neodev.setup({})
-            end
-
-            vim.lsp.config('lua_ls', {
-                on_init = function(client)
-                    if client.workspace_folders then
-                        local path = client.workspace_folders[1].name
-                        if
-                            path ~= vim.fn.stdpath('config')
-                            and (vim.uv.fs_stat(path .. '/.luarc.json') or vim.uv.fs_stat(path .. '/.luarc.jsonc'))
-                        then
-                            return
-                        end
-                    end
-                    client.config.settings.Lua = vim.tbl_deep_extend('force', client.config.settings.Lua, {
-                        runtime = {
-                            version = 'LuaJIT',
-                            path = {
-                                'lua/?.lua',
-                                'lua/?/init.lua',
+                    sections = {
+                        lualine_a = { 'mode' },
+                        lualine_b = { 'branch' },
+                        lualine_c = {
+                            {
+                                lualine_file_path,
+                                color = 'LualineCwd',
+                                separator = '',
                             },
                         },
-                        workspace = {
-                            checkThirdParty = false,
-                            library = {
-                                vim.env.VIMRUNTIME,
-                                '${3rd}/luv/library',
-                                '${3rd}/busted/library'
-                            }
-                        }
-                    })
-                end,
-                settings = {
-                    Lua = { hint = { enable = true } }
+                        lualine_x = {},
+                        lualine_y = {},
+                        lualine_z = {},
+                    },
+                    inactive_sections = {
+                        lualine_a = {},
+                        lualine_b = {},
+                        lualine_c = {
+                            {
+                                lualine_file_path,
+                                color = 'LualineCwd',
+                                separator = '',
+                            },
+                        },
+                        lualine_x = {},
+                        lualine_y = {},
+                        lualine_z = {},
+                    },
+                    tabline = {},
+                    extensions = {},
+                })
+            end,
+        },
+        {
+            'HakonHarnes/img-clip.nvim',
+            config = function()
+                require('img-clip').setup()
+            end,
+        },
+        {
+            '3rd/image.nvim',
+            opts = {
+                rocks = {
+                    enabled = false
                 }
-            })
-            vim.lsp.enable('lua_ls')
+            },
+            config = function()
+                require("image").setup({
+                    integrations = {
+                        markdown = {
+                            only_render_image_at_cursor = true,
+                            max_width = 20,
+                            max_height = 20,
+                        }
+                    }
+                })
+            end,
+        },
+        'tpope/vim-fugitive',
+        {
+            -- Interactive git history: commit list panel + diffs.
+            -- In the panel: <CR> opens a commit diff, <tab>/<s-tab> cycle,
+            -- <C-d> opens the commit in its own Diffview, y yanks the hash,
+            -- g! opens the options panel to change git-log filters on the fly.
+            'sindrets/diffview.nvim',
+            cmd = { 'DiffviewOpen', 'DiffviewFileHistory' },
+        },
+        { 'numToStr/Comment.nvim',          config = function() require('Comment').setup() end },
+        { 'alexghergh/nvim-tmux-navigation' },
+        { 'folke/which-key.nvim',           config = function() require('which-key').setup() end },
+        {
+            'nvim-telescope/telescope.nvim',
+            dependencies = { 'nvim-lua/plenary.nvim' },
+            config = function()
+                local telescope = require('telescope')
+                local telescope_actions = require('telescope.actions')
+                telescope.setup({
+                    defaults = {
+                        mappings = {
+                            n = {
+                                ['<Esc>'] = {
+                                    telescope_actions.close,
+                                    type = 'action',
+                                    opts = { nowait = true },
+                                },
+                            },
+                        },
+                    },
+                    pickers = {
+                        find_files = { follow = true },
+                    },
+                    path_display = { "smart" },
+                    extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) }
+                })
+                pcall(telescope.load_extension, 'fzf')
+                pcall(telescope.load_extension, 'ui-select')
+                pcall(telescope.load_extension, 'live_grep_args')
+            end,
+        },
+        'nvim-telescope/telescope-ui-select.nvim',
+        'nvim-telescope/telescope-live-grep-args.nvim',
+        { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make', cond = vim.fn.executable('make') == 1 },
+        'nvim-pack/nvim-spectre',
+        {
+            "saghen/blink.cmp",
+            tag = "v1.0.0",
+            dependencies = { "rafamadriz/friendly-snippets", "L3MON4D3/LuaSnip" },
+        },
+        {
+            "L3MON4D3/LuaSnip",
+            build = "make install_jsregexp",
+            config = function()
+                require('luasnip.loaders.from_vscode').lazy_load()
+            end,
+        },
+        {
+            'neovim/nvim-lspconfig',
+            dependencies = {
+                'williamboman/mason.nvim',
+                'williamboman/mason-lspconfig.nvim',
+                'WhoIsSethDaniel/mason-tool-installer.nvim',
+                "saghen/blink.cmp",
 
-            vim.lsp.config['clangd'] = {
-                cmd = { 'clangd', '--background-index', '--clang-tidy', '--query-driver=clang++' },
-                settings = {
-                    clangd = {
+                'j-hui/fidget.nvim',
+            },
+            event = { 'BufReadPre', 'BufNewFile' },
+            config = function()
+                require('mason').setup()
+                require('mason-tool-installer').setup({
+                    ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', 'harper-ls' }
+                })
+
+                local capabilities = vim.lsp.protocol.make_client_capabilities()
+                local ok_blink, blink_cmp = pcall(require, 'blink.cmp')
+                if ok_blink and blink_cmp.get_lsp_capabilities then
+                    capabilities = blink_cmp.get_lsp_capabilities(capabilities)
+                end
+                vim.lsp.config['*'] = { capabilities = capabilities }
+
+                vim.lsp.config.bashls = {
+                    cmd = { 'bash-language-server', 'start' },
+                    filetypes = { 'sh' }
+                }
+                vim.lsp.enable 'bashls'
+
+                vim.lsp.config['pyright'] = {
+                    cmd = { 'pyright-langserver', '--stdio' },
+                    filetypes = { 'python' },
+                    settings = {
                         inlayHints = {
                             enabled = true,
                             inline = true,
                         },
+                        python = { analysis = { typeCheckingMode = 'basic' } }
                     },
-                },
-                filetypes = { 'c', 'cpp', 'objc', 'objcpp' },
-            }
-            vim.lsp.enable('clangd')
+                }
+                vim.lsp.enable('pyright')
 
-            vim.lsp.config['harper_ls'] = {
-                cmd = { 'harper-ls', '--stdio' },
-                filetypes = { 'text', 'txt', 'md', 'markdown' },
-                settings = {
-                    ["harper-ls"] = {},
-                },
-            }
-            vim.lsp.enable('harper_ls')
+                local ok_neodev, neodev = pcall(require, 'neodev')
+                if ok_neodev then
+                    neodev.setup({})
+                end
 
-            vim.api.nvim_create_autocmd('BufWritePre', {
-                pattern = { '**.bash', '**.sh', '**.bashrc', '**.bash_profile' },
-                desc = 'Format Bash on save',
-                callback = function()
-                    vim.lsp.buf.format()
-                end,
-            })
+                vim.lsp.config('lua_ls', {
+                    on_init = function(client)
+                        if client.workspace_folders then
+                            local path = client.workspace_folders[1].name
+                            if
+                                path ~= vim.fn.stdpath('config')
+                                and (vim.uv.fs_stat(path .. '/.luarc.json') or vim.uv.fs_stat(path .. '/.luarc.jsonc'))
+                            then
+                                return
+                            end
+                        end
+                        client.config.settings.Lua = vim.tbl_deep_extend('force', client.config.settings.Lua, {
+                            runtime = {
+                                version = 'LuaJIT',
+                                path = {
+                                    'lua/?.lua',
+                                    'lua/?/init.lua',
+                                },
+                            },
+                            workspace = {
+                                checkThirdParty = false,
+                                library = {
+                                    vim.env.VIMRUNTIME,
+                                    '${3rd}/luv/library',
+                                    '${3rd}/busted/library'
+                                }
+                            }
+                        })
+                    end,
+                    settings = {
+                        Lua = { hint = { enable = true } }
+                    }
+                })
+                vim.lsp.enable('lua_ls')
 
-            vim.api.nvim_create_autocmd('BufWritePre', {
-                pattern = '*.lua',
-                desc = 'Format Lua on save',
-                callback = function()
-                    vim.lsp.buf.format()
-                end,
-            })
-
-            vim.api.nvim_create_autocmd('BufWritePre', {
-                pattern = { '*.cpp', '*.h' },
-                desc = 'Format C/C++ on save',
-                callback = function()
-                    vim.lsp.buf.format()
-                end,
-            })
-        end,
-    },
-    'folke/neodev.nvim',
-    {
-        'echasnovski/mini.nvim',
-        config = function()
-            require('mini.ai').setup({ n_lines = 500 })
-            require('mini.surround').setup()
-        end,
-    },
-    'bluz71/vim-moonfly-colors',
-    {
-        'folke/flash.nvim',
-        config = function()
-            require("flash").setup()
-            vim.api.nvim_set_hl(0, "FlashLabel", { fg = "#EEF5FF", bg = "#A25772", bold = true })
-        end,
-    },
-    {
-        'nvim-tree/nvim-web-devicons',
-        config = function()
-            require('nvim-web-devicons').setup({
-                override = {
-                    log = {
-                        icon = "",
-                        color = "#b07219",
-                        name = "log",
-                    },
-                },
-            })
-        end,
-    },
-    {
-        'folke/noice.nvim',
-        dependencies = { "MunifTanjim/nui.nvim", "rcarriga/nvim-notify" },
-        config = function()
-            require("notify").setup({
-                background_colour = "#000000",
-            })
-            require('noice').setup({
-
-                views = {
-                    vsplit = {
-                        enter = false,
-                    },
-                },
-
-                routes = {
-                    {
-                        view = "split",
-                        filter = { event = "msg_show", min_height = 5 },
-                    },
-                    {
-                        filter = {
-                            event = { "msg_show", "notify" },
-                            any = {
-                                { find = "E85: There is no listed buffer" },
-                                { find = ".*your config is not supported with lazy.nvim.*$" },
-                                { find = ".*L,.*B written*$" },
-                                { find = "E486: Pattern not found: ?$" },
-                                { find = "E21: Cannot make changes, 'modifiable' is off" },
-                                { find = "E490: No fold found" },
-                                { find = "Already at oldest change" },
-                                { find = "; after #%d+" },
-                                { find = "; before #%d+" },
-                                { find = "^%d+ fewer lines;?" },
-                                { find = "^%d+ more lines;?" },
-                                { find = "^%d+ line lesses;?" },
-                                { find = ".*Pattern not found.*$" },
-                                { find = "^Content is not an.*$" },
-                                { find = '^%d+ lines .ed %d+ times?$' },
-                                { find = '^%d+ lines yanked$' },
+                vim.lsp.config['clangd'] = {
+                    cmd = { 'clangd', '--background-index', '--clang-tidy', '--query-driver=clang++' },
+                    settings = {
+                        clangd = {
+                            inlayHints = {
+                                enabled = true,
+                                inline = true,
                             },
                         },
-                        opts = { skip = true },
                     },
-                },
-                lsp = {
-                    override = {
-                        ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
-                        ["vim.lsp.util.stylize_markdown"] = true,
-                        ["cmp.entry.get_documentation"] = true,
+                    filetypes = { 'c', 'cpp', 'objc', 'objcpp' },
+                }
+                vim.lsp.enable('clangd')
+
+                vim.lsp.config['harper_ls'] = {
+                    cmd = { 'harper-ls', '--stdio' },
+                    filetypes = { 'text', 'txt', 'md', 'markdown' },
+                    settings = {
+                        ["harper-ls"] = {},
                     },
-                    signature = { enabled = true },
-                    message = { enabled = true },
-                    documentation = { enabled = true },
-                },
-                presets = {
-                    bottom_search = true,
-                    command_palette = true,
-                    long_message_to_split = true,
-                    inc_rename = false,
-                    lsp_doc_border = true,
-                },
-            })
-        end,
-    },
-    {
-        'MeanderingProgrammer/render-markdown.nvim',
-        dependencies = { 'nvim-tree/nvim-web-devicons' },
-        config = function()
-            require('render-markdown').setup({
-                code = {
-                    enabled = true,
-                    render_modes = true,
-                    language_icon = true,
-                    language_name = true
-                },
-                document = {
-                    enabled = true,
-                    render_modes = true
-                },
-            })
-        end,
-    },
-    {
-        'windwp/nvim-autopairs',
-        config = function()
-            local ok, npairs = pcall(require, 'nvim-autopairs')
-            if not ok then
-                vim.notify('nvim-autopairs not found', vim.log.levels.WARN)
-                return
-            end
-            npairs.setup({
-                disable_filetype = { 'TelescopePrompt' },
-                enable_check_bracket_line = true,
-                ignored_next_char = '[%w%.]'
-            })
-        end,
-    },
-    {
-        'nvim-treesitter/nvim-treesitter-textobjects',
-        branch = 'main',
-        dependencies = { 'nvim-treesitter/nvim-treesitter' },
-    },
-    {
-        'nvim-treesitter/nvim-treesitter',
-        build = ':TSUpdate',
-        branch = 'main',
-        opts = {
-            ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-            auto_install = true,
-            highlight = {
-                enable = true,
-                -- ruby indent rules depend on vim's regex highlighting, not treesitter
-                additional_vim_regex_highlighting = { 'ruby' },
-            },
-            indent = { enable = true, disable = { 'ruby' } },
+                }
+                vim.lsp.enable('harper_ls')
+
+                vim.api.nvim_create_autocmd('BufWritePre', {
+                    pattern = { '**.bash', '**.sh', '**.bashrc', '**.bash_profile' },
+                    desc = 'Format Bash on save',
+                    callback = function()
+                        vim.lsp.buf.format()
+                    end,
+                })
+
+                vim.api.nvim_create_autocmd('BufWritePre', {
+                    pattern = '*.lua',
+                    desc = 'Format Lua on save',
+                    callback = function()
+                        vim.lsp.buf.format()
+                    end,
+                })
+
+                vim.api.nvim_create_autocmd('BufWritePre', {
+                    pattern = { '*.cpp', '*.h' },
+                    desc = 'Format C/C++ on save',
+                    callback = function()
+                        vim.lsp.buf.format()
+                    end,
+                })
+            end,
         },
-    },
-})
+        'folke/neodev.nvim',
+        {
+            'echasnovski/mini.nvim',
+            config = function()
+                require('mini.ai').setup({ n_lines = 500 })
+                require('mini.surround').setup()
+            end,
+        },
+        {
+            'catppuccin/nvim',
+            name = 'catppuccin',
+            priority = 1000,
+            opts = { flavour = 'mocha' },
+        },
+        {
+            'akinsho/toggleterm.nvim',
+            version = '*',
+            opts = {
+                open_mapping = { [[<C-/>]], [[<C-_>]] },
+                direction = 'horizontal',
+                size = 15,
+                shade_terminals = false,
+            },
+        },
+        {
+            'folke/flash.nvim',
+            config = function()
+                require("flash").setup()
+                vim.api.nvim_set_hl(0, "FlashLabel", { fg = "#EEF5FF", bg = "#A25772", bold = true })
+            end,
+        },
+        {
+            'nvim-tree/nvim-web-devicons',
+            config = function()
+                require('nvim-web-devicons').setup({
+                    override = {
+                        log = {
+                            icon = "",
+                            color = "#b07219",
+                            name = "log",
+                        },
+                    },
+                })
+            end,
+        },
+        {
+            'folke/noice.nvim',
+            dependencies = { "MunifTanjim/nui.nvim", "rcarriga/nvim-notify" },
+            config = function()
+                require("notify").setup({
+                    background_colour = "#000000",
+                })
+                require('noice').setup({
+
+                    views = {
+                        vsplit = {
+                            enter = false,
+                        },
+                    },
+
+                    routes = {
+                        {
+                            view = "split",
+                            filter = { event = "msg_show", min_height = 5 },
+                        },
+                        {
+                            filter = {
+                                event = { "msg_show", "notify" },
+                                any = {
+                                    { find = "E85: There is no listed buffer" },
+                                    { find = "DB: Query.*$" },
+                                    { find = "DB: Running query..." },
+                                    { find = ".*your config is not supported with lazy.nvim.*$" },
+                                    { find = ".*L,.*B written*$" },
+                                    { find = "E486: Pattern not found: ?$" },
+                                    { find = "E21: Cannot make changes, 'modifiable' is off" },
+                                    { find = "E490: No fold found" },
+                                    { find = "Already at oldest change" },
+                                    { find = "; after #%d+" },
+                                    { find = "; before #%d+" },
+                                    { find = "^%d+ fewer lines;?" },
+                                    { find = "^%d+ more lines;?" },
+                                    { find = "^%d+ line lesses;?" },
+                                    { find = ".*Pattern not found.*$" },
+                                    { find = "^Content is not an.*$" },
+                                    { find = '^%d+ lines .ed %d+ times?$' },
+                                    { find = '^%d+ lines yanked$' },
+                                },
+                            },
+                            opts = { skip = true },
+                        },
+                    },
+                    lsp = {
+                        override = {
+                            ["vim.lsp.util.convert_input_to_markdown_lines"] = true,
+                            ["vim.lsp.util.stylize_markdown"] = true,
+                            ["cmp.entry.get_documentation"] = true,
+                        },
+                        signature = { enabled = true },
+                        message = { enabled = true },
+                        documentation = { enabled = true },
+                    },
+                    presets = {
+                        bottom_search = true,
+                        command_palette = true,
+                        long_message_to_split = true,
+                        inc_rename = false,
+                        lsp_doc_border = true,
+                    },
+                })
+            end,
+        },
+        {
+            'MeanderingProgrammer/render-markdown.nvim',
+            dependencies = { 'nvim-tree/nvim-web-devicons' },
+            config = function()
+                require('render-markdown').setup({
+                    code = {
+                        enabled = true,
+                        render_modes = true,
+                        language_icon = true,
+                        language_name = true
+                    },
+                    document = {
+                        enabled = true,
+                        render_modes = true
+                    },
+                })
+            end,
+        },
+        {
+            'windwp/nvim-autopairs',
+            config = function()
+                local ok, npairs = pcall(require, 'nvim-autopairs')
+                if not ok then
+                    vim.notify('nvim-autopairs not found', vim.log.levels.WARN)
+                    return
+                end
+                npairs.setup({
+                    disable_filetype = { 'TelescopePrompt' },
+                    enable_check_bracket_line = true,
+                    ignored_next_char = '[%w%.]'
+                })
+            end,
+        },
+        {
+            'nvim-treesitter/nvim-treesitter-textobjects',
+            branch = 'main',
+            dependencies = { 'nvim-treesitter/nvim-treesitter' },
+        },
+        {
+            'nvim-treesitter/nvim-treesitter',
+            build = ':TSUpdate',
+            branch = 'main',
+            opts = {
+                ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+                auto_install = true,
+                highlight = {
+                    enable = true,
+                    -- ruby indent rules depend on vim's regex highlighting, not treesitter
+                    additional_vim_regex_highlighting = { 'ruby' },
+                },
+                indent = { enable = true, disable = { 'ruby' } },
+            },
+        },
+    })
 end -- if not vim.g.lazy_did_setup
-vim.cmd [[colorscheme moonfly]]
+vim.cmd.colorscheme('catppuccin-mocha')
 
 vim.keymap.set('n', '<leader>pi', function()
     local function Get_dir_path()
@@ -558,46 +614,6 @@ vim.keymap.set('n', '<leader>pi', function()
         copy_images = true,
     })
 end, { desc = 'Paste Images Markdown' })
-
--- Persistent bottom terminal: <space>to toggles hide/show and reuses the SAME
--- buffer/shell while its job is alive — no respawn, no re-source of
--- ~/.bash_profile on every toggle. A fresh shell is only created when there is
--- no live one left.
-local user_term_buf
-
-local function user_term_alive(buf)
-    if buf == nil or not vim.api.nvim_buf_is_valid(buf) then return false end
-    if vim.api.nvim_get_option_value("buftype", { buf = buf }) ~= "terminal" then return false end
-    local ok, chan = pcall(function() return vim.bo[buf].channel end)
-    if not ok or not chan or chan == 0 then return false end
-    return vim.fn.jobwait({ chan }, 0)[1] == -1 -- -1 = job still running
-end
-
-vim.keymap.set("n", "<space>to", function()
-    -- a terminal is visible in this tabpage -> hide it
-    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-        local buf = vim.api.nvim_win_get_buf(win)
-        if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
-            vim.api.nvim_win_hide(win)
-            return
-        end
-    end
-
-    if not user_term_alive(user_term_buf) then
-        user_term_buf = nil
-    end
-
-    vim.cmd("botright split")
-    if user_term_buf then
-        vim.api.nvim_win_set_buf(0, user_term_buf)
-    else
-        vim.cmd.term()
-        user_term_buf = vim.api.nvim_get_current_buf()
-    end
-    vim.cmd.wincmd("J")
-    vim.api.nvim_win_set_height(0, 15)
-    vim.cmd("startinsert")
-end, { desc = "Toggle terminal" })
 
 -- M-hjkl resize: resize the vim split, EXCEPT when it would be meaningless —
 -- on panel-like buffers (diffview panels, quickfix, oil, ...) or when nvim has
@@ -653,8 +669,6 @@ vim.api.nvim_create_autocmd({ "TermOpen" }, {
         vim.opt.number = false
         vim.opt.relativenumber = false
         vim.opt_local.winbar = ''
-        vim.cmd [[hi BlackBg guibg=black]]
-        vim.cmd [[set winhighlight=Normal:BlackBg]]
         vim.cmd [[setlocal nocursorline]]
         -- env comes from the login shell itself (see vim.o.shell above) — the
         -- old chan_send of `source ~/.bash_profile` was racy and re-ran the

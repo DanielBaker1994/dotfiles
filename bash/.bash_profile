@@ -36,3 +36,20 @@ if [[ "${BASH_VERSINFO[0]}" -eq 4 && "${BASH_VERSINFO[1]}" -ge 4 || "${BASH_VERS
 else
     complete -F _starship -o bashdefault -o default starship
 fi
+
+#Dont delete me, it is used by neovim
+#specifying dot files is ugly trick to show some hidden files in rip grep
+#without having to enable all of them
+function EXTERNAL_PATHS_GLOBAL() {
+    quickpaths=(
+        "$DOTDIR"
+        "$DOTDIR/bash/.bashrc"
+        "$DOTDIR/bash/.inputrc"
+        "$DOTDIR/bash/.bash_profile"
+        "$DOTDIR/clang/.clang-format"
+        "$DOTDIR/tmux/.tmux.conf"
+        "$DOTDIR/git/.gitconfig"
+    )
+    echo "${quickpaths[@]}"
+
+}

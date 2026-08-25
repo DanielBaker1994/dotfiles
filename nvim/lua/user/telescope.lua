@@ -4,6 +4,7 @@ local make_entry = require "telescope.make_entry"
 local conf = require "telescope.config".values
 local actions = require "telescope.actions"
 local action_state = require "telescope.actions.state"
+local sorters = require "telescope.sorters"
 
 local M = {}
 
@@ -53,12 +54,6 @@ local function build_rg_args(prompt, opts, file_mode)
         table.insert(args, glob)
     end
 
-    if opts.search_dirs and #opts.search_dirs > 0 then
-        for _, d in ipairs(type(opts.search_dirs) == 'table' and opts.search_dirs or { opts.search_dirs }) do
-            table.insert(args, d)
-        end
-    end
-
     local tail
     if file_mode then
         tail = {
@@ -81,8 +76,16 @@ local function build_rg_args(prompt, opts, file_mode)
         }
     end
 
-    ---@diagnostic disable-next-line: deprecated
-    return vim.tbl_flatten { args, tail }
+    vim.list_extend(args, tail)
+
+    local search_paths = opts.search_files or opts.search_dirs
+    if search_paths then
+        for _, path in ipairs(type(search_paths) == 'table' and search_paths or { search_paths }) do
+            table.insert(args, path)
+        end
+    end
+
+    return args
 end
 
 local function make_count_entry(opts)
@@ -118,7 +121,7 @@ function M.live_multigrep(opts)
     opts = vim.deepcopy(opts or {})
     local file_mode = opts.file_mode == true
 
-    if not opts.search_dirs then
+    if not opts.search_dirs and not opts.search_files then
         opts.cwd = opts.cwd or vim.uv.cwd()
     end
 
@@ -156,7 +159,11 @@ function M.live_multigrep(opts)
         prompt_title = file_mode and ((opts.prompt_title or 'Grep') .. ' [files]') or opts.prompt_title,
         finder = finder,
         previewer = file_mode and conf.file_previewer(opts) or conf.grep_previewer(opts),
-        sorter = require("telescope.sorters").empty(),
+        sorter = file_mode and sorters.Sorter:new {
+            scoring_function = function(_, _, _, entry)
+                return 1 / entry.count
+            end,
+        } or sorters.empty(),
         default_text = opts.default_text,
         attach_mappings = function(prompt_bufnr, map)
             actions.select_default:replace(actions.file_edit)
@@ -177,6 +184,38 @@ function M.live_multigrep(opts)
             return true
         end,
     }):find()
+end
+
+function M.live_multigrep_qf(opts)
+    local qf = vim.fn.getqflist()
+    if #qf == 0 then
+        vim.notify('Quickfix list is empty', vim.log.levels.WARN)
+        return
+    end
+
+    local seen = {}
+    local files = {}
+    for _, entry in ipairs(qf) do
+        local filename = entry.bufnr > 0 and vim.api.nvim_buf_get_name(entry.bufnr) or ''
+        if filename ~= '' then
+            filename = vim.fn.fnamemodify(filename, ':p')
+        end
+        if filename ~= '' and vim.fn.filereadable(filename) == 1 and not seen[filename] then
+            seen[filename] = true
+            table.insert(files, filename)
+        end
+    end
+
+    if #files == 0 then
+        vim.notify('No valid file paths in quickfix', vim.log.levels.WARN)
+        return
+    end
+
+    local merged = vim.deepcopy(opts or {})
+    merged.search_dirs = nil
+    merged.search_files = files
+    merged.prompt_title = 'QF Refine (' .. #files .. ' files)'
+    M.live_multigrep(merged)
 end
 
 return M

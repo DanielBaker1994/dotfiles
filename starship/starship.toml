@@ -1,7 +1,11 @@
 "$schema" = 'https://starship.rs/config-schema.json'
-[line_break]
-disabled = true
+
+# Keep the readline (INS)/(CMD) mode indicator inline at the start of the
+# prompt line instead of floating on a blank line above it.
 add_newline = false
+
+[line_break]
+disabled = false
 
 [git_branch]
 format = " [$symbol$branch(:$remote_branch)]($style) "
