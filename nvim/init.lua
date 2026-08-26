@@ -129,43 +129,38 @@ if not vim.g.lazy_did_setup then
                     default_file_explorer = true,
                     keymaps = {
                         ["<C-u>"] = { "actions.parent", mode = "n" },
+                        -- Free C-h/C-l so the global tmux pane navigation works in
+                        -- oil too (oil's defaults bind C-h=select-horizontal, C-l=refresh).
+                        ["<C-h>"] = false,
+                        ["<C-l>"] = false,
+                        -- Keep refresh reachable (was on <C-l>).
+                        ["gr"] = "actions.refresh",
                     }
                 })
             end,
         },
+        'farmergreg/vim-lastplace',
         {
-            'kristijanhusak/vim-dadbod-ui',
-            dependencies = {
-                { 'tpope/vim-dadbod',                     lazy = true },
-                { 'kristijanhusak/vim-dadbod-completion', ft = { 'sql', 'mysql', 'plsql' }, lazy = true }, -- Optional
-            },
+            'cosminadrianpopescu/vim-sql-workbench',
+            -- Loaded on demand by the SW* commands.
             cmd = {
-                'DBUI',
-                'DBUIToggle',
-                'DBUIAddConnection',
-                'DBUIFindBuffer',
+                'SWSqlBufferConnect', 'SWSqlExecuteCurrent', 'SWSqlExecuteSelected',
+                'SWSqlExecuteAll', 'SWDbExplorer', 'SWSqlBufferDisconnect',
             },
-            init = function()
-                -- Your DBUI configuration
-                vim.g.db_ui_use_nerd_fonts = 1
-                -- Expose vim-dadbod-completion as the omnifunc on SQL filetypes,
-                -- which blink.cmp consumes via its built-in `omni` provider.
-                vim.api.nvim_create_autocmd('FileType', {
-                    pattern = { 'sql', 'mysql', 'plsql' },
-                    callback = function()
-                        vim.bo.omnifunc = 'vim_dadbod_completion#omni'
-                        -- Run the SQL on the current line only (buffer-local).
-                        vim.keymap.set('n', '<leader>db', ':.DB<CR>',
-                            { buffer = true, desc = 'Execute SQL on current line' })
-                    end,
-                })
+            config = function()
+                -- SQL Workbench/J must be installed (Java app) and the Oracle
+                -- JDBC driver provided. Fill in these paths/params to plug in.
+                -- this  sqlwbconsole.sh file ships with sql work bench, it is the script to launch the app
+                vim.g.sw_exe = 'sqlwbconsole.sh'                                  -- or full path to sqlwbconsole
+                vim.g.sw_config_dir = vim.fn.stdpath('config') .. '/sqlworkbench' -- holds WbProfiles.xml
+                vim.g.sw_cache = vim.fn.stdpath('cache') .. '/sw'                 -- autocomplete/profile cache
+                -- vim.g.sw_tmp = '/tmp'  -- only needed on Windows
+
+                -- Usage: open/connect a buffer with :SWSqlBufferConnect, then
+                -- :SWSqlExecuteCurrent (or <leader><C-space>) runs the statement
+                -- under the cursor. Oracle profile lives in WbProfiles.xml.
             end,
         },
-        {
-            'sphamba/smear-cursor.nvim',
-            opts = {},
-        },
-        'farmergreg/vim-lastplace',
         {
             'nvim-lualine/lualine.nvim',
             dependencies = { 'nvim-tree/nvim-web-devicons' },
@@ -242,9 +237,42 @@ if not vim.g.lazy_did_setup then
             'sindrets/diffview.nvim',
             cmd = { 'DiffviewOpen', 'DiffviewFileHistory' },
         },
+        {
+            'lewis6991/gitsigns.nvim',
+            event = { 'BufReadPre', 'BufNewFile' },
+            opts = {},
+        },
         { 'numToStr/Comment.nvim',          config = function() require('Comment').setup() end },
+        {
+            'folke/todo-comments.nvim',
+            dependencies = { 'nvim-treesitter/nvim-treesitter' },
+            config = function() require('todo-comments').setup() end,
+        },
+        {
+            'RRethy/vim-illuminate',
+            config = function()
+                require('illuminate').configure({ under_cursor = true })
+            end,
+        },
         { 'alexghergh/nvim-tmux-navigation' },
-        { 'folke/which-key.nvim',           config = function() require('which-key').setup() end },
+        {
+            'folke/which-key.nvim',
+            config = function()
+                require('which-key').setup()
+                -- Register <leader> groups so which-key shows a labeled menu on <leader>.
+                require('which-key').add({
+                    { '<leader>s', group = 'Search' },
+                    { '<leader>g', group = 'Git' },
+                    { '<leader>d', group = 'Diagnostics / Dotfiles' },
+                    { '<leader>m', group = 'Markdown / Messages' },
+                    { '<leader>p', group = 'Paste / Parent' },
+                    { '<leader>y', group = 'Yank' },
+                    { '<leader>c', group = 'Code / Config' },
+                    { '<leader>o', group = 'Oil' },
+                    { '<leader>r', group = 'Reload' },
+                })
+            end
+        },
         {
             'nvim-telescope/telescope.nvim',
             dependencies = { 'nvim-lua/plenary.nvim' },
@@ -614,6 +642,50 @@ vim.keymap.set('n', '<leader>pi', function()
         copy_images = true,
     })
 end, { desc = 'Paste Images Markdown' })
+
+-- Persistent bottom terminal: <space>to (or <leader>+) toggles hide/show and
+-- reuses the SAME buffer/shell while its job is alive — no respawn, no
+-- re-source of ~/.bash_profile on every toggle. A fresh shell is only created
+-- when there is no live one left.
+local user_term_buf
+
+local function user_term_alive(buf)
+    if buf == nil or not vim.api.nvim_buf_is_valid(buf) then return false end
+    if vim.api.nvim_get_option_value("buftype", { buf = buf }) ~= "terminal" then return false end
+    local ok, chan = pcall(function() return vim.bo[buf].channel end)
+    if not ok or not chan or chan == 0 then return false end
+    return vim.fn.jobwait({ chan }, 0)[1] == -1 -- -1 = job still running
+end
+
+function _G.UserTermToggle()
+    -- a terminal is visible in this tabpage -> hide it
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        local buf = vim.api.nvim_win_get_buf(win)
+        if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
+            vim.api.nvim_win_hide(win)
+            return
+        end
+    end
+
+    if not user_term_alive(user_term_buf) then
+        user_term_buf = nil
+    end
+
+    vim.cmd("botright split")
+    if user_term_buf then
+        vim.api.nvim_win_set_buf(0, user_term_buf)
+    else
+        vim.cmd.term()
+        user_term_buf = vim.api.nvim_get_current_buf()
+    end
+    vim.cmd.wincmd("J")
+    vim.api.nvim_win_set_height(0, 15)
+    vim.cmd("startinsert")
+end
+
+vim.keymap.set("n", "<space>to", _G.UserTermToggle, { desc = "Toggle terminal" })
+-- Also toggle when the terminal is focused (terminal mode): hide it in place.
+vim.keymap.set("t", "<space>to", _G.UserTermToggle, { desc = "Toggle terminal" })
 
 -- M-hjkl resize: resize the vim split, EXCEPT when it would be meaningless —
 -- on panel-like buffers (diffview panels, quickfix, oil, ...) or when nvim has

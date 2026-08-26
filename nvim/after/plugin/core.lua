@@ -64,6 +64,7 @@ vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = '[S]ea
 
 local user_telescope = require('user.telescope')
 vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })
+vim.keymap.set('n', '<leader>+', function() _G.UserTermToggle() end, { desc = 'Toggle terminal' })
 vim.keymap.set("n", "<leader>sq", user_telescope.live_multigrep_qf, { desc = 'Live multigrep scoped to quickfix files' })
 vim.keymap.set('n', '<leader>sd', telescope_builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
 vim.keymap.set('n', '<leader><leader>', function()
@@ -83,6 +84,18 @@ vim.keymap.set('n', '<leader>gf', '<cmd>DiffviewFileHistory %<CR>', { desc = '[G
 vim.keymap.set('n', '<leader>gl', '<cmd>DiffviewFileHistory<CR>', { desc = '[G]it [L]og: all commits' })
 vim.keymap.set('n', '<leader>gs', require('user.git_history').open,
     { desc = '[G]it hi[S]tory: build filters interactively' })
+
+-- gitsigns: inline diff signs, blame, and hunk navigation.
+local gitsigns = require('gitsigns')
+vim.keymap.set('n', '<leader>gb', gitsigns.blame_line, { desc = '[G]it [B]lame line' })
+vim.keymap.set('n', '<leader>gh', gitsigns.preview_hunk, { desc = '[G]it preview [H]unk' })
+vim.keymap.set('n', '[h', gitsigns.prev_hunk, { desc = 'Previous git [H]unk' })
+vim.keymap.set('n', ']h', gitsigns.next_hunk, { desc = 'Next git [H]unk' })
+
+-- todo-comments: highlight TODO/FIXME and jump/search between them.
+vim.keymap.set('n', '[t', function() require('todo-comments').jump_prev() end, { desc = 'Previous TODO' })
+vim.keymap.set('n', ']t', function() require('todo-comments').jump_next() end, { desc = 'Next TODO' })
+vim.keymap.set('n', '<leader>st', '<cmd>TodoTelescope<CR>', { desc = '[S]earch [T]odo comments' })
 
 -- Full config reload without restarting nvim.
 -- 1. forget cached user.* modules so require() re-reads them from disk
@@ -191,6 +204,13 @@ end, { desc = 'Clangd: switch source/header' })
 vim.keymap.set('n', 'ss', function()
     require("flash").jump()
 end, { desc = 'Jump list teleport (flash)' })
+
+-- flash: treesitter target selection (jump to syntax nodes) + flash search in
+-- operator/visual mode (so `ds`/`cs`/`ys` work over flash targets).
+vim.keymap.set({ 'n', 'x', 'o' }, 'S', function() require('flash').treesitter() end,
+    { desc = 'Flash: treesitter targets' })
+vim.keymap.set({ 'x', 'o' }, 's', function() require('flash').jump() end,
+    { desc = 'Flash: search' })
 
 local qf_group = vim.api.nvim_create_augroup('quickfix-nav-maps', { clear = true })
 vim.api.nvim_create_autocmd({ 'FileType' }, {
