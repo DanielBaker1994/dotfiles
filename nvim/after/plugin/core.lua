@@ -236,6 +236,13 @@ vim.api.nvim_create_user_command('Cd', function(opts)
     user_cd.cd(opts.args)
 end, { nargs = 1, desc = 'CD to target' })
 
+_G.ClearOtherBuffers = function()
+    user_cd.clear_other_buffers()
+end
+vim.api.nvim_create_user_command('ClearOtherBuffers', function()
+    user_cd.clear_other_buffers()
+end, { desc = 'Close buffers outside the current workspace' })
+
 vim.keymap.set('n', '<leader>obw', ':!open %:p:h<CR>', { desc = "[O]pen [B]buffer [W]indow", silent = true })
 vim.keymap.set('n', '<leader>obe',
     function()

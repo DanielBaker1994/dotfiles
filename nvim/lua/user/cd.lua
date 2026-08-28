@@ -110,6 +110,36 @@ function M.pick()
     end)
 end
 
+function M.clear_other_buffers()
+    local c = get_config()
+    if not c or not c.root or not c.prefix then
+        vim.notify('No workspace root configured', vim.log.levels.WARN)
+        return
+    end
+    local ws = current_worktree()
+    if not ws then
+        vim.notify('Not inside a workspace worktree', vim.log.levels.WARN)
+        return
+    end
+    local cur = vim.api.nvim_get_current_buf()
+    local closed = 0
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+        if b ~= cur and vim.api.nvim_buf_is_valid(b) and vim.bo[b].buflisted
+            and vim.bo[b].buftype == '' then
+            local name = vim.api.nvim_buf_get_name(b)
+            if name ~= '' and not name:match('^%a+://') then
+                local abs = vim.fn.fnamemodify(name, ':p')
+                if not (abs == ws or vim.startswith(abs, ws .. '/')) then
+                    if pcall(vim.api.nvim_buf_delete, b, { force = true }) then
+                        closed = closed + 1
+                    end
+                end
+            end
+        end
+    end
+    vim.notify('Closed ' .. closed .. ' buffer(s) outside workspace', vim.log.levels.INFO)
+end
+
 -- Load the bash-defined targets once, asynchronously at startup, so using a
 -- cd target later doesn't pay the bash -lc cost (mirrors EXTERNAL_PATHS_GLOBAL).
 vim.system({ 'bash', '-lc', 'NVIM_CD_TARGETS' }, { text = true }, function(ret)
