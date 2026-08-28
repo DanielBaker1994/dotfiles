@@ -47,18 +47,35 @@ end
 
 function M.names()
     local c = get_config()
-    if not c then
-        return {}
-    end
     local names = {}
-    for k in pairs(c.targets) do
-        table.insert(names, k)
+    if c then
+        for k in pairs(c.targets) do
+            table.insert(names, k)
+        end
     end
+    table.insert(names, 'buffer')
     table.sort(names)
     return names
 end
 
 function M.cd(name)
+    if name == 'buffer' then
+        local dir
+        local ok_oil, oil = pcall(require, 'oil')
+        if ok_oil then
+            dir = oil.get_current_dir(0)
+        end
+        if not dir then
+            dir = vim.fn.expand('%:p:h')
+        end
+        if dir == '' or vim.fn.isdirectory(dir) == 0 then
+            vim.notify('cd: not a valid directory: ' .. tostring(dir), vim.log.levels.WARN)
+            return
+        end
+        vim.cmd('cd ' .. vim.fn.fnameescape(dir))
+        vim.notify('cd ' .. dir, vim.log.levels.INFO)
+        return
+    end
     local c = get_config()
     if not c or not c.targets[name] then
         vim.notify('Unknown cd target: ' .. name, vim.log.levels.WARN)

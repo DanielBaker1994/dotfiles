@@ -468,6 +468,7 @@ if not vim.g.lazy_did_setup then
                     float_opts = { border = 'curved' },
                 })
                 function _G.LazyGitToggle()
+                    lazygit.dir = vim.fn.getcwd()
                     lazygit:toggle()
                 end
                 vim.keymap.set('n', '<leader>lg', _G.LazyGitToggle, { desc = 'Toggle LazyGit' })
