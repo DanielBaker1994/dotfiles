@@ -22,7 +22,5 @@ selected="$(
 
 sesh connect "$selected"
 
-# Label the current window with the sesh item name instead of the program name.
-# Strip ANSI colour codes, take the trailing token (name or path), then the basename.
 name=$(printf '%s\n' "$selected" | perl -pe 's/\e\[[0-9;]*m//g' | awk '{print $NF}')
 tmux rename-window -- "${name##*/}"

@@ -85,14 +85,12 @@ vim.keymap.set('n', '<leader>gl', '<cmd>DiffviewFileHistory<CR>', { desc = '[G]i
 vim.keymap.set('n', '<leader>gs', require('user.git_history').open,
     { desc = '[G]it hi[S]tory: build filters interactively' })
 
--- gitsigns: inline diff signs, blame, and hunk navigation.
 local gitsigns = require('gitsigns')
 vim.keymap.set('n', '<leader>gb', gitsigns.blame_line, { desc = '[G]it [B]lame line' })
 vim.keymap.set('n', '<leader>gh', gitsigns.preview_hunk, { desc = '[G]it preview [H]unk' })
 vim.keymap.set('n', '[h', gitsigns.prev_hunk, { desc = 'Previous git [H]unk' })
 vim.keymap.set('n', ']h', gitsigns.next_hunk, { desc = 'Next git [H]unk' })
 
--- todo-comments: highlight TODO/FIXME and jump/search between them.
 vim.keymap.set('n', '[t', function() require('todo-comments').jump_prev() end, { desc = 'Previous TODO' })
 vim.keymap.set('n', ']t', function() require('todo-comments').jump_next() end, { desc = 'Next TODO' })
 vim.keymap.set('n', '<leader>st', '<cmd>TodoTelescope<CR>', { desc = '[S]earch [T]odo comments' })
@@ -205,8 +203,6 @@ vim.keymap.set('n', 'ss', function()
     require("flash").jump()
 end, { desc = 'Jump list teleport (flash)' })
 
--- flash: treesitter target selection (jump to syntax nodes) + flash search in
--- operator/visual mode (so `ds`/`cs`/`ys` work over flash targets).
 vim.keymap.set({ 'n', 'x', 'o' }, 'S', function() require('flash').treesitter() end,
     { desc = 'Flash: treesitter targets' })
 vim.keymap.set({ 'x', 'o' }, 's', function() require('flash').jump() end,
@@ -232,25 +228,13 @@ vim.api.nvim_create_autocmd({ 'FileType' }, {
 })
 
 
+local user_cd = require('user.cd')
 vim.keymap.set('n', '<leader>cd', function()
-    -- oil buffers are named with a URL scheme (e.g. oil:///Users/...), so
-    -- expand('%:p:h') yields a bogus path and :cd fails with E472. Ask oil for
-    -- the real directory it shows; fall back to the buffer's parent dir.
-    local dir
-    local ok_oil, oil = pcall(require, 'oil')
-    if ok_oil then
-        dir = oil.get_current_dir(0)
-    end
-    if not dir then
-        dir = vim.fn.expand('%:p:h')
-    end
-    if dir == '' or vim.fn.isdirectory(dir) == 0 then
-        vim.notify('cd: not a valid directory: ' .. tostring(dir), vim.log.levels.WARN)
-        return
-    end
-    vim.cmd('cd ' .. vim.fn.fnameescape(dir))
-    vim.notify('Changed directory to ' .. dir, vim.log.levels.INFO)
-end, { desc = "CD to buffer's dir (oil-aware)" })
+    user_cd.pick()
+end, { desc = 'CD to worktree target' })
+vim.api.nvim_create_user_command('Cd', function(opts)
+    user_cd.cd(opts.args)
+end, { nargs = 1, desc = 'CD to target' })
 
 vim.keymap.set('n', '<leader>obw', ':!open %:p:h<CR>', { desc = "[O]pen [B]buffer [W]indow", silent = true })
 vim.keymap.set('n', '<leader>obe',

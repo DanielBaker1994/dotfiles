@@ -53,3 +53,13 @@ function EXTERNAL_PATHS_GLOBAL() {
     echo "${quickpaths[@]}"
 
 }
+
+# root = base dir where all git worktrees live; prefix = name prefix of each
+# worktree dir (e.g. ~/jira/JT-123); target lines are name<TAB>subpath relative
+# to the matched worktree.
+function NVIM_CD_TARGETS() {
+    printf 'root\t%s\n' "$HOME/jira"
+    printf 'prefix\t%s\n' 'JT'
+    printf 'top\t.\n'
+    printf 'cpp\tcpp\n'
+}

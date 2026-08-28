@@ -129,11 +129,8 @@ if not vim.g.lazy_did_setup then
                     default_file_explorer = true,
                     keymaps = {
                         ["<C-u>"] = { "actions.parent", mode = "n" },
-                        -- Free C-h/C-l so the global tmux pane navigation works in
-                        -- oil too (oil's defaults bind C-h=select-horizontal, C-l=refresh).
                         ["<C-h>"] = false,
                         ["<C-l>"] = false,
-                        -- Keep refresh reachable (was on <C-l>).
                         ["gr"] = "actions.refresh",
                     }
                 })
@@ -142,23 +139,16 @@ if not vim.g.lazy_did_setup then
         'farmergreg/vim-lastplace',
         {
             'cosminadrianpopescu/vim-sql-workbench',
-            -- Loaded on demand by the SW* commands.
             cmd = {
                 'SWSqlBufferConnect', 'SWSqlExecuteCurrent', 'SWSqlExecuteSelected',
                 'SWSqlExecuteAll', 'SWDbExplorer', 'SWSqlBufferDisconnect',
             },
             config = function()
-                -- SQL Workbench/J must be installed (Java app) and the Oracle
-                -- JDBC driver provided. Fill in these paths/params to plug in.
                 -- this  sqlwbconsole.sh file ships with sql work bench, it is the script to launch the app
-                vim.g.sw_exe = 'sqlwbconsole.sh'                                  -- or full path to sqlwbconsole
-                vim.g.sw_config_dir = vim.fn.stdpath('config') .. '/sqlworkbench' -- holds WbProfiles.xml
-                vim.g.sw_cache = vim.fn.stdpath('cache') .. '/sw'                 -- autocomplete/profile cache
-                -- vim.g.sw_tmp = '/tmp'  -- only needed on Windows
-
-                -- Usage: open/connect a buffer with :SWSqlBufferConnect, then
-                -- :SWSqlExecuteCurrent (or <leader><C-space>) runs the statement
-                -- under the cursor. Oracle profile lives in WbProfiles.xml.
+                vim.g.sw_exe = 'sqlwbconsole.sh'
+                vim.g.sw_config_dir = vim.fn.stdpath('config') .. '/sqlworkbench'
+                vim.g.sw_cache = vim.fn.stdpath('cache') .. '/sw'
+                -- vim.g.sw_tmp = '/tmp'
             end,
         },
         {
@@ -259,7 +249,6 @@ if not vim.g.lazy_did_setup then
             'folke/which-key.nvim',
             config = function()
                 require('which-key').setup()
-                -- Register <leader> groups so which-key shows a labeled menu on <leader>.
                 require('which-key').add({
                     { '<leader>s', group = 'Search' },
                     { '<leader>g', group = 'Git' },
@@ -466,12 +455,23 @@ if not vim.g.lazy_did_setup then
         {
             'akinsho/toggleterm.nvim',
             version = '*',
-            opts = {
-                open_mapping = { [[<C-/>]], [[<C-_>]] },
-                direction = 'horizontal',
-                size = 15,
-                shade_terminals = false,
-            },
+            config = function()
+                require('toggleterm').setup({
+                    direction = 'horizontal',
+                    size = 15,
+                    shade_terminals = false,
+                })
+                local Terminal = require('toggleterm.terminal').Terminal
+                local lazygit = Terminal:new({
+                    cmd = 'lazygit',
+                    direction = 'float',
+                    float_opts = { border = 'curved' },
+                })
+                function _G.LazyGitToggle()
+                    lazygit:toggle()
+                end
+                vim.keymap.set('n', '<leader>lg', _G.LazyGitToggle, { desc = 'Toggle LazyGit' })
+            end,
         },
         {
             'folke/flash.nvim',
@@ -643,10 +643,6 @@ vim.keymap.set('n', '<leader>pi', function()
     })
 end, { desc = 'Paste Images Markdown' })
 
--- Persistent bottom terminal: <space>to (or <leader>+) toggles hide/show and
--- reuses the SAME buffer/shell while its job is alive — no respawn, no
--- re-source of ~/.bash_profile on every toggle. A fresh shell is only created
--- when there is no live one left.
 local user_term_buf
 
 local function user_term_alive(buf)
@@ -658,7 +654,6 @@ local function user_term_alive(buf)
 end
 
 function _G.UserTermToggle()
-    -- a terminal is visible in this tabpage -> hide it
     for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
         local buf = vim.api.nvim_win_get_buf(win)
         if vim.api.nvim_get_option_value("buftype", { buf = buf }) == "terminal" then
@@ -684,8 +679,23 @@ function _G.UserTermToggle()
 end
 
 vim.keymap.set("n", "<space>to", _G.UserTermToggle, { desc = "Toggle terminal" })
--- Also toggle when the terminal is focused (terminal mode): hide it in place.
-vim.keymap.set("t", "<space>to", _G.UserTermToggle, { desc = "Toggle terminal" })
+
+vim.api.nvim_create_autocmd("TermClose", {
+    group = vim.api.nvim_create_augroup("user-term-close-quit", { clear = true }),
+    callback = function(args)
+        if args.buf and vim.api.nvim_buf_is_valid(args.buf) then
+            pcall(vim.api.nvim_buf_delete, args.buf, { force = true })
+        end
+        for _, b in ipairs(vim.api.nvim_list_bufs()) do
+            local name = vim.api.nvim_buf_get_name(b)
+            local bt = vim.bo[b].buftype
+            if bt ~= "terminal" and name ~= "" and not name:match("^oil://") then
+                return
+            end
+        end
+        vim.cmd("qa!")
+    end,
+})
 
 -- M-hjkl resize: resize the vim split, EXCEPT when it would be meaningless —
 -- on panel-like buffers (diffview panels, quickfix, oil, ...) or when nvim has
