@@ -1,5 +1,13 @@
 #!/usr/bin/env bash
-alias f='nvim $(fzf)'
+# Guard against a stale `f` alias from a previous .bashrc: bash expands aliases
+# at parse time, so an existing alias would corrupt this function definition.
+unalias f 2>/dev/null
+f() {
+    # Cancel (ESC) -> no selection -> don't open nvim at all.
+    local sel
+    sel=$(fzf) || return
+    nvim "$sel"
+}
 #alias mediaconnect='ssh -X daniel@10.0.0.93'
 alias mediaconnect='ssh daniel@10.0.0.247'
 
@@ -17,6 +25,8 @@ alias clear="TERM=xterm /usr/bin/clear" #terminals database is inaccessible
 alias cls="clear && printf '\e[3J'"
 alias pbcopy="perl -pe 'chomp if eof' | pbcopy"
 alias cddot="cd ~/.dotfiles"
+alias ..="cd .."
+#alias -="cd -"
 
 if [ -f "$HOME/.dotfiles/bash/workflow.sh" ]; then
     source "$HOME/.dotfiles/bash/workflow.sh"
@@ -24,7 +34,8 @@ fi
 
 FILE_LINES=/tmp/files_lines.txt
 parse_git_branch() {
-    git branch 2>/dev/null | sed -e '/^[^*]/d' -e 's/* \(.*\)/ (\1)/'
+    local b
+    b=$(git symbolic-ref --short HEAD 2>/dev/null) && printf ' (%s)' "$b" || printf ' (detached)'
 }
 export PS1='\u \w $(parse_git_branch) >'
 
@@ -42,8 +53,8 @@ function killshellcheck() {
 }
 
 filepathsquick() {
-    mapfile files < <(eval EXTERNAL_PATHS_GLOBAL)
-    file_select=$(printf "%s\n" ${files[*]} | fzf --reverse --header "Select a file alias or action")
+    mapfile files < <(EXTERNAL_PATHS_GLOBAL)
+    file_select=$(printf "%s\n" "${files[@]}" | fzf --reverse --header "Select a file alias or action")
     [ -z "$file_select" ] && return 0
     if [[ -f "$file_select" ]]; then
         tmux new-window -n "${file_select##*/}" "${file_select%/*}; nvim $file_select"
@@ -96,64 +107,12 @@ function oil() { Oil; }
 #git worktree add -b testworktreebranch /tmp/worktreetemp/
 # git worktree list
 
-function EXTERNAL_BUILD_AND_OPEN_PDF() {
-    command -v pandoc &>/dev/null || {
-        echo "pandoc must be installed"
-        return 1
-    }
-    command -v weasyprint &>/dev/null || {
-        echo "weasyprint must be installed"
-        return 1
-    }
+# External commands & config consumed by nvim (EXTERNAL_BUILD_AND_OPEN_PDF,
+# EXTERNAL_PATHS_GLOBAL, NVIM_CD_TARGETS, JIRA_*). Kept together in one file.
+if [ -f ~/.dotfiles/bash/external.sh ]; then
+    source "$HOME/.dotfiles/bash/external.sh"
+fi
 
-    local markdown_admontion_file="$DOTDIR/markdown_generator/admonition.lua"
-    local markdown_css_styling="$DOTDIR/markdown_generator/friendly_document_styling.css"
-    if [[ ! -f "$NERDFONT_PATH_GLOBAL" || ! -f "$markdown_admontion_file" || ! -f "$markdown_css_styling" ]]; then
-        echo "One or more required resources are missing html_styling: $NERDFONT_PATH_GLOBAL $markdown_admontion_file $markdown_css_styling"
-        return 1
-    fi
-
-    local markdown_source="$1" pdf_output_path="$2"
-    if [ -z "$markdown_source" ] || [ -z "$pdf_output_path" ]; then
-        printf 'usage: build_and_open_pdf markdown_source RESOURCE_PATH OUT_PATH\n' >&2
-        return 1
-    fi
-    previews=$(ps -ef | pgrep "Preview" 2>/dev/null || true)
-    if [[ -n "$previews" ]]; then
-        while IFS= read -r item; do
-            [[ -n "$item" ]] && kill -9 "$item"
-        done <<<"$previews"
-    fi
-
-    pdf_file="${pdf_output_path}.pdf"
-    base_noext="$pdf_output_path"
-    html_tmp="${base_noext}.html"
-    if [[ -f $html_tmp ]]; then
-        rm "$html_tmp"
-    fi
-    if pandoc -s -f markdown+raw_html -t html5 \
-        --resource-path="$ASSET_PICTURES_DIRECTORY_GLOBAL:$DOTDIR/markdown_generator" \
-        --lua-filter="$markdown_admontion_file" \
-        --syntax-highlighting=tango \
-        -V lang=en \
-        --include-in-header="$markdown_css_styling" \
-        -o "$html_tmp" "$markdown_source"; then
-        open "$html_tmp"
-    else
-        echo "Pandoc failed"
-        return 3
-    fi
-
-    weasyprint "$html_tmp" "$pdf_file" || {
-        echo "weasyprint failed"
-        return 3
-    }
-    killshellcheck
-
-    return 0
-}
-
-export -f EXTERNAL_BUILD_AND_OPEN_PDF
 . "$HOME/.cargo/env"
 eval "$(zoxide init bash)"
 # fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
@@ -161,4 +120,5 @@ eval "$(fzf --bash)"
 #export PATH=$HOME/.local/bin:$PATH
 
 # opencode
-export PATH=/Users/danielbaker/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
+export PATH="/Users/danielbaker/.local/bin:$PATH"

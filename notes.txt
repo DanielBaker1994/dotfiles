@@ -1,0 +1,44 @@
+control + w + z  # zoom  buffer full/unfull
+control + w + r # rotate buffer down
+:wincmd W
+:wincmd K
+
+
+# install terminal-browser
+curl -fsSL https://terminal-browser.sh/install | bash
+
+
+need to install ghostty
+--ghost setting only one i care about 
+macos-titlebar-style = hidden
+
+Raycast install - ScreenOCR - recognize text allow in a body
+
+
+try out - really powerful for a human
+brew install vorssaint
+
+
+brew install tealdeer
+tldr --show-paths
+tldr grep 
+tldr rg
+
+
+
+raycast extension 
+
+
+# single quote this shit 
+rg -g '**tmux/**'  -g '**bash/**' -g '!**excludeme**' tmux
+
+
+
+#search word tmux, ignore alias after, you can't combine -v and -e in one line, doesnt work
+rg -g '**tmux/**'  -g '**bash/**' tmux  | rg -v alias
+
+
+
+
+
+

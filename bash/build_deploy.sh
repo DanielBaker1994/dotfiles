@@ -15,6 +15,9 @@ RECORDING=0
 
 # Build
 BD_BUILD_HOST="${BD_BUILD_HOST:-REMOTE_BUILD_ALIAS}"
+# Host aliases offered at the selection stage (space-separated). The default
+# (BD_BUILD_HOST) is pre-selected, so just press Enter to accept it.
+BD_HOST_ALIASES="${BD_HOST_ALIASES:-DEV1 DEV2 DEV3 UAT1 UAT2 UAT3}"
 BD_BUILD_BASE="${BD_BUILD_BASE:-/tmp/set/this/yourself}"
 BD_BUILD_BASHRC="${BD_BUILD_BASHRC:-/path/to/custom/bashrc}"
 BD_BUILD_ENV="${BD_BUILD_ENV:-/path/to/build/env/file}"
@@ -125,6 +128,25 @@ prompt_binary() {
 
     read -r -p "Binary [$default]: " BD_BINARY_REL
     BD_BINARY_REL="${BD_BINARY_REL:-$default}"
+}
+
+# Pick the build host alias from BD_HOST_ALIASES. The default (BD_BUILD_HOST)
+# is pre-typed into fzf so a bare Enter accepts it; typing clears it to pick
+# a different alias. Esc/empty falls back to the default.
+select_alias() {
+    local default="${1:-$BD_BUILD_HOST}"
+    local aliases=() picked
+
+    read -r -a aliases <<<"$BD_HOST_ALIASES"
+
+    if (( ${#aliases[@]} <= 1 )); then
+        BD_BUILD_HOST="$default"
+        return
+    fi
+
+    picked=$(printf '%s\n' "${aliases[@]}" | fzf --query "$default" --prompt "Build host > ") || true
+    BD_BUILD_HOST="${picked:-$default}"
+    say "build host: $BD_BUILD_HOST"
 }
 
 compose_env_cmd() {
@@ -262,16 +284,19 @@ do_rerun() {
         return 1
     }
 
-    local sub project binary
+    local sub project binary host
 
     sub=$(awk -F= '$1 == "SUBCMD" {print $2; exit}' "$LAST_FILE")
     project=$(awk -F= '$1 == "PROJECT" {print $2; exit}' "$LAST_FILE")
     binary=$(awk -F= '$1 == "BINARY_REL" {print $2; exit}' "$LAST_FILE")
+    host=$(awk -F= '$1 == "BUILD_HOST" {print $2; exit}' "$LAST_FILE")
 
     [[ -n "$project" ]] || {
         echo "build_deploy: last run has no project" >&2
         return 1
     }
+
+    [[ -n "$host" ]] && BD_BUILD_HOST="$host"
 
     if [[ "$sub" == "build" || "$sub" == "all" ]]; then
         BD_BINARY_REL="$binary"
@@ -311,6 +336,8 @@ dispatch() {
 
         record_init "$cmd" "$start"
         record_kv PROJECT "$project"
+        select_alias
+        record_kv BUILD_HOST "$BD_BUILD_HOST"
 
         if [[ "$cmd" != "sync" ]]; then
             prompt_binary "$project"

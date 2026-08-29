@@ -246,6 +246,12 @@ if not vim.g.lazy_did_setup then
         },
         { 'alexghergh/nvim-tmux-navigation' },
         {
+            'szw/vim-maximizer',
+            keys = {
+                { '<C-w>z', '<cmd>MaximizerToggle<CR>', desc = 'Zoom current window (toggle)' },
+            },
+        },
+        {
             'folke/which-key.nvim',
             config = function()
                 require('which-key').setup()
@@ -321,7 +327,7 @@ if not vim.g.lazy_did_setup then
             config = function()
                 require('mason').setup()
                 require('mason-tool-installer').setup({
-                    ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', 'harper-ls' }
+                    ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', --[[ 'harper-ls' ]] }
                 })
 
                 local capabilities = vim.lsp.protocol.make_client_capabilities()
@@ -404,14 +410,14 @@ if not vim.g.lazy_did_setup then
                 }
                 vim.lsp.enable('clangd')
 
-                vim.lsp.config['harper_ls'] = {
-                    cmd = { 'harper-ls', '--stdio' },
-                    filetypes = { 'text', 'txt', 'md', 'markdown' },
-                    settings = {
-                        ["harper-ls"] = {},
-                    },
-                }
-                vim.lsp.enable('harper_ls')
+                -- vim.lsp.config['harper_ls'] = {
+                --     cmd = { 'harper-ls', '--stdio' },
+                --     filetypes = { 'text', 'txt', 'md', 'markdown' },
+                --     settings = {
+                --         ["harper-ls"] = {},
+                --     },
+                -- }
+                -- vim.lsp.enable('harper_ls')
 
                 vim.api.nvim_create_autocmd('BufWritePre', {
                     pattern = { '**.bash', '**.sh', '**.bashrc', '**.bash_profile' },
@@ -471,6 +477,7 @@ if not vim.g.lazy_did_setup then
                     lazygit.dir = vim.fn.getcwd()
                     lazygit:toggle()
                 end
+
                 vim.keymap.set('n', '<leader>lg', _G.LazyGitToggle, { desc = 'Toggle LazyGit' })
             end,
         },
@@ -620,19 +627,10 @@ end -- if not vim.g.lazy_did_setup
 vim.cmd.colorscheme('catppuccin-mocha')
 
 vim.keymap.set('n', '<leader>pi', function()
-    local function Get_dir_path()
-        local cmd = { 'bash', '-lc', 'source ~/.bash_profile >/dev/null 2>&1 && ' ..
-        'echo $ASSET_PICTURES_DIRECTORY_GLOBAL' }
-        local ret = vim.system(cmd):wait()
-        if ret.code ~= 0 then
-            vim.notify("Failed running command: " .. vim.inspect(cmd), vim.log.levels.ERROR)
-            return nil
-        end
-        return vim.fn.expand(ret.stdout)
-    end
-
-    local asset_path = Get_dir_path()
-    if not asset_path then
+    -- ASSET_PICTURES_DIRECTORY_GLOBAL is fetched/cached by the bash_external
+    -- module (see lua/bash_external/asset_pictures_dir.lua).
+    local asset_path = require('bash_external.asset_pictures_dir').get()
+    if not asset_path or asset_path == '' then
         vim.notify("Failed to find directory", vim.log.levels.ERROR)
         return
     end
@@ -690,7 +688,11 @@ vim.api.nvim_create_autocmd("TermClose", {
         for _, b in ipairs(vim.api.nvim_list_bufs()) do
             local name = vim.api.nvim_buf_get_name(b)
             local bt = vim.bo[b].buftype
-            if bt ~= "terminal" and name ~= "" and not name:match("^oil://") then
+            -- Only LISTED buffers keep nvim alive. :bd unlists a buffer but
+            -- leaves it registered with its name, so hidden/unlisted leftovers
+            -- (the "background no-name buffer") would otherwise block the quit.
+            if bt ~= "terminal" and vim.bo[b].buflisted
+                and name ~= "" and not name:match("^oil://") then
                 return
             end
         end
@@ -806,3 +808,10 @@ vim.keymap.set('t', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
 vim.keymap.set('t', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
 vim.keymap.set('t', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
 vim.keymap.set('t', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)
+
+-- Same zoom (<C-w>z) from inside a terminal so the key is consistent with
+-- normal buffers. The plugin's `normal! ze` can't run from terminal mode, so
+-- exit to normal mode first, toggle, then re-enter the terminal. Tradeoff: in
+-- the shell C-w + z is intercepted (bash C-w alone still deletes a word).
+vim.keymap.set('t', '<C-w>z', '<C-\\><C-n>:MaximizerToggle<CR>i',
+    { desc = 'Zoom current window (toggle)' })

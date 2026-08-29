@@ -1,5 +1,9 @@
 local M = {}
 
+-- EXTERNAL_BUILD_AND_OPEN_PDF runs via the bash_external module
+-- (see lua/bash_external/build_and_open_pdf.lua).
+local build_and_open_pdf = require('bash_external.build_and_open_pdf')
+
 function M.markdown_open()
     local bufname = vim.fn.expand('%:t')
     if not bufname:lower():match('%.md$') then
@@ -12,13 +16,7 @@ function M.markdown_open()
 
     local src = vim.fn.expand('%:p')
 
-    local function sh(s)
-        return string.format("'%s'", tostring(s):gsub("'", "'\\''"))
-    end
-    local bash_call = 'EXTERNAL_BUILD_AND_OPEN_PDF ' .. sh(src) .. ' ' .. ' ' .. sh(out_path)
-    vim.notify(bash_call)
-    local cmd = { 'bash', '-lc', bash_call }
-    local ret = vim.system(cmd):wait()
+    local ret = build_and_open_pdf.run(src, out_path)
     if ret.code ~= 0 then
         vim.notify('pandoc failed: ' .. (ret.stderr or ret.stdout or 'unknown'), vim.log.levels.ERROR)
     end

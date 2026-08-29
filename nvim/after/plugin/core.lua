@@ -55,14 +55,14 @@ end
 vim.keymap.set('n', '<Esc><Esc>', UserClearNotifications, { desc = 'Clear all notifications' })
 
 local telescope_builtin = require('telescope.builtin')
+local user_telescope = require('user.telescope')
 vim.keymap.set('n', '<leader>sh', telescope_builtin.help_tags, { desc = '[S]earch [H]elp' })
 vim.keymap.set('n', '<leader>sk', telescope_builtin.keymaps, { desc = '[S]earch [K]eymaps' })
-vim.keymap.set('n', '<leader>sf', telescope_builtin.find_files, { desc = '[S]earch [F]iles' })
+vim.keymap.set('n', '<leader>sf', user_telescope.files, { desc = '[S]earch [F]iles <space><space>**globs' })
 vim.keymap.set('n', '<leader>ss', telescope_builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
 vim.keymap.set('n', '<leader>sr', telescope_builtin.resume, { desc = '[S]esume Telescope' })
 vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = '[S]earch current [W]ord' })
 
-local user_telescope = require('user.telescope')
 vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })
 vim.keymap.set('n', '<leader>+', function() _G.UserTermToggle() end, { desc = 'Toggle terminal' })
 vim.keymap.set("n", "<leader>sq", user_telescope.live_multigrep_qf, { desc = 'Live multigrep scoped to quickfix files' })
@@ -129,37 +129,13 @@ end, { desc = '[R]e[L]oad nvim config' })
 
 
 
-local external_paths
-local external_path_callbacks = {}
-
-local function finish_external_paths(result)
-    vim.schedule(function()
-        if result.code ~= 0 then
-            vim.notify('EXTERNAL_PATHS_GLOBAL failed: ' .. vim.trim(result.stderr or ''), vim.log.levels.ERROR)
-            external_paths = {}
-        else
-            local output = vim.trim(result.stdout or '')
-            external_paths = output == '' and {} or vim.split(output, '%s+')
-        end
-
-        for _, callback in ipairs(external_path_callbacks) do
-            callback(vim.deepcopy(external_paths))
-        end
-        external_path_callbacks = {}
-    end)
-end
+local external_paths = require('bash_external.external_paths')
 
 local function with_external_paths(callback)
-    if external_paths then
-        callback(vim.deepcopy(external_paths))
-        return
-    end
-    table.insert(external_path_callbacks, callback)
+    external_paths.on_load(function(paths)
+        callback(vim.deepcopy(paths))
+    end)
 end
-
--- Keep the shell function as the source of truth, but pay its login-shell cost
--- asynchronously during startup rather than when a Telescope mapping is used.
-vim.system({ 'bash', '-lc', 'EXTERNAL_PATHS_GLOBAL' }, { text = true }, finish_external_paths)
 
 vim.keymap.set('n', '<leader>mlo', function()
     vim.cmd [[Noice all]]

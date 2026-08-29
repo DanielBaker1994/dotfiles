@@ -168,3 +168,4 @@ wezterm
 zoxide
 sesh
 fd
+tldr

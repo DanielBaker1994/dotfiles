@@ -1,30 +1,11 @@
 local M = {}
-local cfg = nil
 
-local function parse(ret)
-    local parsed = { root = nil, prefix = nil, targets = {} }
-    for line in vim.gsplit(vim.trim(ret.stdout), '\n') do
-        local key, val = line:match('^([^\t]+)\t(.*)$')
-        if key == 'root' then
-            parsed.root = val
-        elseif key == 'prefix' then
-            parsed.prefix = val
-        else
-            parsed.targets[key] = val or '.'
-        end
-    end
-    return parsed
-end
+-- NVIM_CD_TARGETS is defined in bash and prefetched/cached by the
+-- bash_external module (see lua/bash_external/cd_targets.lua).
+local cd_targets = require('bash_external.cd_targets')
 
 local function get_config()
-    if cfg then
-        return cfg
-    end
-    local ret = vim.system({ 'bash', '-lc', 'NVIM_CD_TARGETS' }, { text = true }):wait()
-    if ret.code == 0 then
-        cfg = parse(ret)
-    end
-    return cfg
+    return cd_targets.get()
 end
 
 local function current_worktree()
@@ -139,13 +120,5 @@ function M.clear_other_buffers()
     end
     vim.notify('Closed ' .. closed .. ' buffer(s) outside workspace', vim.log.levels.INFO)
 end
-
--- Load the bash-defined targets once, asynchronously at startup, so using a
--- cd target later doesn't pay the bash -lc cost (mirrors EXTERNAL_PATHS_GLOBAL).
-vim.system({ 'bash', '-lc', 'NVIM_CD_TARGETS' }, { text = true }, function(ret)
-    if ret.code == 0 then
-        cfg = parse(ret)
-    end
-end)
 
 return M

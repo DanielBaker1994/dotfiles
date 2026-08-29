@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+#https://github.com/Maxteabag/sqlit - pipx install sqlit-tui - /Users/danielbaker/.local/bin/sqlit-tui - ~/.local/bin/sqlit --mock=sqlite-demo
+#gr to execute is nice
+# ~/.config/sqlit/
+
 set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
@@ -16,6 +20,7 @@ declare -A dotfiles=(
     ["$HOME/.tmux.conf"]="$SCRIPT_DIR/tmux/.tmux.conf"
     ["$HOME/.config/starship.toml"]="$SCRIPT_DIR/starship/starship.toml"
     ["$HOME/.config/sesh/sesh.toml"]="$SCRIPT_DIR/sesh/sesh.toml"
+    ["$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"]="$SCRIPT_DIR/ghostty/config.ghostty"
 )
 
 for home_path in "${!dotfiles[@]}"; do
