@@ -67,10 +67,12 @@ vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live 
 vim.keymap.set('n', '<leader>+', function() _G.UserTermToggle() end, { desc = 'Toggle terminal' })
 vim.keymap.set("n", "<leader>sq", user_telescope.live_multigrep_qf, { desc = 'Live multigrep scoped to quickfix files' })
 vim.keymap.set('n', '<leader>sd', telescope_builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
-vim.keymap.set('n', '<leader><leader>', function()
+local function buffers_picker()
     UserClearNotifications() -- clear notifications first, then the usual picker
     telescope_builtin.buffers()
-end, { desc = '[ ] Find existing buffers (clears notifications first)' })
+end
+vim.keymap.set('n', '<leader><leader>', buffers_picker,
+    { desc = '[ ] Find existing buffers (clears notifications first)' })
 
 
 local db = require('user.db_functions')

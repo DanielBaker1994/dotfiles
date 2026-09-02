@@ -9,6 +9,8 @@ set -euo pipefail
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
 BACKUP_ROOT="/tmp/backup_configs_$(date +%Y%m%d_%H%M%S)"
+#Ghost add to path
+sudo ln -s /Applications/Ghostty.app/Contents/MacOS/ghostty /usr/local/bin/ghostty
 
 mkdir -p "$BACKUP_ROOT"
 

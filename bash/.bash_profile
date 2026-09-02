@@ -2,6 +2,7 @@
 
 # brew paths are added by `brew shellenv` below; keep texbin + mason here.
 export PATH=/Library/TeX/texbin:$HOME/.local/share/nvim/mason/bin:$PATH
+export XDG_CONFIG_HOME="$HOME/.config"
 
 export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig/:$PKG_CONFIG_PATH
 export FZF_DEFAULT_OPTS="--height=40% --layout=reverse --info=inline --border --margin=1 --padding=1 --bind 'ctrl-n:down,ctrl-p:up'"

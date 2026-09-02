@@ -244,7 +244,6 @@ if not vim.g.lazy_did_setup then
                 require('illuminate').configure({ under_cursor = true })
             end,
         },
-        { 'alexghergh/nvim-tmux-navigation' },
         {
             'szw/vim-maximizer',
             keys = {
@@ -790,24 +789,29 @@ vim.api.nvim_create_autocmd("ExitPre", {
     end,
 })
 
-local nvim_tmux_nav = require('nvim-tmux-navigation')
+-- C-h/j/k/l: move between nvim splits; at a split edge, hand control to tmux.
+-- Uses a direct `tmux select-pane` call (no key echo) so it can't loop with
+-- tmux.conf's `is_vim` forwarding. The list-form vim.fn.system avoids a shell
+-- spawn, which keeps the nvim -> pane hop snappy.
+local tmux_dir = { h = 'L', j = 'D', k = 'U', l = 'R' }
+local function tmux_nav(dir)
+    local winnr = vim.fn.winnr()
+    pcall(vim.cmd, 'wincmd ' .. dir)
+    if winnr == vim.fn.winnr() and vim.env.TMUX then
+        local socket = vim.fn.split(vim.env.TMUX, ',')[1]
+        vim.fn.system({ 'tmux', '-S', socket, 'select-pane', '-' .. tmux_dir[dir] })
+    end
+end
 
-nvim_tmux_nav.setup({})
-
-vim.keymap.set('n', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
-vim.keymap.set('n', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
-vim.keymap.set('n', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
-vim.keymap.set('n', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)
-
--- Same navigation from the built-in terminal (<space>to), so you can jump to
--- the tmux pane above/below/left/right just like from a normal pane.
--- Tradeoff (requested): in the terminal shell C-h no longer acts as readline
--- backspace and C-l no longer clears the screen — backspace still works, it
--- sends DEL (C-?), not C-h.
-vim.keymap.set('t', "<C-h>", nvim_tmux_nav.NvimTmuxNavigateLeft)
-vim.keymap.set('t', "<C-j>", nvim_tmux_nav.NvimTmuxNavigateDown)
-vim.keymap.set('t', "<C-k>", nvim_tmux_nav.NvimTmuxNavigateUp)
-vim.keymap.set('t', "<C-l>", nvim_tmux_nav.NvimTmuxNavigateRight)
+for _, dir in ipairs({ 'h', 'j', 'k', 'l' }) do
+    vim.keymap.set('n', '<C-' .. dir .. '>', function() tmux_nav(dir) end)
+    -- Same navigation from the built-in terminal (<space>to), so you can jump
+    -- to the tmux pane above/below/left/right just like from a normal pane.
+    -- Tradeoff (requested): in the terminal shell C-h no longer acts as
+    -- readline backspace and C-l no longer clears the screen — backspace still
+    -- works, it sends DEL (C-?), not C-h.
+    vim.keymap.set('t', '<C-' .. dir .. '>', function() tmux_nav(dir) end)
+end
 
 -- Same zoom (<C-w>z) from inside a terminal so the key is consistent with
 -- normal buffers. The plugin's `normal! ze` can't run from terminal mode, so

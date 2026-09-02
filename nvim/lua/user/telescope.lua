@@ -8,6 +8,26 @@ local sorters = require "telescope.sorters"
 
 local M = {}
 
+-- <C-y> in any picker built here: copy the selected entry's ABSOLUTE path to
+-- the system clipboard and close. Handles file entries (.path/.value),
+-- vimgrep entries (.filename), and the count entries from make_count_entry
+-- (.path/.filename).
+local function copy_selected_path(prompt_bufnr)
+    local entry = action_state.get_selected_entry()
+    if not entry then
+        return
+    end
+    local path = entry.filename or entry.path or entry.value
+    if type(path) ~= 'string' or path == '' then
+        vim.notify('Nothing to copy', vim.log.levels.WARN)
+        return
+    end
+    path = vim.fn.fnamemodify(path, ':p')
+    vim.fn.setreg('+', path)
+    actions.close(prompt_bufnr)
+    vim.notify('Copied: ' .. path)
+end
+
 -- Global -g ignores applied to EVERY rg invocation from this module
 -- (see build_rg_args below: they're appended to all searches).
 --
@@ -38,6 +58,7 @@ local ignored_globs = {
     '!.pyc',
     '!.js',
     '!.png',
+    '!.DS_Store',
     -- Test patterns (EXAMPLES — uncomment to enable):
     -- '!**/test/**',
     -- '!src/**/*test*',
@@ -155,15 +176,31 @@ local function prompt_filename(prompt)
     return (vim.split(prompt or '', '  ')[1] or ''):gsub('%s+$', '')
 end
 
--- Delegates to the same fzy algorithm telescope's built-in find_files uses.
-local fzy_sorter = sorters.get_fzy_sorter()
+-- Score with telescope's fzf-native (C) matcher while keeping the two-space
+-- glob-suffix stripping. Falls back to the pure-Lua fzy sorter if the fzf
+-- extension isn't available.
+local fzf_ok, fzf_make = pcall(function()
+    return require('telescope').extensions.fzf.native_fzf_sorter
+end)
 local files_sorter = sorters.Sorter:new {
     discard = true,
-    scoring_function = function(_, prompt, line)
-        return fzy_sorter:scoring_function(prompt_filename(prompt), line)
+    init = function(self)
+        self._fzf = fzf_ok and fzf_make() or sorters.get_fzy_sorter()
+        if self._fzf and self._fzf._init then
+            self._fzf:_init()
+        end
     end,
-    highlighter = function(_, prompt, display)
-        return fzy_sorter.highlighter(nil, prompt_filename(prompt), display)
+    destroy = function(self)
+        if self._fzf and self._fzf._destroy then
+            self._fzf:_destroy()
+        end
+        self._fzf = nil
+    end,
+    scoring_function = function(self, prompt, line)
+        return self._fzf:scoring_function(prompt_filename(prompt), line)
+    end,
+    highlighter = function(self, prompt, display)
+        return self._fzf:highlighter(prompt_filename(prompt), display)
     end,
 }
 
@@ -263,7 +300,7 @@ function M.live_multigrep(opts)
     end
 
     pickers.new(opts, {
-        debounce = 100,
+        debounce = 50,
         prompt_title = picker_title(opts, 'Grep Files', file_mode and 'counts' or 'lines'),
         finder = finder,
         previewer = file_mode and conf.file_previewer(opts) or conf.grep_previewer(opts),
@@ -291,6 +328,10 @@ function M.live_multigrep(opts)
             map('i', '<C-v>', actions.select_vertical)
             map('n', '<C-v>', actions.select_vertical)
 
+            -- <C-y>: copy selected entry's absolute path to clipboard.
+            map('i', '<C-y>', copy_selected_path)
+            map('n', '<C-y>', copy_selected_path)
+
             if actions.select_tab_drop then
                 map('n', '<CR>', actions.select_tab_drop)
             end
@@ -314,7 +355,7 @@ function M.files(opts)
     }
 
     pickers.new(opts, {
-        debounce = 100,
+        debounce = 50,
         prompt_title = picker_title(opts, 'Find Files', 'files'),
         finder = finder,
         previewer = conf.file_previewer(opts),
@@ -330,6 +371,9 @@ function M.files(opts)
             end)
             map('i', '<C-v>', actions.select_vertical)
             map('n', '<C-v>', actions.select_vertical)
+            -- <C-y>: copy selected entry's absolute path to clipboard.
+            map('i', '<C-y>', copy_selected_path)
+            map('n', '<C-y>', copy_selected_path)
             return true
         end,
     }):find()
