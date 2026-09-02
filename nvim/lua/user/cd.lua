@@ -8,6 +8,33 @@ local function get_config()
     return cd_targets.get()
 end
 
+-- Workspace root resolution, in priority order:
+--   1. A worktree dir matching root/<prefix>-* that contains the cwd
+--   2. The nearest git root (vim.fs.root)
+--   3. The current working directory itself
+local function get_workspace_root()
+    local c = get_config()
+    local cwd = vim.fn.resolve(vim.fn.getcwd())
+    if c and c.root and c.prefix then
+        local prefix_match = '^' .. vim.pesc(c.prefix) .. '-'
+        for name in vim.fs.dir(c.root) do
+            if name:match(prefix_match) then
+                local dir = vim.fn.resolve(c.root .. '/' .. name)
+                if cwd == dir or vim.startswith(cwd, dir .. '/') then
+                    return dir
+                end
+            end
+        end
+    end
+    local git_root = vim.fs.root(0, '.git')
+    if git_root then
+        return vim.fn.resolve(git_root)
+    end
+    return cwd
+end
+
+-- Strict worktree resolution for ClearOtherBuffers (only the configured
+-- root/<prefix>-* worktrees count as a workspace boundary).
 local function current_worktree()
     local c = get_config()
     if not c or not c.root or not c.prefix then
@@ -26,66 +53,136 @@ local function current_worktree()
     return nil
 end
 
-function M.names()
-    local c = get_config()
-    local names = {}
-    if c then
-        for k in pairs(c.targets) do
-            table.insert(names, k)
+-- Query zoxide once and return only paths strictly inside the workspace root.
+-- Relative display names are the path minus the workspace prefix.
+local function get_scoped_zoxide_paths(ws)
+    if vim.fn.executable('zoxide') == 0 then
+        return {}
+    end
+    local res = vim.system({ 'zoxide', 'query', '-l' }, { text = true }):wait()
+    if res.code ~= 0 or not res.stdout then
+        return {}
+    end
+    local paths = {}
+    local seen = {}
+    for line in vim.gsplit(vim.trim(res.stdout), '\n') do
+        line = vim.fn.resolve(vim.trim(line))
+        if line ~= '' and (line == ws or vim.startswith(line, ws .. '/')) then
+            local rel = line == ws and '.' or line:sub(#ws + 2)
+            if not seen[rel] then
+                seen[rel] = true
+                table.insert(paths, { dir = line, rel = rel })
+            end
         end
     end
-    table.insert(names, 'buffer')
-    table.sort(names)
+    return paths
+end
+
+-- Absolute dir for the active buffer (Oil-aware, falls back to file dir).
+local function buffer_dir()
+    local ok_oil, oil = pcall(require, 'oil')
+    if ok_oil then
+        local d = oil.get_current_dir(0)
+        if d and d ~= '' then
+            return d
+        end
+    end
+    local d = vim.fn.expand('%:p:h')
+    if d ~= '' then
+        return d
+    end
+    return nil
+end
+
+-- Build the ordered list of picker entries.
+-- Each entry: { name = display, dir = absolute path }
+local function build_entries()
+    local ws = get_workspace_root()
+    local entries = {}
+    local seen = {}
+    local function add(name, dir, exists_check)
+        if not dir then
+            return
+        end
+        if exists_check and vim.fn.isdirectory(dir) == 0 then
+            return
+        end
+        if not seen[dir] then
+            seen[dir] = true
+            table.insert(entries, { name = name, dir = dir })
+        end
+    end
+
+    local c = get_config()
+    if c then
+        for k, sub in pairs(c.targets) do
+            local dir = (sub == '.' or sub == '') and ws or (ws .. '/' .. sub)
+            add(k, dir, true)
+        end
+    end
+    add('buffer', buffer_dir(), true)
+
+    for _, p in ipairs(get_scoped_zoxide_paths(ws)) do
+        add(p.rel, p.dir, true)
+    end
+
+    return entries
+end
+
+-- Complete list of selectable names (aliases + relative zoxide subpaths).
+function M.names()
+    local names = {}
+    for _, e in ipairs(build_entries()) do
+        table.insert(names, e.name)
+    end
     return names
 end
 
 function M.cd(name)
     if name == 'buffer' then
-        local dir
-        local ok_oil, oil = pcall(require, 'oil')
-        if ok_oil then
-            dir = oil.get_current_dir(0)
-        end
-        if not dir then
-            dir = vim.fn.expand('%:p:h')
-        end
-        if dir == '' or vim.fn.isdirectory(dir) == 0 then
+        local dir = buffer_dir()
+        if dir and vim.fn.isdirectory(dir) == 1 then
+            vim.cmd('cd ' .. vim.fn.fnameescape(dir))
+            vim.notify('cd ' .. dir, vim.log.levels.INFO)
+        else
             vim.notify('cd: not a valid directory: ' .. tostring(dir), vim.log.levels.WARN)
+        end
+        return
+    end
+
+    local ws = get_workspace_root()
+    for _, e in ipairs(build_entries()) do
+        if e.name == name then
+            if vim.fn.isdirectory(e.dir) == 0 then
+                vim.notify('cd: not a directory: ' .. e.dir, vim.log.levels.WARN)
+                return
+            end
+            vim.cmd('cd ' .. vim.fn.fnameescape(e.dir))
+            vim.notify('cd ' .. e.dir, vim.log.levels.INFO)
             return
         end
-        vim.cmd('cd ' .. vim.fn.fnameescape(dir))
-        vim.notify('cd ' .. dir, vim.log.levels.INFO)
-        return
     end
-    local c = get_config()
-    if not c or not c.targets[name] then
-        vim.notify('Unknown cd target: ' .. name, vim.log.levels.WARN)
-        return
-    end
-    local base = current_worktree()
-    if not base then
-        vim.notify('Not inside a ' .. tostring(c.prefix) .. ' worktree under ' .. tostring(c.root),
-            vim.log.levels.WARN)
-        return
-    end
-    local sub = c.targets[name]
-    local dir = (sub == '.' or sub == '') and base or (base .. '/' .. sub)
-    if vim.fn.isdirectory(dir) == 0 then
-        vim.notify('cd: not a directory: ' .. dir, vim.log.levels.WARN)
-        return
-    end
-    vim.cmd('cd ' .. vim.fn.fnameescape(dir))
-    vim.notify('cd ' .. dir, vim.log.levels.INFO)
+    vim.notify('Unknown cd target: ' .. name, vim.log.levels.WARN)
 end
 
 function M.pick()
-    local names = M.names()
-    if #names == 0 then
+    local entries = build_entries()
+    if #entries == 0 then
         vim.notify('No cd targets defined', vim.log.levels.WARN)
         return
     end
-    vim.ui.select(names, { prompt = 'CD target:' }, function(name)
-        if name then
+    local items = {}
+    local home = vim.env.HOME
+    for _, e in ipairs(entries) do
+        local dir = e.dir
+        if home and vim.startswith(dir, home .. '/') then
+            dir = '~' .. dir:sub(#home + 1)
+        end
+        table.insert(items, e.name .. '  (' .. dir .. ')')
+    end
+    vim.ui.select(items, { prompt = 'CD target (scoped to workspace):' }, function(item)
+        if item then
+            local name = item:match('^([^\t ]+)') or item
             M.cd(name)
         end
     end)

@@ -473,7 +473,11 @@ if not vim.g.lazy_did_setup then
                     float_opts = { border = 'curved' },
                 })
                 function _G.LazyGitToggle()
-                    lazygit.dir = vim.fn.getcwd()
+                    local dir = vim.fn.expand('%:p:h')
+                    if dir == '' then
+                        dir = vim.fn.getcwd()
+                    end
+                    lazygit.dir = dir
                     lazygit:toggle()
                 end
 
