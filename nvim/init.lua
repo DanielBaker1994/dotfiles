@@ -38,6 +38,23 @@ vim.opt.breakindent = true
 vim.opt.undofile = true
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
+-- Eliminate "save buffer?" prompts: buffers can be abandoned, all real
+-- buffers are written automatically before switching/quitting, and unnamed
+-- scratch buffers are wiped rather than prompted about.
+vim.opt.hidden = true
+vim.opt.autowrite = true
+vim.opt.autowriteall = true
+vim.opt.sessionoptions = { 'blank', 'buffers', 'curdir', 'folds', 'help', 'tabpages', 'winsize' }
+vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost' }, {
+    group = vim.api.nvim_create_augroup('user-autowrite', { clear = true }),
+    callback = function()
+        local buf = vim.api.nvim_get_current_buf()
+        if vim.bo[buf].buftype == '' and vim.api.nvim_buf_get_name(buf) ~= ''
+            and vim.bo[buf].modified then
+            vim.cmd('silent! update')
+        end
+    end,
+})
 vim.opt.signcolumn = 'yes'
 vim.opt.splitright = true
 vim.opt.splitbelow = true
