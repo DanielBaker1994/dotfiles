@@ -3,13 +3,20 @@
 # at parse time, so an existing alias would corrupt this function definition.
 unalias f 2>/dev/null
 f() {
-    # Cancel (ESC) -> no selection -> don't open nvim at all.
+    # Cancel (ESC) -> no selection -> nothing copied.
+    # Ctrl+Y copies the highlighted entry (the full path, since rg --files
+    # outputs paths) to the clipboard and exits. {} = the selected line; {+f}
+    # only works when fzf is invoked with file arguments (it resolves to a
+    # temp file for piped input).
+    # Sync execute (not execute-silent) so pbcopy finishes before abort.
+    # Enter copies the selected file's path to the clipboard and exits.
     local sel
-    sel=$(fzf) || return
-    nvim "$sel"
+    sel=$(fzf --bind 'ctrl-y:execute(printf %s {} | command pbcopy)+abort') || return
+    printf "%s" "$sel" | pbcopy
 }
 #alias mediaconnect='ssh -X daniel@10.0.0.93'
 alias mediaconnect='ssh daniel@10.0.0.247'
+export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 
 alias bashr='source ~/.bash_profile'
 alias bbopen='nvim ~/.bash_profile'
@@ -25,6 +32,7 @@ alias clear="TERM=xterm /usr/bin/clear" #terminals database is inaccessible
 alias cls="clear && printf '\e[3J'"
 alias pbcopy="perl -pe 'chomp if eof' | pbcopy"
 alias cddot="cd ~/.dotfiles"
+[ -f "$HOME/.dotfiles/bash/aliases-backup.sh" ] && source "$HOME/.dotfiles/bash/aliases-backup.sh"
 alias ..="cd .."
 #alias -="cd -"
 
@@ -103,6 +111,16 @@ function Oil() {
     nvim -c ":Oil"
 }
 function oil() { Oil; }
+
+# Fuzzy-search and focus any AeroSpace window (id | app | title).
+# Enter focuses, ESC cancels. Works from any terminal.
+win() {
+    aerospace list-windows --all |
+        fzf --prompt='window> ' \
+            --header='enter: focus | esc: cancel' \
+            --bind='enter:execute($SHELL -c "aerospace focus --window-id {1}")+abort' \
+            --bind='esc:abort'
+}
 
 #git worktree add -b testworktreebranch /tmp/worktreetemp/
 # git worktree list

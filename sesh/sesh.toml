@@ -14,6 +14,10 @@ name = "home_server"
 path = "~/home_server"
 
 [[session]]
+name = "raycast"
+path = "~/Documents/Raycast"
+
+[[session]]
 name = "BrowserCats"
 path = "~"
 startup_command = "terminal-browser open cats.com"

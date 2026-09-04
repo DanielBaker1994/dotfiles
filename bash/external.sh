@@ -7,7 +7,7 @@
 
 # Used by nvim :Jira (lua/bash_external/jira.lua) to build the ticket link.
 export JIRA_NAME_PREFIX="JT"
-export JIRA_URL="https://your-jira.atlassian.net"
+export JIRA_URL="https://sudosignup.atlassian.net"
 
 # Used by nvim <leader>pi (lua/bash_external/asset_pictures_dir.lua).
 # (ASSET_PICTURES_DIRECTORY_GLOBAL is exported in .bash_profile.)
@@ -30,14 +30,22 @@ function EXTERNAL_PATHS_GLOBAL() {
 }
 
 # Used by nvim Cd targets (lua/bash_external/cd_targets.lua).
-# root = base dir where all git worktrees live; prefix = name prefix of each
-# worktree dir (e.g. ~/jira/JT-123); target lines are name<TAB>subpath relative
-# to the matched worktree.
+# Each workspace root is a block of `key=value` lines separated by a blank line:
+#   root=   base dir where this workspace lives (worktrees live directly inside)
+#   prefix= name prefix of each worktree dir (e.g. JT -> JT-123); if the dir is
+#           itself a single repo (e.g. ~/.dotfiles), prefix matches nothing and
+#           the dir itself is treated as the workspace
 function NVIM_CD_TARGETS() {
-    printf 'root\t%s\n' "$HOME/jira"
-    printf 'prefix\t%s\n' 'JT'
-    printf 'top\t.\n'
-    printf 'cpp\tcpp\n'
+    cat <<EOF
+root=$HOME/jira
+prefix=JT
+
+root=$HOME/.dotfiles
+prefix=DOT
+top=.
+nvim=nvim
+bash=bash
+EOF
 }
 
 # Used by nvim markdown_open (lua/bash_external/build_and_open_pdf.lua).
@@ -82,6 +90,8 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         --syntax-highlighting=tango \
         -V lang=en \
         --include-in-header="$markdown_css_styling" \
+        --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
+        --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \
         -o "$html_tmp" "$markdown_source"; then
         open "$html_tmp"
     else
@@ -116,5 +126,5 @@ function EXTERNAL_DEFS_DUMP() {
         done < <(sed -nE 's/^function ([A-Za-z_][A-Za-z0-9_]*).*/\1/p' "$DOTDIR/bash/external.sh")
         declare -f killshellcheck 2>/dev/null
         declare -p DOTDIR NERDFONT_PATH_GLOBAL ASSET_PICTURES_DIRECTORY_GLOBAL 2>/dev/null
-    } > "$out"
+    } >"$out"
 }

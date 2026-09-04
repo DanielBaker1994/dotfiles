@@ -1,0 +1,31 @@
+<style>
+.codeblock {
+  display: flex;
+  align-items: stretch;
+}
+
+.codeblock pre {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0.8em 0;
+}
+
+.copy-btn {
+  flex: 0 0 auto;
+  align-self: stretch;
+  margin: 0.8em 8px 0.8em 0;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8px;
+  background: #e8ecf1;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.copy-btn:hover { background: #d6dde6; }
+.copy-btn:active { background: #c3ccd8; }
+.copy-btn.copied { background: #d4edda; }
+</style>

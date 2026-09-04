@@ -173,3 +173,53 @@ and ordinary text.
 ## Example Header Two
 
 ### Example Header Three
+
+----
+
+## Copy buttons on code blocks (what we learned)
+
+Every code block in generated HTML gets a one-click copy button (blue
+overlapping-squares icon) on its left side, injected at render time.
+
+```bash
+# markdown_generator/copy_button.js  - injection + click handler
+# markdown_generator/copy_button.css - side-strip button styling
+```
+
+Wired into the pandoc pipeline in `EXTERNAL_BUILD_AND_OPEN_PDF`
+(`~/.dotfiles/bash/external.sh`):
+
+```bash
+pandoc -s -f markdown+raw_html -t html5 \
+  --include-in-header="$DOTDIR/markdown_generator/friendly_document_styling.css" \
+  --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
+  --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \
+  -o out.html in.md
+```
+
+> [!INFO]
+> `--include-in-header` and `--include-after-body` both insert files
+> VERBATIM - nothing is auto-wrapped for you. Following the repo convention
+> (`friendly_document_styling.css` does the same), the CSS include carries its
+> own `<style>...</style>` wrapper and the JS include its own
+> `<script>...</script>` wrapper. A bare file lands as visible text on the page
+> (or raw JS that never runs).
+
+> [!WARNING]
+> Don't position the button absolutely over the `<pre>`:
+> - the code blocks already have `::before` language icons (bash/cpp/lua logos)
+>   from `friendly_document_styling.css` that the overlay collides with
+> - an overlay also blocks selecting/copying the code text by hand
+>
+> The working design: JS wraps each `<pre>` in `<div class="codeblock">`
+> (`display: flex`) and appends the button as a SIBLING before the `<pre>` -
+> button on the left, code on the right, nothing overlapping.
+
+> [!TIP]
+> - The clipboard API needs a real user gesture: programmatic `.click()`
+>   (e.g. from devtools) silently hangs; a real mouse click works. A
+>   `document.execCommand("copy")` fallback covers browsers without the API.
+> - Copied text = `code.innerText` of the block.
+> - Firefox gotcha: `open file.html` reuses the existing tab WITHOUT
+>   reloading - after regenerating HTML you must Cmd+R to see changes.
+> - weasyprint runs no JS, so the PDF output is unaffected by all of this.
