@@ -289,7 +289,7 @@ if not vim.g.lazy_did_setup then
                         find_files = { follow = true },
                     },
                     path_display = { "smart" },
-                    extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) }
+                    extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({ width = 0.8 }) }
                 })
                 pcall(telescope.load_extension, 'fzf')
                 pcall(telescope.load_extension, 'ui-select')
@@ -473,9 +473,17 @@ if not vim.g.lazy_did_setup then
                     float_opts = { border = 'curved' },
                 })
                 function _G.LazyGitToggle()
-                    local dir = vim.fn.expand('%:p:h')
-                    if dir == '' then
-                        dir = vim.fn.getcwd()
+                    local dir = vim.fn.getcwd()
+                    local ok_oil, oil = pcall(require, 'oil')
+                    if ok_oil then
+                        local d = oil.get_current_dir(0)
+                        if d and d ~= '' then
+                            dir = d
+                        end
+                    end
+                    local buf_dir = vim.fn.expand('%:p:h')
+                    if buf_dir ~= '' and vim.fn.isdirectory(buf_dir) == 1 then
+                        dir = buf_dir
                     end
                     lazygit.dir = dir
                     lazygit:toggle()

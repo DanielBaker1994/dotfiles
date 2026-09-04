@@ -31,3 +31,10 @@ disabled = false
 truncate_to_repo = false
 home_symbol = "~"
 
+
+[status]
+disabled = false
+format = "[$symbol$status]($style) "
+symbol = "❌ "
+style = "bold red"
+pipestatus = true

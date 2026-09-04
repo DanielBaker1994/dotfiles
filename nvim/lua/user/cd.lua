@@ -171,6 +171,16 @@ function M.pick()
         vim.notify('No cd targets defined', vim.log.levels.WARN)
         return
     end
+    -- Buffer is the first/default option.
+    table.sort(entries, function(a, b)
+        if a.name == 'buffer' then
+            return true
+        end
+        if b.name == 'buffer' then
+            return false
+        end
+        return false
+    end)
     local items = {}
     local home = vim.env.HOME
     for _, e in ipairs(entries) do
@@ -178,12 +188,20 @@ function M.pick()
         if home and vim.startswith(dir, home .. '/') then
             dir = '~' .. dir:sub(#home + 1)
         end
-        table.insert(items, e.name .. '  (' .. dir .. ')')
+        table.insert(items, dir)
     end
-    vim.ui.select(items, { prompt = 'CD target (scoped to workspace):' }, function(item)
+    vim.ui.select(items, { prompt = 'CD target:', kind = 'cd' }, function(item)
         if item then
-            local name = item:match('^([^\t ]+)') or item
-            M.cd(name)
+            local dir = item
+            if home and vim.startswith(dir, '~/') then
+                dir = home .. dir:sub(2)
+            elseif dir == '~' then
+                dir = home
+            end
+            if vim.fn.isdirectory(dir) == 1 then
+                vim.cmd('cd ' .. vim.fn.fnameescape(dir))
+                vim.notify('cd ' .. dir, vim.log.levels.INFO)
+            end
         end
     end)
 end

@@ -42,3 +42,17 @@ rg -g '**tmux/**'  -g '**bash/**' tmux  | rg -v alias
 
 
 
+
+
+# ---- lazygit / git slow in ~/.dotfiles — fixes that worked (2026-09-03) ----
+# Repo was 20M .git with 1,218 LOOSE objects; gc packed them -> 8.9M.
+cd ~/.dotfiles
+git maintenance run --task=gc        # one-shot pack+prune (took ~0.2s here)
+git maintenance start                # schedule automatic background gc (non-intrusive)
+
+# Root cause: ~/.gitconfig had a stale [filter "lfs"] block, but git-lfs is NOT
+# installed. In any repo with `filter=lfs` in .gitattributes, git tries to spawn
+# git-lfs, fails, and `required = true` makes it hard-error — which shows up as
+# lazygit/git hanging. FIXED on 2026-09-03:
+git config --global --remove-section filter.lfs   # DONE - section removed
+# (that block also contained a malformed `cm = commit -m` line.)
