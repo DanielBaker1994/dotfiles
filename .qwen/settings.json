@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(sketchybar *)",
+      "Bash(chmod *)",
+      "Bash(brew *)",
+      "Bash(sleep *)",
+      "Bash(python3 *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(grep *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(pgrep *)",
+      "Bash(screencapture *)",
+      "Read(//tmp/**)",
+      "Bash(/users/danielbaker/.dotfiles/aerospace/workspace_switcher.sh)",
+      "Bash(timeout *)"
+    ]
+  },
+  "$version": 4
+}

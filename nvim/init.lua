@@ -36,8 +36,38 @@ vim.opt.clipboard = "unnamedplus"
 
 vim.opt.breakindent = true
 vim.opt.undofile = true
+vim.opt.swapfile = true
+vim.opt.updatetime = 1000
+-- Delete stale swaps (older than the file) without prompting; nvim's built-in
+-- W325 handler already auto-edits swaps owned by a running nvim process.
+vim.api.nvim_create_autocmd('SwapExists', {
+    callback = function()
+        local swap = vim.v.swapname
+        if vim.fn.getftime(swap) < vim.fn.getftime(vim.fn.expand('<afile>:p')) then
+            vim.fn.delete(swap)
+            vim.v.swapchoice = 'e'
+        end
+    end,
+})
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
+-- Eliminate "save buffer?" prompts: buffers can be abandoned, all real
+-- buffers are written automatically before switching/quitting, and unnamed
+-- scratch buffers are wiped rather than prompted about.
+vim.opt.hidden = true
+vim.opt.autowrite = true
+vim.opt.autowriteall = true
+vim.opt.sessionoptions = { 'blank', 'buffers', 'curdir', 'folds', 'help', 'tabpages', 'winsize' }
+vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'CursorHold', 'CursorHoldI' }, {
+    group = vim.api.nvim_create_augroup('user-autowrite', { clear = true }),
+    callback = function()
+        local buf = vim.api.nvim_get_current_buf()
+        if vim.bo[buf].buftype == '' and vim.api.nvim_buf_get_name(buf) ~= ''
+            and vim.bo[buf].modified then
+            vim.cmd('silent! update')
+        end
+    end,
+})
 vim.opt.signcolumn = 'yes'
 vim.opt.splitright = true
 vim.opt.splitbelow = true
@@ -49,24 +79,6 @@ vim.opt.cursorline = true
 vim.opt.scrolloff = 10
 vim.opt.hlsearch = true
 vim.opt.laststatus = 2
-
-_G.UserWinbarDirectory = function()
-    local ok, dir = pcall(function()
-        local winid = vim.g.actual_curwin and tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
-        local buf = vim.api.nvim_win_get_buf(winid)
-        if vim.bo[buf].buftype == 'terminal' then
-            return ''
-        end
-
-        local winnr = vim.fn.win_id2win(winid)
-        local tabnr = vim.api.nvim_tabpage_get_number(vim.api.nvim_win_get_tabpage(winid))
-        return vim.fn.fnamemodify(vim.fn.getcwd(winnr, tabnr), ':~')
-    end)
-
-    return ok and dir or ''
-end
-
-vim.opt.winbar = '%{%v:lua.UserWinbarDirectory()%}'
 
 local function lualine_file_path()
     local ok, text = pcall(function()
@@ -93,13 +105,27 @@ local function lualine_file_path()
     return ok and text or ''
 end
 
-vim.api.nvim_create_autocmd('FileType', {
-    group = vim.api.nvim_create_augroup('user-winbar', { clear = true }),
-    pattern = { 'TelescopePrompt', 'TelescopeResults', 'TelescopePreviewer' },
-    callback = function()
-        vim.opt_local.winbar = ''
-    end,
-})
+local function lualine_cwd()
+    local ok, dir = pcall(function()
+        local winid = vim.g.actual_curwin and tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+        local winnr = vim.fn.win_id2win(winid)
+        local tabnr = vim.api.nvim_tabpage_get_number(vim.api.nvim_win_get_tabpage(winid))
+        return vim.fn.fnamemodify(vim.fn.getcwd(winnr, tabnr), ':~')
+    end)
+
+    return ok and dir or ''
+end
+
+local function lualine_folder_icon()
+    local ok, icons = pcall(require, 'mini.icons')
+    if not ok then
+        return '󰉋'
+    end
+    local winid = vim.g.actual_curwin and tonumber(vim.g.actual_curwin) or vim.api.nvim_get_current_win()
+    local winnr = vim.fn.win_id2win(winid)
+    local tabnr = vim.api.nvim_tabpage_get_number(vim.api.nvim_win_get_tabpage(winid))
+    return icons.get('directory', vim.fn.getcwd(winnr, tabnr))
+end
 
 vim.keymap.set('n', 'p', '"+p', { noremap = true, silent = true })
 
@@ -158,7 +184,10 @@ if not vim.g.lazy_did_setup then
                 require('lualine').setup({
                     options = {
                         globalstatus = false,
-                        disabled_filetypes = { 'TelescopePrompt' },
+                        disabled_filetypes = {
+                            statusline = { 'TelescopePrompt' },
+                            winbar = { 'TelescopePrompt', 'TelescopeResults', 'TelescopePreviewer' },
+                        },
                     },
                     sections = {
                         lualine_a = { 'mode' },
@@ -169,8 +198,23 @@ if not vim.g.lazy_did_setup then
                                 color = 'LualineCwd',
                                 separator = '',
                             },
+                            {
+                                'filetype',
+                                icon_only = true,
+                                separator = { left = ' ' },
+                            },
                         },
-                        lualine_x = {},
+                        lualine_x = {
+                            {
+                                lualine_cwd,
+                                color = 'LualineCwd',
+                            },
+                            {
+                                lualine_folder_icon,
+                                color = 'LualineCwd',
+                                separator = { left = ' ' },
+                            },
+                        },
                         lualine_y = {},
                         lualine_z = {},
                     },
@@ -183,8 +227,23 @@ if not vim.g.lazy_did_setup then
                                 color = 'LualineCwd',
                                 separator = '',
                             },
+                            {
+                                'filetype',
+                                icon_only = true,
+                                separator = { left = ' ' },
+                            },
                         },
-                        lualine_x = {},
+                        lualine_x = {
+                            {
+                                lualine_cwd,
+                                color = 'LualineCwd',
+                            },
+                            {
+                                lualine_folder_icon,
+                                color = 'LualineCwd',
+                                separator = { left = ' ' },
+                            },
+                        },
                         lualine_y = {},
                         lualine_z = {},
                     },
@@ -289,7 +348,7 @@ if not vim.g.lazy_did_setup then
                         find_files = { follow = true },
                     },
                     path_display = { "smart" },
-                    extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({}) }
+                    extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({ layout_config = { width = 0.92, height = 0.5, anchor = 'W', anchor_padding = 1 } }) }
                 })
                 pcall(telescope.load_extension, 'fzf')
                 pcall(telescope.load_extension, 'ui-select')
@@ -473,9 +532,17 @@ if not vim.g.lazy_did_setup then
                     float_opts = { border = 'curved' },
                 })
                 function _G.LazyGitToggle()
-                    local dir = vim.fn.expand('%:p:h')
-                    if dir == '' then
-                        dir = vim.fn.getcwd()
+                    local dir = vim.fn.getcwd()
+                    local ok_oil, oil = pcall(require, 'oil')
+                    if ok_oil then
+                        local d = oil.get_current_dir(0)
+                        if d and d ~= '' then
+                            dir = d
+                        end
+                    end
+                    local buf_dir = vim.fn.expand('%:p:h')
+                    if buf_dir ~= '' and vim.fn.isdirectory(buf_dir) == 1 then
+                        dir = buf_dir
                     end
                     lazygit.dir = dir
                     lazygit:toggle()

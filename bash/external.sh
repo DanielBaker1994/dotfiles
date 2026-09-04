@@ -30,14 +30,25 @@ function EXTERNAL_PATHS_GLOBAL() {
 }
 
 # Used by nvim Cd targets (lua/bash_external/cd_targets.lua).
-# root = base dir where all git worktrees live; prefix = name prefix of each
-# worktree dir (e.g. ~/jira/JT-123); target lines are name<TAB>subpath relative
-# to the matched worktree.
+# Each workspace root is a block of `key=value` lines separated by a blank line:
+#   root=   base dir where this workspace lives (worktrees live directly inside)
+#   prefix= name prefix of each worktree dir (e.g. JT -> JT-123); if the dir is
+#           itself a single repo (e.g. ~/.dotfiles), prefix matches nothing and
+#           the dir itself is treated as the workspace
+#   <name>=<subpath>   cd shortcut, relative to the matched workspace
 function NVIM_CD_TARGETS() {
-    printf 'root\t%s\n' "$HOME/jira"
-    printf 'prefix\t%s\n' 'JT'
-    printf 'top\t.\n'
-    printf 'cpp\tcpp\n'
+    cat <<EOF
+root=$HOME/jira
+prefix=JT
+top=.
+cpp=cpp
+
+root=$HOME/.dotfiles
+prefix=DOT
+top=.
+nvim=nvim
+bash=bash
+EOF
 }
 
 # Used by nvim markdown_open (lua/bash_external/build_and_open_pdf.lua).

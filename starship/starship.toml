@@ -1,5 +1,9 @@
 "$schema" = 'https://starship.rs/config-schema.json'
 
+# Git (and other command) calls occasionally exceed the 500ms default on this
+# repo, causing starship to print "command timed out" warnings. Bump it up.
+command_timeout = 5000
+
 # Keep the readline (INS)/(CMD) mode indicator inline at the start of the
 # prompt line instead of floating on a blank line above it.
 add_newline = false
@@ -31,3 +35,10 @@ disabled = false
 truncate_to_repo = false
 home_symbol = "~"
 
+
+[status]
+disabled = false
+format = "[$symbol$status]($style) "
+symbol = "❌ "
+style = "bold red"
+pipestatus = true

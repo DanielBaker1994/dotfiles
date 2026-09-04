@@ -1,44 +1,115 @@
-control + w + z  # zoom  buffer full/unfull
+# ---- Neovim / terminal ----
+control + w + z  # zoom buffer full/unfull
 control + w + r # rotate buffer down
 :wincmd W
 :wincmd K
 
-
 # install terminal-browser
 curl -fsSL https://terminal-browser.sh/install | bash
 
+# ghostty: only setting that matters -> macos-titlebar-style = hidden
 
-need to install ghostty
---ghost setting only one i care about 
-macos-titlebar-style = hidden
-
-Raycast install - ScreenOCR - recognize text allow in a body
-
-
-try out - really powerful for a human
-brew install vorssaint
-
-
-brew install tealdeer
+brew install tealdeer          # tldr
 tldr --show-paths
-tldr grep 
+tldr grep
 tldr rg
 
+# ---- ripgrep tips ----
+# single-quote globs! combining -g and -v: use a pipe, -v and -e don't combine in one line
+rg -g '**tmux/**' -g '**bash/**' tmux | rg -v alias
 
+# ---- git / lazygit slowness in ~/.dotfiles (2026-09-03) ----
+# 20M .git, 1218 loose objects -> gc packed to 8.9M:
+cd ~/.dotfiles && git maintenance run --task=gc && git maintenance start
+# stale [filter "lfs"] block w/o git-lfs caused hangs; removed with:
+git config --global --remove-section filter.lfs
 
-raycast extension 
+# ---- macOS menu bar hiding ----
+# Hide native menu bar (macOS 26 GUI equiv: Settings > Control Center >
+# "Automatically hide and show the menu bar"):
+defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 
+# ===========================================================================
+# AeroSpace + SketchyBar (installed 2026-09-05, hard-won knowledge)
+# FULL GUIDE + GOTCHAS: doc/workspace.md -> "AeroSpace + SketchyBar Status Bar" section
+# ===========================================================================
 
-# single quote this shit 
-rg -g '**tmux/**'  -g '**bash/**' -g '!**excludeme**' tmux
+# WM: AeroSpace  (~/.aerospace.toml -> ~/.dotfiles/aerospace/.aerospace.toml)
+# Bar: SketchyBar (~/.config/sketchybar -> ~/.dotfiles/sketchybar)
+#   brew tap felixkratz/formulae && brew install sketchybar
+#   brew install --cask font-sketchybar-app-font   # ligature app glyphs
+# Workspace switcher (Tk popup, karabiner-bound): aerospace/workspace_switcher.{py,sh}
+#   brew install pillow                             # PIL: rounded bg + app icons
+# Karabiner (caps_lock -> Hyper; Hyper+S = switcher): ~/.dotfiles/karabiner/karabiner.json
+#   brew install --cask karabiner-elements
+#   ln -s ~/.dotfiles/karabiner ~/.config/karabiner
+#   then activate the system extension (System Settings -> Privacy & Security -> Allow)
+# Disabled on purpose:
+#   defaults write com.apple.spaces spans-displays -bool true  # "separate Spaces per display" OFF (needs logout/login)
+#   ghostty: mouse-hide-while-typing + custom-shader soft-trail commented out
+#   sketchybar: icons.sh no longer sourced; Hack Nerd separator item removed (aerospacer.sh)
+#   aerospace: flameshot floating rule; raycast auto-ignored (>= 0.18.3), no rule
+# Borders: JankyBorders (~/.config/borders -> ~/.dotfiles/borders)
+#   brew install borders && brew services start borders
+#   config: borders/bordersrc (focused-window border, matches sketchybar colors)
+# Workspace renderer: xiamaz/sketchybar-aerospace-plugin (Rust binary ->
+#   plugins/aerospace_plugin), reads sketchybar-app-font/dist/icon_map.json
+#   (kvndrsslr/sketchybar-app-font cloned to sketchybar/sketchybar-app-font)
+# keybindings: alt-; = window switcher (fzf), alt-o = workspace switcher (fzf)
 
+# --- Adding an app icon to the app font (e.g. Webex) ---
+# The full source repo is NOT vendored (it's a git repo-in-repo -> mess).
+# ONLY dist/icon_map.json lives in dotfiles (the plugin's sole runtime file);
+# the font is installed system-wide via the brew cask.
+#   Full clone lives at: ~/src/sketchybar-app-font   (mappings/ + svgs/ + build tooling)
+#   To add/edit an icon:
+#     cd ~/src/sketchybar-app-font
+#     # put svg in svgs/:name:.svg and app name in mappings/:name:  (e.g. "Webex")
+#     pnpm install        # deps (first time)
+#     pnpm run build      # regenerates dist/icon_map.json + dist/*.ttf from svgs/+mappings/
+#   Then copy the built artifacts into dotfiles + fonts:
+#     cp dist/icon_map.json ~/.dotfiles/sketchybar/sketchybar-app-font/dist/icon_map.json
+#     cp dist/sketchybar-app-font.ttf ~/Library/Fonts/sketchybar-app-font.ttf
+#     brew services restart sketchybar
+# App name must match what AeroSpace reports (process name, e.g. "Webex").
+# DAY-TO-DAY (no repo needed): ~/.dotfiles/sketchybar/manage_icons.sh
+#   add <App> <glyph> | lookup <App> | list | count   (edits icon_map.json + restarts)
 
+# Bar layout (bottom, left side, left-to-right):
+#   space.lead / space.<id> pills / space.tail  (all from aerospacer.sh)
+# Start: brew services start sketchybar
 
-#search word tmux, ignore alias after, you can't combine -v and -e in one line, doesnt work
-rg -g '**tmux/**'  -g '**bash/**' tmux  | rg -v alias
+## HARD-WON GOTCHAS (2026-09-06, sketchybar 2.24.0 + macOS 26.6.2)
 
+1. blur_radius=0 ON PURPOSE. 2.24.0 renders blur BEYOND the bar frame ->
+   "melted glass" strip under the bar (#827); bar color is opaque anyway.
 
+2. Gap between bar and windows is AEROSPACE outer.top (=10), NOT sketchybar.
 
+3. BASH BUG: `"$TEMP°"` (unbraced var + multibyte char) -> bash emits a lone
+   0xb0 byte, sketchybar renders literal "Warning: Malformed UTF-8 string".
+   ALWAYS brace: "${TEMP}°".
 
+4. 2.24.0 rendering rework (relevant when editing items/plugins):
+   - item `x_offset` REMOVED (use `background.x_offset`)
+   - `background.width` not a property
+   - `--add group` renamed to `--add bracket`
 
+5. `updates=when_shown` (global default) stops polling on hidden items ->
+   use `updates=on` for anything that hides (notifications items).
 
+6. lsappinfo only sees RUNNING apps (a quit Outlook/Teams/Webex shows no
+   badge). No fallback, deliberate.
+
+7. Logs: /opt/homebrew/var/log/sketchybar/{sketchybar.err.log,sketchybar.out.log}
+   `sh: /x.sh: No such file` = $PLUGIN_DIR was empty when item was created.
+
+8. Concurrent-edit hazard: other sessions edit these files; verify LIVE state
+   with `sketchybar --query item <name>` — disk != loaded sometimes.
+
+9. Fonts: SF Pro (text/SF Symbols), sketchybar-app-font (brand glyphs),
+   SF Symbols Fallback.otf (apple popup glyphs). Nerd Fonts installed for
+   terminal but NOT used by sketchybar (deliberate).
+
+# brew trust --formula felixkratz/formulae/sketchybar
+# brew services start sketchybar

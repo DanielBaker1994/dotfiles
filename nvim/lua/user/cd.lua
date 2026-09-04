@@ -9,48 +9,58 @@ local function get_config()
 end
 
 -- Workspace root resolution, in priority order:
---   1. A worktree dir matching root/<prefix>-* that contains the cwd
---   2. The nearest git root (vim.fs.root)
---   3. The current working directory itself
-local function get_workspace_root()
+--   1. A configured root/<prefix>-* worktree that contains the cwd
+--   2. A configured root dir itself that contains the cwd (single-repo roots
+--      like ~/.dotfiles, where the prefix matches no subdir)
+--   3. The nearest git root (vim.fs.root)
+--   4. The current working directory itself
+-- Returns ws (absolute) and the matched root entry {root,prefix,targets} (or nil).
+local function resolve_workspace()
     local c = get_config()
     local cwd = vim.fn.resolve(vim.fn.getcwd())
-    if c and c.root and c.prefix then
-        local prefix_match = '^' .. vim.pesc(c.prefix) .. '-'
-        for name in vim.fs.dir(c.root) do
-            if name:match(prefix_match) then
-                local dir = vim.fn.resolve(c.root .. '/' .. name)
-                if cwd == dir or vim.startswith(cwd, dir .. '/') then
-                    return dir
+    if c and c.roots then
+        for _, r in ipairs(c.roots) do
+            local root = vim.fn.resolve(vim.fn.expand(r.root))
+            if vim.fn.isdirectory(root) == 1 then
+                if r.prefix and r.prefix ~= '' then
+                    local prefix_match = '^' .. vim.pesc(r.prefix) .. '-'
+                    local ok, iter = pcall(vim.fs.dir, root)
+                    if ok then
+                        for name in iter do
+                            if name:match(prefix_match) then
+                                local dir = vim.fn.resolve(root .. '/' .. name)
+                                if cwd == dir or vim.startswith(cwd, dir .. '/') then
+                                    return dir, r
+                                end
+                            end
+                        end
+                    end
+                end
+                if cwd == root or vim.startswith(cwd, root .. '/') then
+                    return root, r
                 end
             end
         end
     end
     local git_root = vim.fs.root(0, '.git')
     if git_root then
-        return vim.fn.resolve(git_root)
+        return vim.fn.resolve(git_root), nil
     end
-    return cwd
+    return cwd, nil
 end
 
--- Strict worktree resolution for ClearOtherBuffers (only the configured
--- root/<prefix>-* worktrees count as a workspace boundary).
-local function current_worktree()
+local function get_workspace_root()
+    return resolve_workspace()
+end
+
+-- Strict workspace boundary for ClearOtherBuffers: returns the matched
+-- configured root entry's workspace (nil when not inside a configured root).
+local function current_workspace()
     local c = get_config()
-    if not c or not c.root or not c.prefix then
+    if not c or not c.roots then
         return nil
     end
-    local cwd = vim.fn.getcwd()
-    local prefix_match = '^' .. vim.pesc(c.prefix) .. '-'
-    for name in vim.fs.dir(c.root) do
-        if name:match(prefix_match) then
-            local dir = c.root .. '/' .. name
-            if cwd == dir or vim.startswith(cwd, dir .. '/') then
-                return dir
-            end
-        end
-    end
-    return nil
+    return resolve_workspace()
 end
 
 -- Query zoxide once and return only paths strictly inside the workspace root.
@@ -97,7 +107,7 @@ end
 -- Build the ordered list of picker entries.
 -- Each entry: { name = display, dir = absolute path }
 local function build_entries()
-    local ws = get_workspace_root()
+    local ws, entry = resolve_workspace()
     local entries = {}
     local seen = {}
     local function add(name, dir, exists_check)
@@ -113,9 +123,8 @@ local function build_entries()
         end
     end
 
-    local c = get_config()
-    if c then
-        for k, sub in pairs(c.targets) do
+    if entry and entry.targets then
+        for k, sub in pairs(entry.targets) do
             local dir = (sub == '.' or sub == '') and ws or (ws .. '/' .. sub)
             add(k, dir, true)
         end
@@ -150,7 +159,6 @@ function M.cd(name)
         return
     end
 
-    local ws = get_workspace_root()
     for _, e in ipairs(build_entries()) do
         if e.name == name then
             if vim.fn.isdirectory(e.dir) == 0 then
@@ -165,38 +173,109 @@ function M.cd(name)
     vim.notify('Unknown cd target: ' .. name, vim.log.levels.WARN)
 end
 
+-- Resolve a displayed (tilde) path back to absolute and cd into it.
+local function cd_to(dir)
+    local home = vim.env.HOME
+    if home and vim.startswith(dir, '~/') then
+        dir = home .. dir:sub(2)
+    elseif dir == '~' then
+        dir = home
+    end
+    if vim.fn.isdirectory(dir) == 1 then
+        vim.cmd('cd ' .. vim.fn.fnameescape(dir))
+        vim.notify('cd ' .. dir, vim.log.levels.INFO)
+    end
+end
+
 function M.pick()
     local entries = build_entries()
     if #entries == 0 then
         vim.notify('No cd targets defined', vim.log.levels.WARN)
         return
     end
-    local items = {}
+    -- Buffer is the first/default option.
+    table.sort(entries, function(a, b)
+        if a.name == 'buffer' then
+            return true
+        end
+        if b.name == 'buffer' then
+            return false
+        end
+        return false
+    end)
+
     local home = vim.env.HOME
+    local items = {}
     for _, e in ipairs(entries) do
         local dir = e.dir
         if home and vim.startswith(dir, home .. '/') then
             dir = '~' .. dir:sub(#home + 1)
         end
-        table.insert(items, e.name .. '  (' .. dir .. ')')
+        table.insert(items, { dir = e.dir, display = dir })
     end
-    vim.ui.select(items, { prompt = 'CD target (scoped to workspace):' }, function(item)
-        if item then
-            local name = item:match('^([^\t ]+)') or item
-            M.cd(name)
+
+    local ok, telescope = pcall(require, 'telescope')
+    if not ok then
+        -- Fallback: plain vim.ui.select (no wide dropdown available).
+        local names = {}
+        for _, it in ipairs(items) do
+            table.insert(names, it.display)
         end
-    end)
+        vim.ui.select(names, { prompt = 'CD target:' }, function(item)
+            if item then
+                for _, it in ipairs(items) do
+                    if it.display == item then
+                        cd_to(it.dir)
+                        break
+                    end
+                end
+            end
+        end)
+        return
+    end
+
+    local pickers = require('telescope.pickers')
+    local finders = require('telescope.finders')
+    local conf = require('telescope.config').values
+    local actions = require('telescope.actions')
+    local action_state = require('telescope.actions.state')
+    local themes = require('telescope.themes')
+
+    local theme = themes.get_dropdown({
+        layout_config = {
+            width = 0.95,
+            height = 0.5,
+            anchor = 'W',
+            anchor_padding = 1,
+        },
+        prompt_title = 'CD target',
+        results_title = '',
+    })
+    pickers.new(theme, {
+        finder = finders.new_table {
+            results = items,
+            entry_maker = function(item)
+                return { value = item.dir, display = item.display, ordinal = item.display }
+            end,
+        },
+        sorter = conf.generic_sorter(theme),
+        attach_mappings = function(prompt_bufnr, map)
+            actions.select_default:replace(function()
+                local selection = action_state.get_selected_entry()
+                actions.close(prompt_bufnr)
+                if selection and selection.value then
+                    cd_to(selection.value)
+                end
+            end)
+            return true
+        end,
+    }):find()
 end
 
 function M.clear_other_buffers()
-    local c = get_config()
-    if not c or not c.root or not c.prefix then
-        vim.notify('No workspace root configured', vim.log.levels.WARN)
-        return
-    end
-    local ws = current_worktree()
-    if not ws then
-        vim.notify('Not inside a workspace worktree', vim.log.levels.WARN)
+    local ws, entry = current_workspace()
+    if not ws or not entry then
+        vim.notify('Not inside a configured workspace root', vim.log.levels.WARN)
         return
     end
     local cur = vim.api.nvim_get_current_buf()

@@ -104,6 +104,16 @@ function Oil() {
 }
 function oil() { Oil; }
 
+# Fuzzy-search and focus any AeroSpace window (id | app | title).
+# Enter focuses, ESC cancels. Works from any terminal.
+win() {
+    aerospace list-windows --all |
+        fzf --prompt='window> ' \
+            --header='enter: focus | esc: cancel' \
+            --bind='enter:execute($SHELL -c "aerospace focus --window-id {1}")+abort' \
+            --bind='esc:abort'
+}
+
 #git worktree add -b testworktreebranch /tmp/worktreetemp/
 # git worktree list
 
