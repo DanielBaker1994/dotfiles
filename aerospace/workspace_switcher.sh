@@ -10,16 +10,21 @@ FOCUS_FILE="/tmp/workspace-switcher-focus"
 
 PID=$(pgrep -f "workspace_switcher.py" | head -1)
 
-# Save the focused window unless it's the switcher itself (a hide-toggle).
-LINE=$(aerospace list-windows --focused --format '%{window-id} %{app-pid}')
-WID=${LINE%% *}
-APID=${LINE##* }
-if [ -n "$WID" ] && { [ -z "$PID" ] || [ "$APID" != "$PID" ]; }; then
-    echo "$WID" > "$FOCUS_FILE"
-fi
-
+# Signal the switcher FIRST so a slow/hanging `aerospace list-windows --focused`
+# (which happens when no window is focused) never blocks the toggle.
 if [ -n "$PID" ]; then
     touch "$FLAG"
 else
     nohup "$SCRIPT" >/dev/null 2>&1 &
 fi
+
+# Capture the focused window in the background so the toggle is always instant.
+(
+    LINE=$(aerospace list-windows --focused --format '%{window-id} %{app-pid}')
+    WID=${LINE%% *}
+    APID=${LINE##* }
+    if [ -n "$WID" ] && { [ -z "$PID" ] || [ "$APID" != "$PID" ]; }; then
+        echo "$WID $APID" > "$FOCUS_FILE"
+    fi
+) &
+disown

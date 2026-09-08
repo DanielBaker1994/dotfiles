@@ -293,6 +293,7 @@ class Switcher:
         self.rows = []
         self._shown = True
         self._saved_wid = None
+        self._saved_app_pid = None
 
         self.root = tk.Tk()
         self.root.title("workspace-switcher")
@@ -399,6 +400,41 @@ class Switcher:
                                 ctypes.c_uint64])
         except Exception:
             pass
+
+    def _activate_app_by_pid(self, pid):
+        """Activate another app by its PID using AppKit. This properly
+        transfers foreground status so the target app can receive keyboard
+        input (unlike aerospace focus --window-id which cannot steal focus
+        from the active app)."""
+        try:
+            app = objc_call(OBJC.objc_getClass(b"NSRunningApplication"),
+                            b"runningApplicationWithProcessIdentifier:",
+                            ctypes.c_int(pid),
+                            restype=ctypes.c_void_p,
+                            argtypes=[ctypes.c_void_p, ctypes.c_void_p,
+                                      ctypes.c_int])
+            if app:
+                # 3 = activateAllWindows(1) | activateIgnoringOtherApps(2)
+                objc_call(app, b"activateWithOptions:", 3, restype=None,
+                          argtypes=[ctypes.c_void_p, ctypes.c_void_p,
+                                    ctypes.c_uint64])
+        except Exception:
+            pass
+
+    def _restore_focus(self):
+        """Hand focus back to the window we saved when showing. First activate
+        the target app via AppKit (transfers foreground status), then focus the
+        specific window within that app via aerospace."""
+        saved = (self._saved_wid, self._saved_app_pid)
+        if not self._saved_app_pid:
+            self._saved_wid = None
+            return
+        self._activate_app_by_pid(self._saved_app_pid)
+        if self._saved_wid:
+            subprocess.run([AEROSPACE, "focus", "--window-id",
+                            self._saved_wid])
+        self._saved_wid = None
+        self._saved_app_pid = None
 
     def take_focus(self):
         if not self._shown:
@@ -541,7 +577,7 @@ class Switcher:
                 pass
             self.toggle()
         try:
-            self.root.after(200, self._check_signal)
+            self.root.after(50, self._check_signal)
         except tk.TclError:
             pass
 
@@ -561,30 +597,38 @@ class Switcher:
                             "--window-id", wid, ws])
 
     def _save_focus(self):
-        """The launcher captures the focused window at keypress time (before
-        the switcher takes focus) and writes it here; we just consume it."""
+        """Consume the focus id written by the launcher. If it hasn't landed
+        yet (race with the 50 ms poll) fall back to querying aerospace
+        ourselves — which is safe here because the toggle is already active."""
+        wid = None
+        pid = None
         try:
             with open(FOCUS_FILE) as fh:
-                wid = fh.read().strip()
-            if wid:
-                self._saved_wid = wid
-            os.unlink(FOCUS_FILE)
-        except OSError:
+                line = fh.read().strip()
+            if line:
+                parts = line.split()
+                wid = parts[0]
+                pid = int(parts[1]) if len(parts) > 1 else None
+                os.unlink(FOCUS_FILE)
+        except (OSError, ValueError, IndexError):
             pass
+        # Launcher hasn't written the file yet — query it ourselves.
+        if not wid:
+            try:
+                line = aerospace("list-windows", "--focused",
+                                 "--format", "%{window-id} %{app-pid}").strip()
+                wid, _, apid = line.partition(" ")
+                if wid and apid:
+                    pid = int(apid)
+            except Exception:
+                pass
+        if wid and pid and pid != os.getpid():
+            self._saved_wid = wid
+            self._saved_app_pid = pid
 
-    def _restore_focus(self):
-        if self._saved_wid:
-            subprocess.run([AEROSPACE, "focus", "--window-id",
-                            self._saved_wid])
-            self._saved_wid = None
 
     def show(self):
-        # remember the current focus so hide() can hand it back
         self._save_focus()
-        # ensure the window lives on the current workspace so activating it
-        # doesn't jump us to a different one
-        self._move_to_focused_workspace()
-        # reset to the start position and clear any leftover input
         self.sel = 0
         self.last_q = ""
         self.visible = list(self.order)
@@ -592,14 +636,11 @@ class Switcher:
         self.rebuild()
         self.root.attributes("-alpha", 1)
         self.root.update()
-        # overrideredirect windows ignore the first geometry request on macOS;
-        # re-assert once mapped
         try:
             self.root.geometry(self.geom)
         except tk.TclError:
             pass
         self.root.update()
-        # bring to the top and give it keyboard focus + activate the app
         self.root.lift()
         self.root.focus_force()
         self.entry.focus_set()
@@ -608,7 +649,6 @@ class Switcher:
         self._shown = True
 
     def hide(self):
-        # hand focus back to the window we saved when showing
         self._restore_focus()
         self.root.attributes("-alpha", 0)
         self.root.update()
@@ -625,7 +665,7 @@ def main():
         os.unlink(TOGGLE_FLAG)
     except OSError:
         pass
-    sw.root.after(200, sw._check_signal)
+    sw.root.after(50, sw._check_signal)
     sw.mainloop()
 
 
