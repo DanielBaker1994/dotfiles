@@ -54,7 +54,7 @@ default-root-container-orientation = 'auto'
 # See https://nikitabobko.github.io/AeroSpace/guide#on-focus-changed-callbacks
 # See https://nikitabobko.github.io/AeroSpace/commands#move-mouse
 # Fallback value (if you omit the key): on-focused-monitor-changed = []
-on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
+#on-focused-monitor-changed = ['move-mouse monitor-lazy-center']
 
 # You can effectively turn off macOS "Hide application" (cmd-h) feature by toggling this flag
 # Useful if you don't use this macOS feature, but accidentally hit cmd-h or cmd-alt-h key
@@ -79,14 +79,15 @@ focus-follows-mouse.enabled = false
 key-mapping.preset = 'qwerty'
 
 # Transient overlays: the switcher sizes/positions itself, and Flameshot's
-# screenshot UI shouldn't be tiled. Finder stays floating so windows don't
-# shuffle when you open a Finder window. Raycast's launcher is auto-ignored by
+# screenshot UI shouldn't be tiled. Raycast's launcher is auto-ignored by
 # aerospace's dialog heuristic (since 0.18.3), so it needs no rule here.
+# System Settings gets auto-floated by the dialog heuristic (its windows have
+# no fullscreen button), and aerospace floating windows can slide BEHIND tiled
+# windows (#713) — so force tile it like a regular app.
 on-window-detected = [
   { if = 'test %{window-title} = workspace-switcher', run = ['layout floating'] },
   { if = 'test %{app-bundle-id} = org.flameshot', run = ['layout floating'] },
-  { if = 'test %{app-bundle-id} = com.apple.finder', run = ['layout floating'] },
-  { if = 'test %{app-bundle-id} = com.apple.systempreferences', run = ['layout floating'] },
+  { if = 'test %{app-bundle-id} = com.apple.systempreferences', run = ['layout tiling'] },
 ]
 
 

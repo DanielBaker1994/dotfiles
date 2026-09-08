@@ -40,6 +40,14 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #   brew install --cask font-sketchybar-app-font   # ligature app glyphs
 # Workspace switcher (Tk popup, karabiner-bound): aerospace/workspace_switcher.{py,sh}
 #   brew install pillow                             # PIL: rounded bg + app icons
+#   Tk 9 GOTCHA (2026-09-08): -transparent attr does NOT flip NSWindow.opaque,
+#     so rounded corners rendered black. Fix in _make_borderless(): explicit
+#     setBackgroundColor:clearColor + setOpaque:NO via objc bridge.
+#     Frame render is opaque-RGB + separate alpha mask (rounded_base) so LANCZOS
+#     can't bleed transparent-black into edges.
+#   defaults write org.python.python ApplePersistenceIgnoreState -bool YES
+#     (suppresses macOS "reopen windows?" crash-restore modal that otherwise
+#     deadlocks EVERY new python-Tk launch after any python GUI crash)
 # Karabiner (caps_lock -> Hyper; Hyper+S = switcher): ~/.dotfiles/karabiner/karabiner.json
 #   brew install --cask karabiner-elements
 #   ln -s ~/.dotfiles/karabiner ~/.config/karabiner
@@ -56,6 +64,23 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #   plugins/aerospace_plugin), reads sketchybar-app-font/dist/icon_map.json
 #   (kvndrsslr/sketchybar-app-font cloned to sketchybar/sketchybar-app-font)
 # keybindings: alt-; = window switcher (fzf), alt-o = workspace switcher (fzf)
+# Toggle focused window floating<->tiling: alt-shift-semicolon (service mode) then f
+#   (e.g. Calendar opens floating -> alt-shift-semicolon f makes it tile like normal apps)
+
+# ---- Upcoming events/alerts (2026-09-08) ----
+# events/events.py -- config-driven osascript queries of Calendar.app (covers Webex
+# meetings synced to Work) + optional Microsoft Outlook adapter. No pip deps.
+#   python3 events/events.py             # text list of upcoming events
+#   python3 events/events.py --json      # machine-readable (for sketchybar/popups)
+#   python3 events/events.py --horizon 7 # override lookahead days
+# config: events/events.json -> sources[] {id, app, adapter: calendar|outlook,
+#   calendars: [...], match: <optional regex tag, e.g. "webex">}
+# Add an app by adding a JSON source entry; no code change.
+# Requires Automation permission (host terminal -> Calendar) + a running Calendar.app.
+# Gotchas: AppleScript date "1970-01-01" literal is tz-naive -> subtract (time to GMT)
+#   for correct epochs; `whose`-filters and `repeat with e in events` are unreliable in
+#   Calendar.app -> use bulk `property of every event` + index-zip + Python-side filtering.
+#   Events crossing a DST boundary may be off by 1h (rare for upcoming alerts).
 
 # --- Adding an app icon to the app font (e.g. Webex) ---
 # The full source repo is NOT vendored (it's a git repo-in-repo -> mess).

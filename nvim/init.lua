@@ -511,10 +511,10 @@ if not vim.g.lazy_did_setup then
             end,
         },
         {
-            'catppuccin/nvim',
-            name = 'catppuccin',
+            'folke/tokyonight.nvim',
+            name = 'tokyonight',
             priority = 1000,
-            opts = { flavour = 'mocha' },
+            opts = { style = 'night' },
         },
         {
             'akinsho/toggleterm.nvim',
@@ -694,7 +694,7 @@ if not vim.g.lazy_did_setup then
         },
     })
 end -- if not vim.g.lazy_did_setup
-vim.cmd.colorscheme('catppuccin-mocha')
+vim.cmd.colorscheme('tokyonight-night')
 
 vim.keymap.set('n', '<leader>pi', function()
     -- ASSET_PICTURES_DIRECTORY_GLOBAL is fetched/cached by the bash_external
@@ -825,6 +825,9 @@ vim.api.nvim_create_autocmd({ "TermOpen" }, {
         vim.opt.relativenumber = false
         vim.opt_local.winbar = ''
         vim.cmd [[setlocal nocursorline]]
+        -- pure black terminal background (TermNormal/NC apply to :term + toggleterm)
+        vim.api.nvim_set_hl(0, 'TermNormal', { bg = '#000000' })
+        vim.api.nvim_set_hl(0, 'TermNormalNC', { bg = '#000000' })
         -- env comes from the login shell itself (see vim.o.shell above) — the
         -- old chan_send of `source ~/.bash_profile` was racy and re-ran the
         -- whole profile on every terminal open.

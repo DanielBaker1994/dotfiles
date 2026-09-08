@@ -664,17 +664,27 @@ class Switcher:
 
     def show(self):
         self._save_focus()
+        # refresh workspace/window state so we never show stale apps
+        self.order, self.focused, self.apps = gather()
+        height = PAD * 2 + 30 + len(self.order) * ROW_H
+        px, py = self.root.winfo_pointerxy()
+        place = center_on_pointer(WIDTH, height, px, py)
+        if place is None:
+            sw, sh = self.root.winfo_screenwidth(), self.root.winfo_screenheight()
+            place = f"+{(sw - WIDTH) // 2}+{(sh - height) // 2}"
+        self.geom = f"{WIDTH}x{height}{place}"
+        # rebuild background image for new height
+        self.bg4 = rounded_rect_hi(WIDTH, height, RADIUS, fill=BAR,
+                                   outline=BORDER, width=1)
+        self.canvas.config(width=WIDTH, height=height)
+        self._icon_cache.clear()
         self.sel = 0
         self.last_q = ""
         self.visible = list(self.order)
         self.entry.delete(0, "end")
         self.rebuild()
+        self.root.geometry(self.geom)
         self.root.attributes("-alpha", 1)
-        self.root.update()
-        try:
-            self.root.geometry(self.geom)
-        except tk.TclError:
-            pass
         self.root.update()
         self.root.lift()
         self.root.focus_force()
