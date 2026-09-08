@@ -153,11 +153,18 @@ def aerospace(*args):
                           capture_output=True, text=True).stdout
 
 
-def find_bundle(app):
+def find_bundle(app, bundle_id=None):
     for base in APP_DIRS:
         bundle = os.path.join(base, app + ".app")
         if os.path.isdir(bundle):
             return bundle
+    # Fallback: resolve via Spotlight using the bundle identifier.
+    if bundle_id:
+        out = subprocess.run(["mdfind",
+                              f"kMDItemCFBundleIdentifier == '{bundle_id}'"],
+                             capture_output=True, text=True).stdout.strip()
+        if out and os.path.isdir(out):
+            return out
     return None
 
 
@@ -181,13 +188,13 @@ def icon_path(bundle):
     return icns
 
 
-def app_icon_png(app):
+def app_icon_png(app, bundle_id=None):
     os.makedirs(os.path.join(CACHE, "icons"), exist_ok=True)
     slug = re.sub(r"[^a-z0-9]+", "_", app.lower()).strip("_")
     path = os.path.join(CACHE, "icons", slug + ".png")
     if os.path.isfile(path):
         return path
-    bundle = find_bundle(app)
+    bundle = find_bundle(app, bundle_id)
     icns = icon_path(bundle) if bundle else None
     if not icns:
         return None
@@ -275,10 +282,11 @@ def gather():
     focused = aerospace("list-workspaces", "--focused").strip()
     apps = OrderedDict((sid, OrderedDict()) for sid in order)
     for line in aerospace("list-windows", "--all",
-                          "--format", "%{app-name} %{workspace}").splitlines():
-        app, _, sid = line.rpartition(" ")
-        if app and sid in apps:
-            apps[sid][app] = None
+                          "--format", "%{app-name}|%{app-bundle-id}|%{workspace}").splitlines():
+        name, _, rest = line.partition("|")
+        bid, _, sid = rest.partition("|")
+        if name and sid in apps:
+            apps[sid][name] = bid or None
     return order, focused, apps
 
 
@@ -362,10 +370,36 @@ class Switcher:
         except tk.TclError:
             pass
         self.root.update()
-        # focus_force before the window is mapped is a no-op on macOS
         self.focus_tries = 0
         self._make_borderless()
+        self._set_accessory_policy()
         self.root.after(100, self.take_focus)
+
+    def _set_accessory_policy(self):
+        """Make this app an 'agent' — no Dock icon, no menu bar, no focus
+        stealing on launch or while polling.  We still activate explicitly
+        when showing the popup."""
+        try:
+            nsapp = objc_call(OBJC.objc_getClass(b"NSApplication"),
+                              b"sharedApplication")
+            objc_call(nsapp, b"setActivationPolicy:", 1, restype=None,
+                      argtypes=[ctypes.c_void_p, ctypes.c_void_p,
+                                ctypes.c_int])
+        except Exception:
+            pass
+
+    def _deactivate(self):
+        """Deactivate our app so macOS hands focus to the previously active
+        one.  Setting alpha=0 alone keeps us as the foreground app, which
+        silently steals keystrokes from whatever window the user is typing in."""
+        try:
+            nsapp = objc_call(OBJC.objc_getClass(b"NSApplication"),
+                              b"sharedApplication")
+            objc_call(nsapp, b"hide:", None, restype=None,
+                      argtypes=[ctypes.c_void_p, ctypes.c_void_p,
+                                ctypes.c_void_p])
+        except Exception:
+            pass
 
     def _make_borderless(self):
         """Hide the window's title bar / chrome via AppKit. This Tk build
@@ -498,12 +532,13 @@ class Switcher:
             self.hide()
         return "break"
 
-    def _icon_pil(self, app):
-        cached = self._icon_cache.get(app)
+    def _icon_pil(self, app, bundle_id=None):
+        key = (app, bundle_id)
+        cached = self._icon_cache.get(key)
         if cached is not None:
             return cached
         icon = None
-        png = app_icon_png(app)
+        png = app_icon_png(app, bundle_id)
         if png:
             try:
                 icon = Image.open(png).convert("RGBA")
@@ -511,7 +546,7 @@ class Switcher:
                 icon = None
         if icon is None:
             icon = MISSING_GLYPH
-        self._icon_cache[app] = icon
+        self._icon_cache[key] = icon
         return icon
 
     def rebuild(self):
@@ -540,8 +575,8 @@ class Switcher:
             d.text((TEXT_X * AA, cy * AA), sid, font=self._pil_font,
                    fill=TEXT, anchor="lm")
             ix = ICON_X0
-            for app in list(self.apps[sid])[:MAX_ICONS]:
-                icon = self._icon_pil(app)
+            for app, bid in list(self.apps[sid].items())[:MAX_ICONS]:
+                icon = self._icon_pil(app, bid)
                 icon4 = icon.resize((icon.width * AA, icon.height * AA),
                                     Image.LANCZOS)
                 frame4.paste(icon4, (ix * AA, (cy - ICON_SIZE // 2) * AA),
@@ -649,7 +684,10 @@ class Switcher:
         self._shown = True
 
     def hide(self):
+        had_saved = self._saved_app_pid is not None
         self._restore_focus()
+        if not had_saved:
+            self._deactivate()
         self.root.attributes("-alpha", 0)
         self.root.update()
         self._shown = False
