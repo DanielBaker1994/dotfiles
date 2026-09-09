@@ -38,8 +38,25 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # Bar: SketchyBar (~/.config/sketchybar -> ~/.dotfiles/sketchybar)
 #   brew tap felixkratz/formulae && brew install sketchybar
 #   brew install --cask font-sketchybar-app-font   # ligature app glyphs
-# Workspace switcher (Tk popup, karabiner-bound): aerospace/workspace_switcher.{py,sh}
-#   brew install pillow                             # PIL: rounded bg + app icons
+# Workspace switcher (AppKit popup, karabiner-bound): aerospace/workspace_switcher.{swift,sh}
+#   Native Swift/AppKit port (2026-09-09) of the old Tk/PIL version.
+#   Daemon + Unix socket (no file polling): .sh pings $TMPDIR/workspace-switcher.sock,
+#   builds the binary if the .swift source is newer, launches if not running.
+#   Real transparency via NSWindow isOpaque=false + layer cornerRadius (Tk 9
+#   couldn't do this — corners rendered black, see below for the old fix).
+#   Build: swiftc -O -swift-version 5 workspace_switcher.swift -o workspace-switcher
+#   GOTCHA: flipped NSView (isFlipped=true) mirrors NSImage.draw — use the
+#     CTM-flip helper (drawImage(_:in:)) for icons, not plain draw(in:).
+#   GOTCHA: NSPanel must be .nonactivatingPanel + canBecomeKey=true or the
+#     popup never gets keyboard focus (and Esc/arrows won't work). With
+#     nonactivating, the user's app stays frontmost — no focus stealing.
+#   GOTCHA: the field editor swallows nav keys before NSTextField.keyDown —
+#     use NSEvent local monitor (.keyDown) to intercept Down/Up/Tab/Return/
+#     Esc/ctrl-n/p/j, pass other events through for text filtering.
+#   GOTCHA: nonactivating panels don't resign key on outside click — dismiss
+#     via NSEvent global monitor (.leftMouseDown outside window.frame).
+#   Aerospace IPC uses its socket directly (/tmp/bobko.aerospace-<user>.sock,
+#   4-byte LE version handshake + length-prefixed JSON), Process fallback.
 #   Tk 9 GOTCHA (2026-09-08): -transparent attr does NOT flip NSWindow.opaque,
 #     so rounded corners rendered black. Fix in _make_borderless(): explicit
 #     setBackgroundColor:clearColor + setOpaque:NO via objc bridge.

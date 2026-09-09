@@ -1,30 +1,33 @@
 #!/usr/bin/env bash
-# fzf-free workspace switcher: native Tk popup, themed like sketchybar.
-# Wrapper: if a switcher process is already running, deliver a toggle event by
-# touching a flag file it polls; otherwise start one in the background.
-# Also records the currently focused window at keypress time (before the
-# switcher takes focus) so the switcher can hand focus back when dismissed.
-SCRIPT="$HOME/.dotfiles/aerospace/workspace_switcher.py"
-FLAG="/tmp/workspace-switcher-toggle"
-FOCUS_FILE="/tmp/workspace-switcher-focus"
+# fzf-free workspace switcher: native AppKit popup (Swift), themed like
+# sketchybar. If the daemon is running (Unix-socket ping succeeds), send a
+# toggle message; otherwise build-if-stale and launch it in the background.
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="$DIR/workspace-switcher"
+SRC="$DIR/workspace_switcher.swift"
+TMP="${TMPDIR:-/tmp}"
+FOCUS_FILE="$TMP/workspace-switcher-focus"
 
-PID=$(pgrep -f "workspace_switcher.py" | head -1)
-
-# Signal the switcher FIRST so a slow/hanging `aerospace list-windows --focused`
-# (which happens when no window is focused) never blocks the toggle.
-if [ -n "$PID" ]; then
-    touch "$FLAG"
-else
-    nohup "$SCRIPT" >/dev/null 2>&1 &
+# Record the focused window (wid + app-pid) at keypress time so the switcher
+# can hand focus back when dismissed.
+LINE=$(aerospace list-windows --focused --format '%{window-id} %{app-pid}')
+WID=${LINE%% *}
+APID=${LINE##* }
+if [ -n "$WID" ]; then
+    echo "$WID $APID" > "$FOCUS_FILE"
 fi
 
-# Capture the focused window in the background so the toggle is always instant.
-(
-    LINE=$(aerospace list-windows --focused --format '%{window-id} %{app-pid}')
-    WID=${LINE%% *}
-    APID=${LINE##* }
-    if [ -n "$WID" ] && { [ -z "$PID" ] || [ "$APID" != "$PID" ]; }; then
-        echo "$WID $APID" > "$FOCUS_FILE"
-    fi
-) &
-disown
+# Build if the binary is missing or the source is newer.
+if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
+    swiftc -O -swift-version 5 "$SRC" -o "$BIN" >/dev/null 2>&1 || swiftc "$SRC" -o "$BIN"
+fi
+
+# Toggle the daemon if it's running; otherwise launch it and toggle once
+# (retrying briefly until the socket is up).
+if ! "$BIN" toggle >/dev/null 2>&1; then
+    nohup "$BIN" >/dev/null 2>&1 &
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 0.05
+        "$BIN" toggle >/dev/null 2>&1 && break
+    done
+fi
