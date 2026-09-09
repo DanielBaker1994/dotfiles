@@ -140,3 +140,8 @@ eval "$(fzf --bash)"
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
 export PATH="/Users/danielbaker/.local/bin:$PATH"
+
+# workspace-switcher shell utilities (prettyprint: format JSON/XML from stdin)
+if [ -f "$HOME/.config/workspace-switcher/bin/utils.sh" ]; then
+    source "$HOME/.config/workspace-switcher/bin/utils.sh"
+fi
