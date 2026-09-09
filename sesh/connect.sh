@@ -6,7 +6,7 @@ set -euo pipefail
 current_dir="$(tmux display-message -p -t . '#{pane_current_path}' 2>/dev/null || printf '%s' "$HOME")"
 
 selected="$(
-    sesh list -c -t -d --icons | fzf-tmux -p 90%,85% \
+    sesh list --icons | fzf-tmux -p 90%,85% \
         --no-sort --ansi --border-label ' sesh ' --prompt '⚡  ' \
         --header '  ^a ⚡ all ^t 🪟 tmux ^g ⚙️ configs ^x 📁 zoxide
   ^b 🌐 browser ^c 📝 scratch ^f 🔎 find ^d 🗑️ kill' \
