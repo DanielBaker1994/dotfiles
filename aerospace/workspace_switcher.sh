@@ -22,12 +22,8 @@ if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
     swiftc -O -swift-version 5 "$SRC" -o "$BIN" >/dev/null 2>&1 || swiftc "$SRC" -o "$BIN"
 fi
 
-# Toggle the daemon if it's running; otherwise launch it and toggle once
-# (retrying briefly until the socket is up).
+# Toggle the daemon if it's running; otherwise launch it with "show" so the
+# popup appears immediately (no retry loop needed).
 if ! "$BIN" toggle >/dev/null 2>&1; then
-    nohup "$BIN" >/dev/null 2>&1 &
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-        sleep 0.05
-        "$BIN" toggle >/dev/null 2>&1 && break
-    done
+    nohup "$BIN" show >/dev/null 2>&1 &
 fi

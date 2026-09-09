@@ -184,7 +184,16 @@ func gatherWorkspaces() -> [WorkspaceInfo] {
         ws.apps.append(AppInfo(name: parts[0], bundleID: parts[1].isEmpty ? nil : parts[1]))
         dict[parts[2]] = ws
     }
-    return order.compactMap { dict[$0] }
+    // letters (alphabetical) first, then numbers (numeric)
+    return order.compactMap { dict[$0] }.sorted { a, b in
+        let an = Int(a.id), bn = Int(b.id)
+        switch (an, bn) {
+        case (nil, nil): return a.id.localizedCaseInsensitiveCompare(b.id) == .orderedAscending
+        case (nil, .some): return true   // letter before number
+        case (.some, nil): return false
+        case (.some, .some): return an! < bn!
+        }
+    }
 }
 
 // MARK: - Icons
@@ -375,14 +384,33 @@ final class SwitcherController: NSObject, NSTextFieldDelegate, NSWindowDelegate 
         window.isReleasedWhenClosed = false
         window.title = "workspace-switcher"
 
-        cardView = CardView(frame: NSRect(x: 0, y: 0, width: WIDTH, height: 200))
-        cardView.wantsLayer = true
-        cardView.layer?.cornerRadius = RADIUS
-        cardView.layer?.masksToBounds = true
-        cardView.layer?.backgroundColor = BAR.cgColor
-        cardView.layer?.borderWidth = 1
-        cardView.layer?.borderColor = BORDER.cgColor
-        window.contentView = cardView
+        // Backdrop: rounded container that clips a blurred material + BAR
+        // tint, so the popup gets a sleek translucent look with real
+        // see-through corners (and a drop shadow from the panel).
+        let backdrop = NSView(frame: NSRect(x: 0, y: 0, width: WIDTH, height: 200))
+        backdrop.wantsLayer = true
+        backdrop.layer?.cornerRadius = RADIUS
+        backdrop.layer?.masksToBounds = true
+        backdrop.layer?.borderWidth = 1
+        backdrop.layer?.borderColor = BORDER.cgColor
+
+        let fx = NSVisualEffectView(frame: backdrop.bounds)
+        fx.material = .hudWindow
+        fx.blendingMode = .behindWindow
+        fx.state = .active
+        fx.autoresizingMask = [.width, .height]
+        backdrop.addSubview(fx)
+
+        let tint = NSView(frame: backdrop.bounds)
+        tint.wantsLayer = true
+        tint.layer?.backgroundColor = BAR.withAlphaComponent(0.78).cgColor
+        tint.autoresizingMask = [.width, .height]
+        backdrop.addSubview(tint)
+
+        cardView = CardView(frame: backdrop.bounds)
+        cardView.autoresizingMask = [.width, .height]
+        backdrop.addSubview(cardView)
+        window.contentView = backdrop
 
         filterField = FilterField(frame: NSRect(x: PAD + 2, y: PAD,
                                                 width: WIDTH - 2 * PAD - 4, height: 24))
@@ -390,7 +418,7 @@ final class SwitcherController: NSObject, NSTextFieldDelegate, NSWindowDelegate 
         filterField.drawsBackground = false
         filterField.isEditable = true
         filterField.isSelectable = true
-        filterField.font = NSFont.systemFont(ofSize: 9)
+        filterField.font = NSFont.systemFont(ofSize: 12)
         filterField.textColor = TEXT
         filterField.alignment = .left
         filterField.focusRingType = .none
@@ -630,12 +658,21 @@ final class SwitcherController: NSObject, NSTextFieldDelegate, NSWindowDelegate 
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     var controller: SwitcherController?
+    let showOnLaunch: Bool
+
+    init(showOnLaunch: Bool) {
+        self.showOnLaunch = showOnLaunch
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         let c = SwitcherController()
         controller = c
         c.start()
+        if showOnLaunch {
+            // launched fresh: show the popup right away (launcher sent "show")
+            c.show()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -665,8 +702,9 @@ let cliArgs = CommandLine.arguments
 if cliArgs.count > 1 && cliArgs[1] == "toggle" {
     exit(toggleClient() ? 0 : 1)
 }
+let showOnLaunch = cliArgs.count > 1 && cliArgs[1] == "show"
 
 let app = NSApplication.shared
-let delegate = AppDelegate()
+let delegate = AppDelegate(showOnLaunch: showOnLaunch)
 app.delegate = delegate
 app.run()

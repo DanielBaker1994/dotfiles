@@ -78,16 +78,15 @@ focus-follows-mouse.enabled = false
 # See https://nikitabobko.github.io/AeroSpace/guide#key-mapping
 key-mapping.preset = 'qwerty'
 
-# Transient overlays: the switcher sizes/positions itself, and Flameshot's
-# screenshot UI shouldn't be tiled. Raycast's launcher is auto-ignored by
-# aerospace's dialog heuristic (since 0.18.3), so it needs no rule here.
-# System Settings gets auto-floated by the dialog heuristic (its windows have
-# no fullscreen button), and aerospace floating windows can slide BEHIND tiled
-# windows (#713) — so force tile it like a regular app.
+# Floating whitelist + tile-by-default. The dialog heuristic (windows without a
+# fullscreen button) normally floats such windows; the catch-all `true` rule
+# below force-tiles everything not matched above, effectively disabling the
+# heuristic. Add any app that must stay floating (launchers, pickers, UIs) here.
+# Raycast's launcher is auto-ignored by aerospace (since 0.18.3) so it needs no rule.
 on-window-detected = [
   { if = 'test %{window-title} = workspace-switcher', run = ['layout floating'] },
   { if = 'test %{app-bundle-id} = org.flameshot', run = ['layout floating'] },
-  { if = 'test %{app-bundle-id} = com.apple.systempreferences', run = ['layout tiling'] },
+  { if = 'true', run = ['layout tiling'] },
 ]
 
 
