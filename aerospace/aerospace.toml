@@ -1,5 +1,8 @@
 after-startup-command = [
-#'exec-and-forget sketchybar'
+# sketchybar is also managed by brew services; sketchybar has built-in
+# detection of an already-running process, so this is a no-op if brew already
+# started it (and only actually launches it if brew hasn't).
+'exec-and-forget sketchybar'
 ]
 
 # Notify Sketchybar about workspace change.
@@ -7,12 +10,14 @@ after-startup-command = [
 # variables (sketchybar does not pass them positionally), and
 # sketchybar/plugins/aerospacer.sh reads $FOCUSED_WORKSPACE to move the highlight.
 exec-on-workspace-change = [
-#'/opt/homebrew/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
+'/opt/homebrew/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
 ]
 
-# Notify Sketchybar about focus change
+# Notify Sketchybar about focus change (window opened/closed/moved: keeps the
+# workspace icons current without the 2-second polling that used to hammer
+# the aerospace socket).
 on-focus-changed = [
-#  'exec-and-forget sketchybar --trigger aerospace_focus_change'
+  'exec-and-forget sketchybar --trigger aerospace_focus_change'
 ]
 
 # Place a copy of this config to ~/.aerospace.toml
@@ -166,18 +171,18 @@ outer.top =        [{ monitor.main = 10 }, 10]
     alt-w = 'workspace W'
     alt-m = 'workspace M'
 
-    alt-shift-1 = 'move-node-to-workspace 1'
-    alt-shift-2 = 'move-node-to-workspace 2'
-    alt-shift-3 = 'move-node-to-workspace 3'
-    alt-shift-4 = 'move-node-to-workspace 4'
-    alt-shift-5 = 'move-node-to-workspace 5'
-    alt-shift-6 = 'move-node-to-workspace 6'
-    alt-shift-7 = 'move-node-to-workspace 7'
-    alt-shift-8 = 'move-node-to-workspace 8'
-    alt-shift-9 = 'move-node-to-workspace 9'
-    alt-shift-y = 'move-node-to-workspace Y'
-    alt-shift-w = 'move-node-to-workspace W'
-    alt-shift-m = 'move-node-to-workspace M'
+    alt-shift-1 = 'move-node-to-workspace 1 --focus-follows-window'
+    alt-shift-2 = 'move-node-to-workspace 2 --focus-follows-window'
+    alt-shift-3 = 'move-node-to-workspace 3 --focus-follows-window'
+    alt-shift-4 = 'move-node-to-workspace 4 --focus-follows-window'
+    alt-shift-5 = 'move-node-to-workspace 5 --focus-follows-window'
+    alt-shift-6 = 'move-node-to-workspace 6 --focus-follows-window'
+    alt-shift-7 = 'move-node-to-workspace 7 --focus-follows-window'
+    alt-shift-8 = 'move-node-to-workspace 8 --focus-follows-window'
+    alt-shift-9 = 'move-node-to-workspace 9 --focus-follows-window'
+    alt-shift-y = 'move-node-to-workspace Y --focus-follows-window'
+    alt-shift-w = 'move-node-to-workspace W --focus-follows-window'
+    alt-shift-m = 'move-node-to-workspace M --focus-follows-window'
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#workspace-back-and-forth
     alt-tab = 'workspace-back-and-forth'

@@ -29,7 +29,11 @@ SPACE_NUMBER_FONT="SF Pro:Bold:9.0"
 SPACE_APP_FONT_SIZE=9.0
 APP_FONT="sketchybar-app-font:Regular:$SPACE_APP_FONT_SIZE"
 MAX_ICONS=3
-MONITOR_UPDATE_FREQ=2
+# Safety net ONLY: the bar updates are event-driven (aerospace_workspace_change
+# + aerospace_focus_change from aerospace.toml). This tick exists purely to
+# catch changes the events miss (e.g. a window moved while unfocused), so it
+# runs rarely instead of hammering aerospace with 2 CLI calls every 2 seconds.
+MONITOR_UPDATE_FREQ=30
 # Bar order (AeroSpace lists workspaces alphabetically, which we don't want).
 SPACE_ORDER=(M Y W 1 2 3 4 5 6 7 8 9)
 
@@ -150,7 +154,7 @@ build_all() {
         background.padding_right=0
 
     sketchybar --add item spaces_monitor left \
-        --subscribe spaces_monitor aerospace_workspace_change \
+        --subscribe spaces_monitor aerospace_workspace_change aerospace_focus_change \
         --set spaces_monitor \
         drawing=off \
         updates=on \
