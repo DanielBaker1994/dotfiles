@@ -55,6 +55,11 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #     Esc/ctrl-n/p/j, pass other events through for text filtering.
 #   GOTCHA: nonactivating panels don't resign key on outside click — dismiss
 #     via NSEvent global monitor (.leftMouseDown outside window.frame).
+#   Command palette: typing "/" in the filter switches to commands from
+#     aerospace/commands.conf ("name = shell script"). Loaded once at start;
+#     missing config is non-fatal. Commands run in a persistent bash child
+#     (CommandRunner, spawned at daemon start) so there's no shell startup
+#     cost. Esc exits command mode back to the workspace view; Esc again hides.
 #   Aerospace IPC uses its socket directly (/tmp/bobko.aerospace-<user>.sock,
 #   4-byte LE version handshake + length-prefixed JSON), Process fallback.
 #   Tk 9 GOTCHA (2026-09-08): -transparent attr does NOT flip NSWindow.opaque,

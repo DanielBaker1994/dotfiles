@@ -4,7 +4,9 @@
 # toggle message; otherwise build-if-stale and launch it in the background.
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN="$DIR/workspace-switcher"
+MAIN="$DIR/main.swift"
 SRC="$DIR/workspace_switcher.swift"
+FRAMEWORK="$DIR/PopupWindow.swift"
 TMP="${TMPDIR:-/tmp}"
 FOCUS_FILE="$TMP/workspace-switcher-focus"
 
@@ -17,9 +19,10 @@ if [ -n "$WID" ]; then
     echo "$WID $APID" > "$FOCUS_FILE"
 fi
 
-# Build if the binary is missing or the source is newer.
-if [ ! -x "$BIN" ] || [ "$SRC" -nt "$BIN" ]; then
-    swiftc -O -swift-version 5 "$SRC" -o "$BIN" >/dev/null 2>&1 || swiftc "$SRC" -o "$BIN"
+# Build if the binary is missing or a source file is newer.
+if [ ! -x "$BIN" ] || [ "$MAIN" -nt "$BIN" ] || [ "$SRC" -nt "$BIN" ] || [ "$FRAMEWORK" -nt "$BIN" ]; then
+    swiftc -O -swift-version 5 "$FRAMEWORK" "$SRC" "$MAIN" -o "$BIN" >/dev/null 2>&1 \
+        || swiftc "$FRAMEWORK" "$SRC" "$MAIN" -o "$BIN"
 fi
 
 # Toggle the daemon if it's running; otherwise launch it with "show" so the

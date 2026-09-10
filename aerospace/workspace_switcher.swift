@@ -2,23 +2,11 @@ import AppKit
 import Foundation
 import Darwin
 
-// MARK: - Layout constants (mirrors the Python/Tk switcher for identical look)
-
-let ROW_H: CGFloat = 30
-let PAD: CGFloat = 8
-let WIDTH: CGFloat = 250
-let PILL_W: CGFloat = 240    // selected-row highlight width (centered)
-let PILL_H: CGFloat = ROW_H - 6
-let PILL_RADIUS: CGFloat = 6
-let PILL_BORDER: CGFloat = 2
-let RADIUS: CGFloat = 9
-let ICON_SIZE: CGFloat = 22
-let ICON_STRIDE: CGFloat = 26
-let TEXT_X: CGFloat = PAD + 10
-let ICON_X0: CGFloat = PAD + 36
-let ROW_TOP: CGFloat = PAD + 28
-let HEADER_H: CGFloat = 30
-let MAX_ICONS = 3
+// ============================================================================
+// Workspace switcher — host app built on the PopupWindow framework.
+// This file only contains app-specific logic: workspace/command data, the
+// aerospace socket IPC, app icons, the persistent shell, and behavior hooks.
+// ============================================================================
 
 // MARK: - Colors (parsed from sketchybar colors.sh + aerospacer.sh)
 
@@ -63,31 +51,23 @@ let TEXT = C["WHITE"] ?? NSColor.white
 let DIM = C["GREY"] ?? NSColor.gray
 let BORDER = C["SPACE_BORDER_COLOR"] ?? NSColor.white
 
-// MARK: - Tmp dir + IPC paths (per-user, matches the launcher)
+// MARK: - Focus file (captured by the launcher at keypress time)
 
-func tmpDir() -> String {
-    let t = ProcessInfo.processInfo.environment["TMPDIR"] ?? ""
-    let d = t.isEmpty ? "/tmp/" : t
-    return d.hasSuffix("/") ? d : d + "/"
+let focusFilePath = popupTmpDir() + "workspace-switcher-focus"
+
+func readFocusFile() -> (String?, pid_t?) {
+    guard let content = try? String(contentsOfFile: focusFilePath, encoding: .utf8)
+    else { return (nil, nil) }
+    try? FileManager.default.removeItem(atPath: focusFilePath)
+    let parts = content.split(separator: " ")
+    guard let wid = parts.first, parts.count > 1,
+          let pid = Int32(parts[1]) else {
+        return parts.first.map { (String($0), nil) } ?? (nil, nil)
+    }
+    return (String(wid), pid)
 }
-
-let toggleSocketPath = tmpDir() + "workspace-switcher.sock"
-let focusFilePath = tmpDir() + "workspace-switcher-focus"
 
 // MARK: - Aerospace IPC (direct socket; falls back to spawning the CLI)
-
-func makeSockAddr(_ path: String) -> sockaddr_un {
-    var addr = sockaddr_un()
-    addr.sun_family = sa_family_t(AF_UNIX)
-    let chars = path.utf8CString
-    let count = min(chars.count, MemoryLayout.size(ofValue: addr.sun_path))
-    withUnsafeMutableBytes(of: &addr.sun_path) { dest in
-        chars.withUnsafeBufferPointer { src in
-            dest.baseAddress?.copyMemory(from: src.baseAddress!, byteCount: count)
-        }
-    }
-    return addr
-}
 
 func writeUInt32(_ fd: Int32, _ v: UInt32) {
     var v = v.littleEndian
@@ -115,7 +95,7 @@ func aerospaceSocket(_ args: [String]) -> String? {
     let fd = socket(AF_UNIX, SOCK_STREAM, 0)
     guard fd >= 0 else { return nil }
     defer { close(fd) }
-    var addr = makeSockAddr(path)
+    var addr = makeUnixSockAddr(path)
     let ok = withUnsafePointer(to: &addr) { ptr -> Bool in
         ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
             connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
@@ -196,12 +176,110 @@ func gatherWorkspaces() -> [WorkspaceInfo] {
     }
 }
 
+// MARK: - Command palette (loaded once from commands.conf)
+
+struct Command {
+    let name: String
+    let script: String
+}
+
+func loadCommands() -> [Command] {
+    let path = binDir + "/commands.conf"
+    guard let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+        FileHandle.standardError.write(Data("ws: commands.conf missing — no command palette\n".utf8))
+        return []
+    }
+    var cmds: [Command] = []
+    for line in content.split(separator: "\n") {
+        let s = line.trimmingCharacters(in: .whitespaces)
+        if s.isEmpty || s.hasPrefix("#") { continue }
+        guard let eq = s.firstIndex(of: "=") else { continue }
+        let name = s[..<eq].trimmingCharacters(in: .whitespaces)
+        let script = s[s.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+        if !name.isEmpty && !script.isEmpty {
+            cmds.append(Command(name: name, script: script))
+        }
+    }
+    return cmds
+}
+
+// Runs commands through a persistent bash (spawned once at startup) so
+// executing a command never pays shell startup cost.
+final class CommandRunner {
+    private let proc: Process
+    private let wFd: Int32
+    private var output = ""
+    private var pending: [String: (String) -> Void] = [:]
+    private let q = DispatchQueue(label: "ws.command-runner")
+
+    init?() {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        let inp = Pipe()
+        let outp = Pipe()
+        p.standardInput = inp
+        p.standardOutput = outp
+        p.standardError = outp
+        do { try p.run() } catch { return nil }
+        proc = p
+        wFd = inp.fileHandleForWriting.fileDescriptor
+        let rFd = outp.fileHandleForReading.fileDescriptor
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            var buf = [UInt8](repeating: 0, count: 4096)
+            while true {
+                let n = read(rFd, &buf, buf.count)
+                if n <= 0 { return }
+                self?.append(String(decoding: buf[..<n], as: UTF8.self))
+            }
+        }
+    }
+
+    func run(_ script: String, completion: @escaping (String) -> Void) {
+        q.async { [weak self] in
+            guard let self else { return }
+            let token = "__WS_DONE_\(UUID().uuidString)__"
+            self.pending[token] = completion
+            let line = "( \(script) ; echo \"\(token)\" ) 2>&1\n"
+            let data = Data(line.utf8)
+            data.withUnsafeBytes { _ = write(self.wFd, $0.baseAddress, data.count) }
+        }
+    }
+
+    private func append(_ s: String) {
+        q.sync {
+            output += s
+            for (token, completion) in pending {
+                if let range = output.range(of: token) {
+                    let result = String(output[..<range.lowerBound])
+                    output.removeSubrange(output.startIndex..<range.upperBound)
+                    pending.removeValue(forKey: token)
+                    DispatchQueue.main.async { completion(result) }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Icons
 
+let appIconSize: CGFloat = 22
+
+// Row rendering constants — these are the workspace switcher's own look; the
+// framework knows nothing about them (rows are drawn via popup.onDrawRow).
+let rowPillW: CGFloat = 240
+let rowPillH: CGFloat = 24
+let rowPillRadius: CGFloat = 6
+let rowPillBorder: CGFloat = 2
+let rowTextX: CGFloat = 18
+let rowIconSize: CGFloat = 22
+let rowIconX: CGFloat = 44
+let rowIconStride: CGFloat = 26
+let rowMaxIcons = 3
+
 let missingIcon: NSImage = {
-    let img = NSImage(size: NSSize(width: ICON_SIZE, height: ICON_SIZE))
+    let img = NSImage(size: NSSize(width: appIconSize, height: appIconSize))
     img.lockFocus()
-    let rect = NSRect(x: 0, y: 0, width: ICON_SIZE, height: ICON_SIZE)
+    let rect = NSRect(x: 0, y: 0, width: appIconSize, height: appIconSize)
     let path = NSBezierPath(roundedRect: rect, xRadius: 5, yRadius: 5)
     GROUP_BG.setFill()
     path.fill()
@@ -213,7 +291,7 @@ let missingIcon: NSImage = {
     ]
     let s = "?" as NSString
     let sz = s.size(withAttributes: attrs)
-    s.draw(at: NSPoint(x: (ICON_SIZE - sz.width) / 2, y: (ICON_SIZE - sz.height) / 2),
+    s.draw(at: NSPoint(x: (appIconSize - sz.width) / 2, y: (appIconSize - sz.height) / 2),
            withAttributes: attrs)
     img.unlockFocus()
     return img
@@ -242,415 +320,209 @@ func iconForApp(_ app: AppInfo) -> NSImage {
     return missingIcon
 }
 
-// MARK: - Filter text field
+// MARK: - Rows (framework PopupRow adapters)
 
-final class FilterField: NSTextField {
-    var onKeyDown: ((UInt16, NSEvent.ModifierFlags) -> Bool)?
+struct WorkspaceRow: PopupRow {
+    let title: String
+    let icons: [NSImage]
+    let trailing: String?
 
-    override func keyDown(with event: NSEvent) {
-        let handled = onKeyDown?(event.keyCode, event.modifierFlags) ?? false
-        if !handled { super.keyDown(with: event) }
-    }
-
-    override func cancelOperation(_ sender: Any?) {
-        _ = onKeyDown?(53, [])  // Escape
-    }
-}
-
-// MARK: - Window (borderless but key-capable)
-
-final class SwitcherWindow: NSPanel {
-    var onCancel: (() -> Void)?
-
-    // Borderless windows can't become key by default; without this the popup
-    // never gets focus (no caret, no keyboard input).
-    override var canBecomeKey: Bool { true }
-    override var canBecomeMain: Bool { true }
-
-    override func cancelOperation(_ sender: Any?) {
-        onCancel?()  // Esc even when the filter field isn't first responder
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        // clicking anywhere on the popup focuses the search field
-        if let field = contentView?.subviews.compactMap({ $0 as? NSTextField }).first {
-            makeFirstResponder(field)
+    init(ws: WorkspaceInfo, iconCache: inout [String: NSImage]) {
+        title = ws.id
+        var imgs: [NSImage] = []
+        for app in ws.apps.prefix(rowMaxIcons) {
+            let key = app.bundleID ?? app.name
+            if let cached = iconCache[key] {
+                imgs.append(cached)
+            } else {
+                let img = iconForApp(app)
+                iconCache[key] = img
+                imgs.append(img)
+            }
         }
-        super.mouseDown(with: event)
+        icons = imgs
+        let extra = ws.apps.count - rowMaxIcons
+        trailing = extra > 0 ? "+\(extra)" : nil
     }
 }
 
-// MARK: - Card view (rows drawn with Core Graphics)
-
-final class CardView: NSView {
-    var workspaces: [WorkspaceInfo] = []
-    var visible: [WorkspaceInfo] = []
-    var selection = 0
-    var iconCache: [String: NSImage] = [:]
-
-    override var isFlipped: Bool { true }
-
-    private func icon(_ app: AppInfo) -> NSImage {
-        let key = app.bundleID ?? app.name
-        if let cached = iconCache[key] { return cached }
-        let img = iconForApp(app)
-        iconCache[key] = img
-        return img
-    }
-
-    // NSImage.draw(in:) mirrors images vertically inside a flipped view, so
-    // flip the CTM around the target rect's vertical center first.
-    private func drawImage(_ img: NSImage, in rect: NSRect) {
-        guard let ctx = NSGraphicsContext.current else { return }
-        ctx.saveGraphicsState()
-        let t = NSAffineTransform()
-        t.translateX(by: 0, yBy: rect.origin.y * 2 + rect.height)
-        t.scaleX(by: 1, yBy: -1)
-        t.concat()
-        img.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
-        ctx.restoreGraphicsState()
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        var y: CGFloat = ROW_TOP
-        for (i, ws) in visible.enumerated() {
-            if i == selection {
-                let pill = NSRect(x: (WIDTH - PILL_W) / 2, y: y + 2,
-                                  width: PILL_W, height: PILL_H)
-                let p = NSBezierPath(roundedRect: pill, xRadius: PILL_RADIUS,
-                                     yRadius: PILL_RADIUS)
-                GROUP_BG.setFill()
-                p.fill()
-                BORDER.setStroke()
-                p.lineWidth = PILL_BORDER
-                p.stroke()
-            }
-            let cy = y + PILL_H / 2 + 2
-            let titleAttrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 11), .foregroundColor: TEXT,
-            ]
-            let title = ws.id as NSString
-            let ts = title.size(withAttributes: titleAttrs)
-            title.draw(at: NSPoint(x: TEXT_X, y: cy - ts.height / 2),
-                       withAttributes: titleAttrs)
-            var ix: CGFloat = ICON_X0
-            for app in ws.apps.prefix(MAX_ICONS) {
-                let img = icon(app)
-                drawImage(img, in: NSRect(x: ix, y: cy - ICON_SIZE / 2,
-                                          width: ICON_SIZE, height: ICON_SIZE))
-                ix += ICON_STRIDE
-            }
-            let extra = ws.apps.count - MAX_ICONS
-            if extra > 0 {
-                let dimAttrs: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: 11), .foregroundColor: DIM,
-                ]
-                let s = "+\(extra)" as NSString
-                let ss = s.size(withAttributes: dimAttrs)
-                s.draw(at: NSPoint(x: ix + 2, y: cy - ss.height / 2),
-                       withAttributes: dimAttrs)
-            }
-            y += ROW_H
-        }
-    }
+struct CommandRow: PopupRow {
+    let title: String
+    let command: Command
+    init(_ c: Command) { title = "> \(c.name)"; command = c }
 }
 
-// MARK: - Controller
+// MARK: - App controller (behavior hooks only; window logic lives in PopupWindow)
 
-final class SwitcherController: NSObject, NSTextFieldDelegate, NSWindowDelegate {
-    let window: SwitcherWindow
-    let cardView: CardView
-    let filterField: FilterField
+final class SwitcherController: NSObject {
+    let popup: PopupWindow
+    let commandRunner: CommandRunner?
     var workspaces: [WorkspaceInfo] = []
-    var visible: [WorkspaceInfo] = []
-    var selection = 0
+    var commands: [Command] = []
+    var commandMode = false
+    var workspaceSelection = 0
+    var commandSelection = 0
     var savedWID: String?
     var savedPID: pid_t?
-    var shown = false
-    var focusRetries = 0
-    var keyMonitor: Any?
-    var mouseMonitor: Any?
+    private var iconCache: [String: NSImage] = [:]
 
     override init() {
-        window = SwitcherWindow(contentRect: NSRect(x: 0, y: 0, width: WIDTH, height: 200),
-                                styleMask: [.borderless, .nonactivatingPanel],
-                                backing: .buffered,
-                                defer: false)
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        window.hasShadow = true
-        window.level = .popUpMenu
-        window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        window.isReleasedWhenClosed = false
-        window.title = "workspace-switcher"
-
-        // Backdrop: rounded container that clips a blurred material + BAR
-        // tint, so the popup gets a sleek translucent look with real
-        // see-through corners (and a drop shadow from the panel).
-        let backdrop = NSView(frame: NSRect(x: 0, y: 0, width: WIDTH, height: 200))
-        backdrop.wantsLayer = true
-        backdrop.layer?.cornerRadius = RADIUS
-        backdrop.layer?.masksToBounds = true
-        backdrop.layer?.borderWidth = 1
-        backdrop.layer?.borderColor = BORDER.cgColor
-
-        let fx = NSVisualEffectView(frame: backdrop.bounds)
-        fx.material = .hudWindow
-        fx.blendingMode = .behindWindow
-        fx.state = .active
-        fx.autoresizingMask = [.width, .height]
-        backdrop.addSubview(fx)
-
-        let tint = NSView(frame: backdrop.bounds)
-        tint.wantsLayer = true
-        tint.layer?.backgroundColor = BAR.withAlphaComponent(0.78).cgColor
-        tint.autoresizingMask = [.width, .height]
-        backdrop.addSubview(tint)
-
-        cardView = CardView(frame: backdrop.bounds)
-        cardView.autoresizingMask = [.width, .height]
-        backdrop.addSubview(cardView)
-        window.contentView = backdrop
-
-        filterField = FilterField(frame: NSRect(x: PAD + 2, y: PAD,
-                                                width: WIDTH - 2 * PAD - 4, height: 24))
-        filterField.isBezeled = false
-        filterField.drawsBackground = false
-        filterField.isEditable = true
-        filterField.isSelectable = true
-        filterField.font = NSFont.systemFont(ofSize: 12)
-        filterField.textColor = TEXT
-        filterField.alignment = .left
-        filterField.focusRingType = .none
-        cardView.addSubview(filterField)
-
+        var config = PopupConfig(name: "workspace-switcher")
+        config.colors = PopupColors(background: BAR, border: BORDER,
+                                    text: TEXT, dim: DIM, highlight: GROUP_BG)
+        popup = PopupWindow(config: config)
+        commandRunner = CommandRunner()
         super.init()
-        window.delegate = self
-        window.onCancel = { [weak self] in
-            self?.hide(restore: true)
+        commands = loadCommands()
+
+        popup.onFilter = { [weak self] query in
+            self?.filter(query) ?? []
         }
-        filterField.delegate = self
-        filterField.onKeyDown = { [weak self] code, mods in
-            self?.handleKey(code, mods) ?? false
+        popup.onAccept = { [weak self] row in
+            self?.accept(row)
         }
-        window.orderOut(nil)
+        popup.onEscape = { [weak self] in
+            self?.handleEscape()
+        }
+        popup.onHide = { [weak self] restore in
+            self?.restoreFocus(restore)
+        }
+        popup.onDrawRow = { [weak self] rect, row, selected in
+            self?.drawRow(rect, row, selected)
+        }
     }
 
     func start() {
-        startToggleServer()
-    }
-
-    // MARK: Toggle server (background thread, message "toggle\n")
-
-    private func startToggleServer() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            unlink(toggleSocketPath)
-            let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-            guard fd >= 0 else { return }
-            var addr = makeSockAddr(toggleSocketPath)
-            let bound = withUnsafePointer(to: &addr) { ptr -> Bool in
-                ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                    Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
-                }
-            }
-            guard bound else { close(fd); return }
-            listen(fd, 4)
-            while true {
-                let cfd = accept(fd, nil, nil)
-                guard cfd >= 0 else { continue }
-                var buf = [UInt8](repeating: 0, count: 128)
-                let n = read(cfd, &buf, buf.count)
-                close(cfd)
-                if n > 0 {
-                    let msg = String(bytes: buf[..<n], encoding: .utf8) ?? ""
-                    if msg.contains("toggle") {
-                        DispatchQueue.main.async { self?.toggle() }
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: Toggle / show / hide
-
-    func toggle() {
-        if shown {
-            hide(restore: true)
-        } else {
-            show()
-        }
+        popup.start()
     }
 
     func show() {
-        // consume focus info captured by the launcher at keypress time
         (savedWID, savedPID) = readFocusFile()
         workspaces = gatherWorkspaces()
         guard !workspaces.isEmpty else { return }
-        visible = workspaces
-        selection = 0
-        filterField.stringValue = ""
-        cardView.workspaces = workspaces
-        cardView.visible = visible
-        cardView.selection = 0
-
-        let height = PAD * 2 + HEADER_H + CGFloat(workspaces.count) * ROW_H
-        let origin = centeredOrigin(width: WIDTH, height: height)
-        window.setContentSize(NSSize(width: WIDTH, height: height))
-        window.setFrameOrigin(origin)
-        cardView.frame = NSRect(x: 0, y: 0, width: WIDTH, height: height)
-        cardView.needsDisplay = true
-
-        shown = true
-        // The field editor swallows most keys before our NSTextField override,
-        // so intercept navigation keys with a local event monitor (the
-        // standard command-palette approach) and let text pass through.
-        installKeyMonitor()
-        focusRetries = 0
-        takeFocus()
+        commandMode = false
+        workspaceSelection = 0
+        commandSelection = 0
+        popup.show()
     }
 
-    private func installKeyMonitor() {
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.shown else { return event }
-            if self.handleKey(event.keyCode, event.modifierFlags) {
-                return nil  // consumed
+    // MARK: Hooks
+
+    // Row rendering — the workspace switcher's own look (pill + title + app
+    // icons + "+N"). The framework only hands us the row rect.
+    private func drawRow(_ rect: NSRect, _ row: PopupRow, _ selected: Bool) {
+        if selected {
+            let pill = NSRect(x: (rect.width - rowPillW) / 2, y: rect.origin.y + 2,
+                              width: rowPillW, height: rowPillH)
+            let p = NSBezierPath(roundedRect: pill, xRadius: rowPillRadius,
+                                 yRadius: rowPillRadius)
+            GROUP_BG.setFill()
+            p.fill()
+            BORDER.setStroke()
+            p.lineWidth = rowPillBorder
+            p.stroke()
+        }
+        let cy = rect.origin.y + rowPillH / 2 + 2
+        let titleAttrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11), .foregroundColor: TEXT,
+        ]
+        let title = row.title as NSString
+        let ts = title.size(withAttributes: titleAttrs)
+        title.draw(at: NSPoint(x: rowTextX, y: cy - ts.height / 2),
+                   withAttributes: titleAttrs)
+        var ix: CGFloat = rowIconX
+        for img in row.icons {
+            popupDrawImage(img, in: NSRect(x: ix, y: cy - rowIconSize / 2,
+                                           width: rowIconSize, height: rowIconSize))
+            ix += rowIconStride
+        }
+        if let trailing = row.trailing {
+            let dimAttrs: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 11), .foregroundColor: DIM,
+            ]
+            let s = trailing as NSString
+            let ss = s.size(withAttributes: dimAttrs)
+            s.draw(at: NSPoint(x: ix + 2, y: cy - ss.height / 2),
+                   withAttributes: dimAttrs)
+        }
+    }
+
+    private func filter(_ query: String) -> [PopupRow] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if q.hasPrefix("/") {
+            // command palette mode: search commands by what follows the slash
+            if !commandMode {
+                workspaceSelection = popup.selection
+                commandMode = true
+                popup.selection = commandSelection
             }
-            return event   // pass through (text input for filtering)
-        }
-        // Clicking anywhere outside the popup dismisses it (standard launcher
-        // behavior). The nonactivating panel never resigns key on its own, so
-        // watch for global mouse-downs outside our frame.
-        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) {
-            [weak self] event in
-            guard let self, self.shown else { return }
-            let p = NSEvent.mouseLocation
-            if !self.window.frame.contains(p) {
-                self.hide(restore: false)
+            let sub = String(q.dropFirst()).trimmingCharacters(in: .whitespaces)
+            let cmds = sub.isEmpty
+                ? commands
+                : commands.filter { $0.name.lowercased().contains(sub) }
+            if popup.selection >= cmds.count {
+                popup.selection = max(0, cmds.count - 1)
             }
+            return cmds.map { CommandRow($0) }
         }
-    }
-
-    private func removeKeyMonitor() {
-        if let m = keyMonitor {
-            NSEvent.removeMonitor(m)
-            keyMonitor = nil
+        // workspace mode (slash removed or never typed)
+        if commandMode {
+            commandSelection = popup.selection
+            commandMode = false
+            popup.selection = workspaceSelection
         }
-        if let m = mouseMonitor {
-            NSEvent.removeMonitor(m)
-            mouseMonitor = nil
-        }
-    }
-
-    private func takeFocus() {
-        guard shown else { return }
-        window.makeKeyAndOrderFront(nil)
-        window.makeFirstResponder(filterField)
-        if !window.isKeyWindow, focusRetries < 10 {
-            focusRetries += 1
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
-                self?.takeFocus()
-            }
-        }
-    }
-
-    func hide(restore: Bool) {
-        guard shown else { return }
-        shown = false
-        removeKeyMonitor()
-        window.orderOut(nil)
-        if restore {
-            if let pid = savedPID {
-                NSRunningApplication(processIdentifier: pid)?.activate(
-                    options: [.activateAllWindows])
-            }
-            if let wid = savedWID {
-                _ = aerospaceCall(["focus", "--window-id", wid])
-            }
-        }
-        savedWID = nil
-        savedPID = nil
-        shown = false
-    }
-
-    private func readFocusFile() -> (String?, pid_t?) {
-        guard let content = try? String(contentsOfFile: focusFilePath, encoding: .utf8)
-        else { return (nil, nil) }
-        try? FileManager.default.removeItem(atPath: focusFilePath)
-        let parts = content.split(separator: " ")
-        guard let wid = parts.first, parts.count > 1,
-              let pid = Int32(parts[1]) else {
-            return parts.first.map { (String($0), nil) } ?? (nil, nil)
-        }
-        return (String(wid), pid)
-    }
-
-    private func centeredOrigin(width: CGFloat, height: CGFloat) -> NSPoint {
-        let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main!
-        let vis = screen.visibleFrame
-        return NSPoint(x: vis.midX - width / 2, y: vis.midY - height / 2)
-    }
-
-    // MARK: Navigation / actions
-
-    private func handleKey(_ code: UInt16, _ mods: NSEvent.ModifierFlags) -> Bool {
-        let ctrl = mods.contains(.control)
-        switch (code, ctrl) {
-        case (125, _): moveSelection(1); return true              // Down
-        case (126, _): moveSelection(-1); return true             // Up
-        case (48, _): moveSelection(mods.contains(.shift) ? -1 : 1); return true  // Tab
-        case (45, true): moveSelection(1); return true            // C-n
-        case (35, true): moveSelection(-1); return true           // C-p
-        case (36, _), (38, true): jump(); return true             // Return / C-j
-        case (53, _): hide(restore: true); return true            // Escape
-        default: return false
-        }
-    }
-
-    private func moveSelection(_ delta: Int) {
-        guard !visible.isEmpty else { return }
-        selection = (selection + delta + visible.count) % visible.count
-        cardView.selection = selection
-        cardView.needsDisplay = true
-    }
-
-    private func jump() {
-        guard !visible.isEmpty else { hide(restore: true); return }
-        let sid = visible[selection].id
-        hide(restore: false)
-        _ = aerospaceCall(["workspace", sid])
-    }
-
-    // MARK: NSWindowDelegate
-
-    // Clicking anywhere outside the popup dismisses it (standard launcher
-    // behavior). Don't restore focus here — the app the user clicked already
-    // has it; restoring would yank focus away from their click.
-    func windowDidResignKey(_ notification: Notification) {
-        if shown {
-            hide(restore: false)
-        }
-    }
-
-    // MARK: NSTextFieldDelegate
-
-    func controlTextDidChange(_ obj: Notification) {
-        let q = filterField.stringValue
-            .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if q.isEmpty {
-            visible = workspaces
-        } else {
-            visible = workspaces.filter { ws in
+        let vis = q.isEmpty
+            ? workspaces
+            : workspaces.filter { ws in
                 ws.id.lowercased().contains(q)
                     || ws.apps.contains { $0.name.lowercased().contains(q) }
             }
+        if popup.selection >= vis.count {
+            popup.selection = max(0, vis.count - 1)
         }
-        if selection >= visible.count {
-            selection = max(0, visible.count - 1)
+        return vis.map { WorkspaceRow(ws: $0, iconCache: &iconCache) }
+    }
+
+    private func accept(_ row: PopupRow) {
+        if let cr = row as? CommandRow {
+            popup.hide(restore: true)
+            let cmd = cr.command
+            commandRunner?.run(cmd.script) { out in
+                FileHandle.standardError.write(
+                    Data("ws: cmd '\(cmd.name)' -> \(out)\n".utf8))
+            }
+            return
         }
-        cardView.visible = visible
-        cardView.selection = selection
-        cardView.needsDisplay = true
+        if let wr = row as? WorkspaceRow {
+            popup.hide(restore: false)
+            _ = aerospaceCall(["workspace", wr.title])
+        }
+    }
+
+    private func handleEscape() {
+        if commandMode {
+            // command menu is showing: drop back to the workspace view,
+            // restoring the previous selection
+            commandSelection = popup.selection
+            commandMode = false
+            popup.selection = workspaceSelection
+            popup.clearInput()
+            popup.setRows(workspaces.map { WorkspaceRow(ws: $0, iconCache: &iconCache) })
+        } else {
+            popup.hide(restore: true)
+        }
+    }
+
+    private func restoreFocus(_ restore: Bool) {
+        if restore, let pid = savedPID {
+            NSRunningApplication(processIdentifier: pid)?.activate(
+                options: [.activateAllWindows])
+        }
+        if restore, let wid = savedWID {
+            _ = aerospaceCall(["focus", "--window-id", wid])
+        }
+        savedWID = nil
+        savedPID = nil
     }
 }
 
@@ -670,7 +542,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller = c
         c.start()
         if showOnLaunch {
-            // launched fresh: show the popup right away (launcher sent "show")
             c.show()
         }
     }
@@ -679,32 +550,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         false
     }
 }
-
-// MARK: - Entry point
-
-func toggleClient() -> Bool {
-    let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-    guard fd >= 0 else { return false }
-    defer { close(fd) }
-    var addr = makeSockAddr(toggleSocketPath)
-    let ok = withUnsafePointer(to: &addr) { ptr -> Bool in
-        ptr.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-            connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) == 0
-        }
-    }
-    guard ok else { return false }
-    let msg = "toggle\n"
-    msg.withCString { _ = write(fd, $0, msg.count) }
-    return true
-}
-
-let cliArgs = CommandLine.arguments
-if cliArgs.count > 1 && cliArgs[1] == "toggle" {
-    exit(toggleClient() ? 0 : 1)
-}
-let showOnLaunch = cliArgs.count > 1 && cliArgs[1] == "show"
-
-let app = NSApplication.shared
-let delegate = AppDelegate(showOnLaunch: showOnLaunch)
-app.delegate = delegate
-app.run()
