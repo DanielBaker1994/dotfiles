@@ -38,7 +38,13 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # Bar: SketchyBar (~/.config/sketchybar -> ~/.dotfiles/sketchybar)
 #   brew tap felixkratz/formulae && brew install sketchybar
 #   brew install --cask font-sketchybar-app-font   # ligature app glyphs
-# Workspace switcher (AppKit popup, karabiner-bound): aerospace/workspace_switcher.{swift,sh}
+# Workspace switcher (AppKit popup, karabiner-bound): aerospace/workspace_switcher.swift
+#   Reusable window framework: aerospace/PopupWindow.swift (config-driven popup:
+#   size/colors/fonts via PopupConfig; optional search/navigation/escape/toggle/
+#   click-off handlers; rows via PopupRow protocol). Entry point in main.swift.
+#   Build: swiftc -O -swift-version 5 PopupWindow.swift workspace_switcher.swift main.swift
+#   -o workspace-switcher (multi-file build needs the entry point in main.swift)
+#   Toggle IPC is name-scoped: socket $TMPDIR/<name>.sock, message "toggle <name>".
 #   Native Swift/AppKit port (2026-09-09) of the old Tk/PIL version.
 #   Daemon + Unix socket (no file polling): .sh pings $TMPDIR/workspace-switcher.sock,
 #   builds the binary if the .swift source is newer, launches if not running.
@@ -60,6 +66,7 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #     missing config is non-fatal. Commands run in a persistent bash child
 #     (CommandRunner, spawned at daemon start) so there's no shell startup
 #     cost. Esc exits command mode back to the workspace view; Esc again hides.
+#   Native Swift/AppKit port (2026-09-09) of the old Tk/PIL version.
 #   Aerospace IPC uses its socket directly (/tmp/bobko.aerospace-<user>.sock,
 #   4-byte LE version handshake + length-prefixed JSON), Process fallback.
 #   Tk 9 GOTCHA (2026-09-08): -transparent attr does NOT flip NSWindow.opaque,

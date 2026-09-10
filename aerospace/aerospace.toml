@@ -1,16 +1,18 @@
-after-startup-command = ['exec-and-forget sketchybar']
+after-startup-command = [
+#'exec-and-forget sketchybar'
+]
 
 # Notify Sketchybar about workspace change.
 # The KEY=VALUE payload arrives in the subscribed item's script as ENVIRONMENT
 # variables (sketchybar does not pass them positionally), and
 # sketchybar/plugins/aerospacer.sh reads $FOCUSED_WORKSPACE to move the highlight.
-exec-on-workspace-change = ['/opt/homebrew/bin/bash', '-c',
-  'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
+exec-on-workspace-change = [
+#'/opt/homebrew/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
 ]
 
 # Notify Sketchybar about focus change
 on-focus-changed = [
-  'exec-and-forget sketchybar --trigger aerospace_focus_change'
+#  'exec-and-forget sketchybar --trigger aerospace_focus_change'
 ]
 
 # Place a copy of this config to ~/.aerospace.toml
@@ -85,8 +87,9 @@ key-mapping.preset = 'qwerty'
 # Raycast's launcher is auto-ignored by aerospace (since 0.18.3) so it needs no rule.
 on-window-detected = [
   { if = 'test %{window-title} = workspace-switcher', run = ['layout floating'] },
+  { if = 'test %{window-title} = workspace-switcher-dummy', run = ['layout floating'] },
   { if = 'test %{app-bundle-id} = org.flameshot', run = ['layout floating'] },
-  { if = 'true', run = ['layout tiling'] },
+  { if = 'test %{app-bundle-id} = com.apple.systempreferences', run = ['layout tiling'] },
 ]
 
 

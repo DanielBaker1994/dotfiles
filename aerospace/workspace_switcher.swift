@@ -352,11 +352,17 @@ struct CommandRow: PopupRow {
     init(_ c: Command) { title = "> \(c.name)"; command = c }
 }
 
+// Simple row for the test dummy popup (uses the framework's default rendering).
+struct DummyRow: PopupRow {
+    let title: String
+}
+
 // MARK: - App controller (behavior hooks only; window logic lives in PopupWindow)
 
 final class SwitcherController: NSObject {
     let popup: PopupWindow
     let commandRunner: CommandRunner?
+    let stack = PopupStack()
     var workspaces: [WorkspaceInfo] = []
     var commands: [Command] = []
     var commandMode = false
@@ -370,6 +376,10 @@ final class SwitcherController: NSObject {
         var config = PopupConfig(name: "workspace-switcher")
         config.colors = PopupColors(background: BAR, border: BORDER,
                                     text: TEXT, dim: DIM, highlight: GROUP_BG)
+        config.enableResize = true
+        // shrink/grow the window to fit the current row count while typing
+        // (e.g. "/" with 3 commands gets a compact window, not a tall one)
+        config.dynamicHeight = true
         popup = PopupWindow(config: config)
         commandRunner = CommandRunner()
         super.init()
@@ -384,6 +394,17 @@ final class SwitcherController: NSObject {
         popup.onEscape = { [weak self] in
             self?.handleEscape()
         }
+        popup.onShow = { [weak self] in
+            guard let self else { return }
+            // refresh workspace/window state on EVERY show so closed apps
+            // disappear (toggles go through the framework's show(), which
+            // never used to touch this state). Keep the old list if the
+            // fresh query comes back empty (e.g. aerospace hiccup).
+            let fresh = gatherWorkspaces()
+            if !fresh.isEmpty {
+                self.workspaces = fresh
+            }
+        }
         popup.onHide = { [weak self] restore in
             self?.restoreFocus(restore)
         }
@@ -397,9 +418,12 @@ final class SwitcherController: NSObject {
     }
 
     func show() {
+        // if nested popups (dummy windows) are open, dismiss them so the
+        // main switcher is the only thing on screen
+        while stack.depth > 1 {
+            _ = stack.pop()
+        }
         (savedWID, savedPID) = readFocusFile()
-        workspaces = gatherWorkspaces()
-        guard !workspaces.isEmpty else { return }
         commandMode = false
         workspaceSelection = 0
         commandSelection = 0
@@ -409,10 +433,12 @@ final class SwitcherController: NSObject {
     // MARK: Hooks
 
     // Row rendering — the workspace switcher's own look (pill + title + app
-    // icons + "+N"). The framework only hands us the row rect.
+    // icons + "+N"). The framework only hands us the row rect; rows stretch
+    // vertically when the window is resized, so center on rect.midY.
     private func drawRow(_ rect: NSRect, _ row: PopupRow, _ selected: Bool) {
+        let cy = rect.midY
         if selected {
-            let pill = NSRect(x: (rect.width - rowPillW) / 2, y: rect.origin.y + 2,
+            let pill = NSRect(x: (rect.width - rowPillW) / 2, y: cy - rowPillH / 2,
                               width: rowPillW, height: rowPillH)
             let p = NSBezierPath(roundedRect: pill, xRadius: rowPillRadius,
                                  yRadius: rowPillRadius)
@@ -422,7 +448,6 @@ final class SwitcherController: NSObject {
             p.lineWidth = rowPillBorder
             p.stroke()
         }
-        let cy = rect.origin.y + rowPillH / 2 + 2
         let titleAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11), .foregroundColor: TEXT,
         ]
@@ -485,6 +510,14 @@ final class SwitcherController: NSObject {
 
     private func accept(_ row: PopupRow) {
         if let cr = row as? CommandRow {
+            if cr.command.name == "baz" {
+                // TEST: open a dummy window on top (breadcrumb trail)
+                if stack.top !== popup {
+                    stack.push(popup)  // remember the workspace switcher as the base
+                }
+                stack.push(makeDummyWindow(label: "dummy"))
+                return
+            }
             popup.hide(restore: true)
             let cmd = cr.command
             commandRunner?.run(cmd.script) { out in
@@ -497,6 +530,42 @@ final class SwitcherController: NSObject {
             popup.hide(restore: false)
             _ = aerospaceCall(["workspace", wr.title])
         }
+    }
+
+    // A dummy popup for testing the breadcrumb stack: same window/framework
+    // behavior, dismissible with Escape (which pops back to the previous
+    // window). Also demonstrates a nested popup (open child).
+    private func makeDummyWindow(label: String) -> PopupWindow {
+        var cfg = PopupConfig(name: "workspace-switcher-dummy")
+        cfg.enableToggle = false
+        cfg.colors = PopupColors(background: BAR, border: BORDER,
+                                 text: TEXT, dim: DIM, highlight: GROUP_BG)
+        cfg.enableResize = true
+        let w = PopupWindow(config: cfg)
+        w.onFilter = { [weak self] query in
+            guard self != nil else { return [] }
+            let q = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let items = ["open child", "exit", "alpha", "beta", "gamma"]
+            return items
+                .filter { q.isEmpty || $0.contains(q) }
+                .map { DummyRow(title: $0) }
+        }
+        w.onAccept = { [weak self] row in
+            guard let self else { return }
+            let title = row.title
+            if title == "open child" {
+                self.stack.push(self.makeDummyWindow(label: "child"))
+            } else if title == "exit" {
+                _ = self.stack.pop()
+            } else {
+                FileHandle.standardError.write(Data("dummy '\(label)': picked '\(title)'\n".utf8))
+                _ = self.stack.pop()
+            }
+        }
+        w.onEscape = { [weak self] in
+            _ = self?.stack.pop()
+        }
+        return w
     }
 
     private func handleEscape() {
