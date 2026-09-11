@@ -35,13 +35,10 @@ function EXTERNAL_PATHS_GLOBAL() {
 #   prefix= name prefix of each worktree dir (e.g. JT -> JT-123); if the dir is
 #           itself a single repo (e.g. ~/.dotfiles), prefix matches nothing and
 #           the dir itself is treated as the workspace
-#   <name>=<subpath>   cd shortcut, relative to the matched workspace
 function NVIM_CD_TARGETS() {
     cat <<EOF
 root=$HOME/jira
 prefix=JT
-top=.
-cpp=cpp
 
 root=$HOME/.dotfiles
 prefix=DOT
@@ -127,5 +124,5 @@ function EXTERNAL_DEFS_DUMP() {
         done < <(sed -nE 's/^function ([A-Za-z_][A-Za-z0-9_]*).*/\1/p' "$DOTDIR/bash/external.sh")
         declare -f killshellcheck 2>/dev/null
         declare -p DOTDIR NERDFONT_PATH_GLOBAL ASSET_PICTURES_DIRECTORY_GLOBAL 2>/dev/null
-    } > "$out"
+    } >"$out"
 }
