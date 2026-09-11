@@ -10,12 +10,13 @@ after-startup-command = [
 # variables (sketchybar does not pass them positionally), and
 # sketchybar/plugins/aerospacer.sh reads $FOCUSED_WORKSPACE to move the highlight.
 exec-on-workspace-change = [
-'/opt/homebrew/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
+  '/opt/homebrew/bin/bash', '-c', 'sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE PREV_WORKSPACE=$AEROSPACE_PREV_WORKSPACE'
 ]
 
-# Notify Sketchybar about focus change (window opened/closed/moved: keeps the
-# workspace icons current without the 2-second polling that used to hammer
-# the aerospace socket).
+
+# Notify Sketchybar about focus change (window opened/closed/moved).
+# Debounced in aerospacer.sh to 1/sec so it doesn't block aerospace's
+# main thread (aerospace #230).
 on-focus-changed = [
   'exec-and-forget sketchybar --trigger aerospace_focus_change'
 ]
@@ -85,16 +86,16 @@ focus-follows-mouse.enabled = false
 # See https://nikitabobko.github.io/AeroSpace/guide#key-mapping
 key-mapping.preset = 'qwerty'
 
-# Floating whitelist + tile-by-default. The dialog heuristic (windows without a
-# fullscreen button) normally floats such windows; the catch-all `true` rule
-# below force-tiles everything not matched above, effectively disabling the
-# heuristic. Add any app that must stay floating (launchers, pickers, UIs) here.
+# Floating whitelist + tile-by-default. The catch-all `true` rule force-tiles
+# everything not matched above, disabling AeroSpace's dialog-heuristic that
+# floats windows without a fullscreen button — such windows can slide behind
+# tiled ones (AeroSpace #713), making them visible but unclickable.
 # Raycast's launcher is auto-ignored by aerospace (since 0.18.3) so it needs no rule.
 on-window-detected = [
   { if = 'test %{window-title} = workspace-switcher', run = ['layout floating'] },
   { if = 'test %{window-title} = workspace-switcher-dummy', run = ['layout floating'] },
   { if = 'test %{app-bundle-id} = org.flameshot', run = ['layout floating'] },
-  { if = 'test %{app-bundle-id} = com.apple.systempreferences', run = ['layout tiling'] },
+  { if = 'true', run = ['layout tiling'] },
 ]
 
 
@@ -136,6 +137,9 @@ outer.top =        [{ monitor.main = 10 }, 10]
 
     # See: https://nikitabobko.github.io/AeroSpace/commands#layout
     alt-slash = 'layout tiles horizontal vertical'
+    # Vertical counterpart of alt-slash: stack all windows vertically in the
+    # focused container, then balance all window sizes in the workspace.
+    alt-shift-slash = ['layout v_tiles', 'balance-sizes']
     alt-comma = 'layout accordion horizontal vertical'
 
     # NOTE: alt-h/j/k/l conflicts with tmux's M-h/j/k/l pane resize, but oh well.

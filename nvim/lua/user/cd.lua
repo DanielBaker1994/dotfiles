@@ -9,35 +9,60 @@ local function get_config()
 end
 
 -- Workspace root resolution, in priority order:
---   1. A configured root/<prefix>-* worktree that contains the cwd
---   2. A configured root dir itself that contains the cwd (single-repo roots
+--   1. A configured root/<prefix>-* worktree that contains the anchor path
+--      (cwd, then the current buffer's dir) — structural root/<prefix>-<seg>
+--      match first, directory-scan fallback second
+--   2. A configured root dir itself that contains the anchor (single-repo roots
 --      like ~/.dotfiles, where the prefix matches no subdir)
---   3. The nearest git root (vim.fs.root)
+--   3. The nearest git root (vim.fs.root, from the buffer)
 --   4. The current working directory itself
 -- Returns ws (absolute) and the matched root entry {root,prefix,targets} (or nil).
 local function resolve_workspace()
     local c = get_config()
     local cwd = vim.fn.resolve(vim.fn.getcwd())
+    local anchors = { cwd }
+    local buf_dir = vim.fn.fnamemodify(vim.fn.expand('%:p'), ':h')
+    if buf_dir ~= '' and buf_dir ~= cwd then
+        table.insert(anchors, buf_dir)
+    end
     if c and c.roots then
-        for _, r in ipairs(c.roots) do
-            local root = vim.fn.resolve(vim.fn.expand(r.root))
-            if vim.fn.isdirectory(root) == 1 then
-                if r.prefix and r.prefix ~= '' then
-                    local prefix_match = '^' .. vim.pesc(r.prefix) .. '-'
-                    local ok, iter = pcall(vim.fs.dir, root)
-                    if ok then
-                        for name in iter do
-                            if name:match(prefix_match) then
-                                local dir = vim.fn.resolve(root .. '/' .. name)
-                                if cwd == dir or vim.startswith(cwd, dir .. '/') then
+        for _, anchor in ipairs(anchors) do
+            for _, r in ipairs(c.roots) do
+                local root = vim.fn.resolve(vim.fn.expand(r.root))
+                if vim.fn.isdirectory(root) == 1 then
+                    if r.prefix and r.prefix ~= '' then
+                        -- Structural match first: the anchor is inside
+                        -- root/<prefix>-<worktree> (even in a subfolder like
+                        -- .../JT-123/cpp), so the workspace root is
+                        -- root/<prefix>-<first-segment>. This does not depend on
+                        -- listing the root dir, which can silently miss worktrees
+                        -- and then wrongly scope zoxide results to the subfolder.
+                        local base = root .. '/' .. r.prefix .. '-'
+                        if vim.startswith(anchor, base) then
+                            local seg = anchor:sub(#base + 1):match('^[^/]+')
+                            if seg then
+                                local dir = vim.fn.resolve(base .. seg)
+                                if vim.fn.isdirectory(dir) == 1 then
                                     return dir, r
                                 end
                             end
                         end
+                        local prefix_match = '^' .. vim.pesc(r.prefix) .. '-'
+                        local ok, iter = pcall(vim.fs.dir, root)
+                        if ok then
+                            for name in iter do
+                                if name:match(prefix_match) then
+                                    local dir = vim.fn.resolve(root .. '/' .. name)
+                                    if anchor == dir or vim.startswith(anchor, dir .. '/') then
+                                        return dir, r
+                                    end
+                                end
+                            end
+                        end
                     end
-                end
-                if cwd == root or vim.startswith(cwd, root .. '/') then
-                    return root, r
+                    if anchor == root or vim.startswith(anchor, root .. '/') then
+                        return root, r
+                    end
                 end
             end
         end
