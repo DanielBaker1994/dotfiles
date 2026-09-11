@@ -13,8 +13,13 @@ local M = {}
 
 local cd_targets = require('bash_external.cd_targets')
 
+-- The directory nvim was launched from (OS-level process cwd). Unlike
+-- vim.fn.getcwd(), this never changes when :cd runs inside nvim, so zoxide
+-- scoping can't be skewed by cd'ing around.
+local launch_cwd = vim.fn.resolve(vim.uv.cwd())
+
 local function resolve_workspace()
-    local cwd = vim.fn.resolve(vim.fn.getcwd())
+    local cwd = launch_cwd
     local config = cd_targets.get()
     if config and config.roots then
         for _, r in ipairs(config.roots) do
