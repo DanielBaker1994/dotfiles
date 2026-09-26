@@ -11,10 +11,10 @@ f() {
     # keep it unquoted in the printf (wrapping in "..." would break paths
     # with spaces).
     # Sync execute (not execute-silent) so pbcopy finishes before abort.
-    # Enter copies the selected file's absolute path to the clipboard + exits.
+    # Enter opens the selected file (absolute path) in nvim.
     local sel
     sel=$(fzf --bind 'ctrl-y:execute(printf %s $PWD/{} | command pbcopy)+abort') || return
-    printf "%s" "$PWD/$sel" | pbcopy
+    nvim "$PWD/$sel"
 }
 #alias mediaconnect='ssh -X daniel@10.0.0.93'
 mediaconnect() {

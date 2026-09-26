@@ -81,6 +81,9 @@ ln -s ~/workspace-switcher/config/aerospace/aerospace.toml ~/.config/aerospace/a
 defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # (macOS 26 GUI equiv: Settings > Control Center > "Automatically hide and show the menu bar")
 
+# disable cmd+M minimize globally (maps Minimize menu item to nothing)
+defaults write -g NSUserKeyEquivalents -dict-add 'Minimize' '\0'
+
 brew services start sketchybar      # reload after edits: brew services restart sketchybar
 ```
 

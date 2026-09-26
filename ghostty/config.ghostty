@@ -8,6 +8,13 @@ window-padding-y = 4
 window-padding-balance = true
 scrollback-limit = 50000000
 
+# Selecting text (Shift+drag inside tmux, which bypasses tmux's own copy
+# mode) copies straight to the macOS clipboard — no Cmd+C needed.
+copy-on-select = clipboard
+# Scroll feel: trackpad 1 line per step, mouse wheel 5 lines per notch
+# (default 3). tmux scrolls 1 line per event (see ~/.tmux.conf).
+mouse-scroll-multiplier = precision:1,discrete:5
+
 # Matches the Tokyo Night (night) theme used in nvim (colors explicit below;
 # Ghostty has no built-in Tokyo Night theme).
 macos-option-as-alt = true
