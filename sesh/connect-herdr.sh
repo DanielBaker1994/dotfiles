@@ -4,21 +4,26 @@
 # connect-herdr.sh — sesh-style picker for herdr (prefix+w popup)
 #
 #   connect-herdr.sh                 picker (fzf + preview)
-#   connect-herdr.sh list [MODE]     entries: all | ws | cfg | dir | find
+#   connect-herdr.sh list [MODE]     entries: all | agents | dirs | browse (| ws | cfg)
 #   connect-herdr.sh preview LINE    preview for one entry
 #   connect-herdr.sh label LINE      preview border label for one entry
-#   connect-herdr.sh kill LINE       close a herdr workspace / tab
+#   connect-herdr.sh help            key / source legend (? in the picker)
+#   connect-herdr.sh kill LINE       close a workspace / tab, forget a zoxide dir
 #   connect-herdr.sh browser         prompt for a URL, open it in a workspace
 #
 # Entry line: DISPLAY<TAB>KIND<TAB>TARGET
 #   ws  = live herdr workspace (TARGET = workspace id)
 #   tab = tab of a live workspace, listed under it when it has >1 (TARGET = tab id)
+#   agent = pane running an agent (TARGET = pane id)
 #   cfg = sesh.toml session    (TARGET = session name)
 #   dir = directory            (TARGET = path)
 
 set -euo pipefail
 
 SESH_TOML="$HOME/.dotfiles/sesh/sesh.toml"
+# zoxide dirs in "all": frecency score >= MIN (or a git repo root), top MAX
+DIRS_MIN_SCORE="${HERDR_PICK_MIN_SCORE:-1}"
+DIRS_MAX="${HERDR_PICK_MAX_DIRS:-12}"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
 field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
@@ -92,6 +97,21 @@ list_ws() {
            else empty end)'
 }
 
+# one row per agent pane; the ones that need you first
+list_agents() {
+    state | jq -r "$JQ_LIB"'
+        . as $s
+        | {blocked: 0, done: 1, working: 2, idle: 3} as $rank
+        | [.panes[] | select(.agent)] | sort_by($rank[.agent_status] // 4, .pane_id)
+        | if length == 0 then dim("no agents running") + "\tnone\t" else .[] end
+        | if type == "string" then . else
+            . as $p
+            | first($s.ws[] | select(.workspace_id == $p.workspace_id)) as $w
+            | first($s.tabs[] | select(.tab_id == $p.tab_id)) as $t
+            | "\($p.agent_status | icon) \($w.label) \(dim("› " + ($t.number | tostring)))  \($p.agent)  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
+          end'
+}
+
 # labels / cwds of live workspaces (to hide duplicate cfg / dir entries)
 live_labels() { herdr workspace list 2>/dev/null | jq -r '.result.workspaces[]?.label'; }
 live_cwds() { herdr pane list 2>/dev/null | jq -r '.result.panes[]?.cwd // empty' | sort -u; }
@@ -104,18 +124,48 @@ list_cfg() {
         name="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
         grep -qxF -- "$name" <<<"$live" && continue
         grep -qxF -- "$(expand "$(sesh_field "$name" path)")" <<<"$cwds" && continue
-        printf '%s\tcfg\t%s\n' "$line" "$name"
+        printf '%s  \e[90msaved\e[39m\tcfg\t%s\n' "$line" "$name"
     done
 }
 
+# zoxide dirs, cleaned up: resolved (/tmp = /private/tmp, scores summed),
+# existing only, minus open workspaces / sesh.toml paths. MODE all = only
+# frecent ones (score >= DIRS_MIN_SCORE or a git root, top DIRS_MAX); full =
+# every one, with its score.
 list_dir() {
-    local live
-    live="$(live_cwds)"
-    sesh list -z --icons 2>/dev/null | while IFS= read -r line; do
-        path="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
-        grep -qxF -- "$(expand "$path")" <<<"$live" && continue
-        printf '%s\tdir\t%s\n' "$line" "$path"
-    done
+    zoxide query -ls 2>/dev/null | python3 -c '
+import os, sys, tomllib
+mode, min_score, max_n, toml, live = sys.argv[1:]
+home = os.path.expanduser("~")
+skip = {os.path.realpath(p) for p in live.splitlines() if p}
+try:
+    with open(toml, "rb") as f:
+        for sess in tomllib.load(f).get("session", []):
+            skip.add(os.path.realpath(os.path.expanduser(sess.get("path", ""))))
+except OSError:
+    pass
+dirs = {}  # realpath -> [summed score, shortest spelling]
+for line in sys.stdin:
+    score, _, path = line.strip().partition(" ")
+    path = path.strip()
+    if not os.path.isdir(path):
+        continue
+    d = dirs.setdefault(os.path.realpath(path), [0.0, path])
+    d[0] += float(score)
+    if len(path) < len(d[1]):
+        d[1] = path
+rows = sorted(((sc, p, r) for r, (sc, p) in dirs.items() if r not in skip), reverse=True)
+if mode == "all":
+    rows = [x for x in rows
+            if x[0] >= float(min_score) or os.path.exists(os.path.join(x[2], ".git"))]
+    rows = rows[: int(max_n)]
+for sc, p, _ in rows:
+    shown = "~" + p[len(home):] if p == home or p.startswith(home + "/") else p
+    if shown.startswith("/private/"):  # macOS: /tmp, /var are links into /private
+        shown = shown[len("/private"):]
+    tag = f"{sc:g}" if mode == "full" else "recent"
+    print(f"\033[36m\033[39m {shown}  \033[90m{tag}\033[39m\tdir\t{p}")
+' "${1:-all}" "$DIRS_MIN_SCORE" "$DIRS_MAX" "$SESH_TOML" "$(live_cwds)"
 }
 
 list_find() {
@@ -129,13 +179,16 @@ list_find() {
         done
 }
 
+# MODE may be a picker prompt ("dirs › ")
 list() {
-    case "${1:-all}" in
+    local mode="${1:-all}"
+    case "${mode%% *}" in
         ws) list_ws ;;
+        agents) list_agents ;;
         cfg) list_cfg ;;
-        dir) list_dir ;;
-        find) list_find ;;
-        *) list_ws; list_cfg; list_dir ;;
+        dirs) list_dir full ;;
+        browse) list_find ;;
+        *) list_ws; list_cfg; list_dir all ;;
     esac
 }
 
@@ -143,9 +196,12 @@ list() {
 entry_pane() {
     state | jq -c --arg kind "$1" --arg id "$2" "$JQ_LIB"'
         . as $s
+        | (if $kind == "agent" then first($s.panes[] | select(.pane_id == $id))
+           else null end) as $ap
         | (if $kind == "tab" then $id
+           elif $ap then $ap.tab_id
            else first($s.ws[] | select(.workspace_id == $id) | .active_tab_id) end) as $tid
-        | {pane: ($tid | tab_pane($s)),
+        | {pane: ($ap // ($tid | tab_pane($s))),
            tab: first($s.tabs[] | select(.tab_id == $tid)),
            ws: first($s.ws[] | select(.workspace_id == ($tid | split(":")[0])))}'
 }
@@ -155,7 +211,7 @@ preview() {
     kind="$(field "$1" 2)"
     target="$(field "$1" 3)"
     case "$kind" in
-        ws | tab)
+        ws | tab | agent)
             pane="$(entry_pane "$kind" "$target" | jq -r '.pane.pane_id // empty')"
             [ -n "$pane" ] && herdr pane read "$pane" --source visible --format ansi 2>/dev/null ||
                 echo "(no preview)" ;;
@@ -170,7 +226,7 @@ label() {
     kind="$(field "$1" 2)"
     target="$(field "$1" 3)"
     case "$kind" in
-        ws | tab)
+        ws | tab | agent)
             entry_pane "$kind" "$target" | jq -r "$JQ_LIB"'
                 [ .ws.label + (if (.ws.tab_count // 1) > 1 then " › tab \(.tab.number)" else "" end),
                   (.pane.agent // empty),
@@ -185,7 +241,43 @@ kill_entry() {
     case "$(field "$1" 2)" in
         ws) herdr workspace close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
         tab) herdr tab close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+        dir) zoxide remove "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
     esac
+}
+
+help() {
+    local d=$'\e[90m' b=$'\e[1m' r=$'\e[0m' y=$'\e[33m' g=$'\e[32m' red=$'\e[31m' c=$'\e[36m'
+    cat <<EOF
+${b}What's in the list${r}
+
+  ${y}●${r} ${g}○${r} name      ${b}open${r}    a herdr workspace that is running now
+     ├ 2 claude           its tabs (shown when it has more than one),
+                          with the agent running in each
+  ${d}${r} name  ${d}saved${r}           a session from sesh/sesh.toml: opens a
+                          workspace at its path + runs its startup command
+  ${c}${r} path  ${d}recent${r}          a directory you use a lot (zoxide):
+                          opens a new workspace there
+
+${b}Directories${r}
+  all shows only frecent ones: zoxide score >= ${DIRS_MIN_SCORE}, or a git repo,
+  top ${DIRS_MAX}. ^x dirs shows every one with its score. ^d on a
+  directory forgets it in zoxide for good (also for z / cd).
+
+${b}Agent status${r}
+  ${y}●${r} working   ${g}○${r} idle   ${g}✓${r} done   ${red}▲${r} needs input
+
+${b}Keys${r}
+  enter     switch to it (workspace / tab / agent), or create it
+  ^a        all        open workspaces, saved sessions, frecent dirs
+  ^t        agents     only agents, the ones that need you first
+  ^x        dirs       every zoxide directory, with its score
+  ^f        browse     folders under the current pane's directory
+  ^s        new        scratch workspace (a name → /tmp/name, or a path)
+  ^b        web        ask for a URL, open it in a browser workspace
+  ^d        close      close workspace / tab, forget a directory
+  tab ^n    down       shift-tab ^p   up
+  esc       quit       ? this help (move the cursor to go back)
+EOF
 }
 
 # focus the workspace labelled NAME, or create it in PATH (running CMD once)
@@ -221,21 +313,22 @@ pick() {
     local selected kind target name path
     selected="$(
         list all | fzf \
+            --height 100% --margin 0 --padding 0,1 \
             --ansi --no-sort --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1 \
-            --border-label ' herdr ' --prompt 'all › ' \
-            --header '^t herdr  ^g cfg  ^x dirs  ^f find  ^a all  ^b web  ^s scratch  ^d kill' \
+            --border-label ' herdr sessions · ? help ' --prompt 'all › ' \
+            --header $'^a all  ^t agents  ^x dirs  ^f browse\n^s new  ^b web  ^d close/forget  ? help' \
             --bind 'tab:down,btab:up' \
             --bind "ctrl-a:change-prompt(all › )+reload('$SELF' list all)" \
-            --bind "ctrl-t:change-prompt(herdr › )+reload('$SELF' list ws)" \
-            --bind "ctrl-g:change-prompt(cfg › )+reload('$SELF' list cfg)" \
-            --bind "ctrl-x:change-prompt(dirs › )+reload('$SELF' list dir)" \
-            --bind "ctrl-f:change-prompt(find › )+reload('$SELF' list find)" \
+            --bind "ctrl-t:change-prompt(agents › )+reload('$SELF' list agents)" \
+            --bind "ctrl-x:change-prompt(dirs › )+reload('$SELF' list dirs)" \
+            --bind "ctrl-f:change-prompt(browse › )+reload('$SELF' list find)" \
             --bind 'ctrl-s:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
             --bind "ctrl-b:become('$SELF' browser)" \
-            --bind "ctrl-d:execute-silent('$SELF' kill {})+change-prompt(herdr › )+reload('$SELF' list ws)" \
+            --bind "ctrl-d:execute-silent('$SELF' kill {})+reload('$SELF' list \"\$FZF_PROMPT\")" \
+            --bind "?:change-preview-label( help )+preview('$SELF' help)" \
             --bind "focus:transform-preview-label('$SELF' label {})" \
-            --preview-window 'right:55%' \
+            --preview-window 'right,55%,<110(down,50%)' \
             --preview "'$SELF' preview {}"
     )" || selected=""
     [ -z "$selected" ] && exit 0
@@ -251,6 +344,7 @@ pick() {
     case "$kind" in
         ws) herdr workspace focus "$target" >/dev/null ;;
         tab) herdr tab focus "$target" >/dev/null ;;
+        agent) herdr agent focus "$target" >/dev/null ;;
         cfg)
             path="$(expand "$(sesh_field "$target" path)")"
             connect "$target" "$path" "$(sesh_field "$target" startup_command)"
@@ -267,6 +361,7 @@ case "${1:-}" in
     list) list "${2:-all}" ;;
     preview) preview "$2" ;;
     label) label "$2" ;;
+    help) help ;;
     kill) kill_entry "$2" ;;
     browser) browser ;;
     *) pick ;;
