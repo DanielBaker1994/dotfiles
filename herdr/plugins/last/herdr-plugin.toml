@@ -1,0 +1,30 @@
+# tmux-style "last" jumps: records focus history from herdr events.
+#   prefix+L → last workspace (tmux: last session)
+#   prefix+l → last tab in this workspace (tmux: last window)
+id = "local.last"
+name = "Last workspace / tab"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Jump to the previously focused workspace or tab"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["./last.sh", "record"]
+
+[[events]]
+on = "workspace.focused"
+command = ["./last.sh", "record"]
+
+[[events]]
+on = "tab.focused"
+command = ["./last.sh", "record"]
+
+[[actions]]
+id = "workspace"
+title = "Last workspace"
+command = ["./last.sh", "workspace"]
+
+[[actions]]
+id = "tab"
+title = "Last tab"
+command = ["./last.sh", "tab"]

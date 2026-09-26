@@ -6,11 +6,13 @@
 #   connect-herdr.sh                 picker (fzf + preview)
 #   connect-herdr.sh list [MODE]     entries: all | ws | cfg | dir | find
 #   connect-herdr.sh preview LINE    preview for one entry
-#   connect-herdr.sh kill LINE       close a herdr workspace
+#   connect-herdr.sh label LINE      preview border label for one entry
+#   connect-herdr.sh kill LINE       close a herdr workspace / tab
 #   connect-herdr.sh browser         prompt for a URL, open it in a workspace
 #
 # Entry line: DISPLAY<TAB>KIND<TAB>TARGET
 #   ws  = live herdr workspace (TARGET = workspace id)
+#   tab = tab of a live workspace, listed under it when it has >1 (TARGET = tab id)
 #   cfg = sesh.toml session    (TARGET = session name)
 #   dir = directory            (TARGET = path)
 
@@ -18,6 +20,9 @@ set -euo pipefail
 
 SESH_TOML="$HOME/.dotfiles/sesh/sesh.toml"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+
+field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
+expand() { local p="$1"; [[ $p == "~"* ]] && p="$HOME${p:1}"; printf '%s' "$p"; }
 
 workspaces_json() { herdr workspace list 2>/dev/null || echo '{}'; }
 
@@ -44,21 +49,71 @@ current_dir() {
     herdr pane current 2>/dev/null | jq -r '.result.pane.foreground_cwd // empty' || true
 }
 
-list_ws() {
-    workspaces_json | jq -r '.result.workspaces[]? |
-        "\u001b[35m\u001b[39m \(.label)\(if .focused then " \u001b[90m(current)\u001b[39m" else "" end)\tws\t\(.workspace_id)"'
+# workspace/tab/pane lists → one JSON {ws, tabs, panes}
+state() {
+    jq -n \
+        --argjson w "$(herdr workspace list 2>/dev/null || echo '{}')" \
+        --argjson t "$(herdr tab list 2>/dev/null || echo '{}')" \
+        --argjson p "$(herdr pane list 2>/dev/null || echo '{}')" \
+        '{ws: ($w.result.workspaces // []), tabs: ($t.result.tabs // []),
+          panes: ($p.result.panes // [])}'
 }
 
+# jq helpers shared by list_ws / label / preview
+JQ_LIB='
+def c(n; s): "\u001b[\(n)m\(s)\u001b[39m";
+def dim(s): c(90; s);
+def icon: {working: c(33; "●"), blocked: c(31; "▲"), done: c(32; "✓"),
+           idle: c(32; "○")}[.] // " ";
+def home: sub("^" + env.HOME; "~");
+def base: split("/") | map(select(. != "")) | last // "/";
+# the pane a tab shows: its focused pane, else its first
+def tab_pane($s): . as $id | [$s.panes[] | select(.tab_id == $id)] |
+    (first(.[] | select(.focused)) // first(.[]) // {});
+def agents($s): . as $id | [$s.panes[] | select(.tab_id == $id) | .agent // empty] | unique;
+def tab_text($s): (.tab_id | agents($s)) as $a | (.tab_id | tab_pane($s)) as $p |
+    if ($a | length) > 0 then $a | join(", ")
+    else $p.terminal_title_stripped // (($p.foreground_cwd // "") | base) end;
+'
+
+list_ws() {
+    state | jq -r "$JQ_LIB"'
+        . as $s | .ws[] | . as $w
+        | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] | sort_by(.number) as $tabs
+        | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
+        | ([ (if $w.tab_count > 1 then "\($w.tab_count) tabs" else empty end),
+             (if ($agents | length) > 0 then $agents | join(", ") else empty end),
+             (if $w.focused then "current" else empty end) ] | join(" · ")) as $meta
+        | "\($w.agent_status | icon) \($w.label)\(if $meta != "" then "  " + dim($meta) else "" end)\tws\t\($w.workspace_id)",
+          (if $w.tab_count > 1 then
+              $tabs | to_entries[] | .value as $t
+              | (if .key == ($tabs | length) - 1 then "└" else "├" end) as $branch
+              | "  \(dim($branch)) \($t.agent_status | icon) \(dim($t.number | tostring)) \($t | tab_text($s))\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)"
+           else empty end)'
+}
+
+# labels / cwds of live workspaces (to hide duplicate cfg / dir entries)
+live_labels() { herdr workspace list 2>/dev/null | jq -r '.result.workspaces[]?.label'; }
+live_cwds() { herdr pane list 2>/dev/null | jq -r '.result.panes[]?.cwd // empty' | sort -u; }
+
 list_cfg() {
+    local live cwds
+    live="$(live_labels)"
+    cwds="$(live_cwds)"
     sesh list -c --icons 2>/dev/null | while IFS= read -r line; do
         name="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
+        grep -qxF -- "$name" <<<"$live" && continue
+        grep -qxF -- "$(expand "$(sesh_field "$name" path)")" <<<"$cwds" && continue
         printf '%s\tcfg\t%s\n' "$line" "$name"
     done
 }
 
 list_dir() {
+    local live
+    live="$(live_cwds)"
     sesh list -z --icons 2>/dev/null | while IFS= read -r line; do
         path="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
+        grep -qxF -- "$(expand "$path")" <<<"$live" && continue
         printf '%s\tdir\t%s\n' "$line" "$path"
     done
 }
@@ -84,23 +139,53 @@ list() {
     esac
 }
 
-field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
-expand() { local p="$1"; [[ $p == "~"* ]] && p="$HOME${p:1}"; printf '%s' "$p"; }
+# the pane shown for a ws/tab entry, as JSON {pane, ws, tab}
+entry_pane() {
+    state | jq -c --arg kind "$1" --arg id "$2" "$JQ_LIB"'
+        . as $s
+        | (if $kind == "tab" then $id
+           else first($s.ws[] | select(.workspace_id == $id) | .active_tab_id) end) as $tid
+        | {pane: ($tid | tab_pane($s)),
+           tab: first($s.tabs[] | select(.tab_id == $tid)),
+           ws: first($s.ws[] | select(.workspace_id == ($tid | split(":")[0])))}'
+}
 
 preview() {
-    local kind target
+    local kind target pane
     kind="$(field "$1" 2)"
     target="$(field "$1" 3)"
     case "$kind" in
-        ws) herdr pane read "$target:p1" --source visible --format ansi 2>/dev/null ||
-            echo "(no preview)" ;;
+        ws | tab)
+            pane="$(entry_pane "$kind" "$target" | jq -r '.pane.pane_id // empty')"
+            [ -n "$pane" ] && herdr pane read "$pane" --source visible --format ansi 2>/dev/null ||
+                echo "(no preview)" ;;
         cfg | dir) sesh preview "$target" 2>/dev/null || ls -la "$(expand "$target")" ;;
         *) echo "(no preview)" ;;
     esac
 }
 
-kill_ws() {
-    [ "$(field "$1" 2)" = ws ] && herdr workspace close "$(field "$1" 3)" >/dev/null 2>&1 || true
+# preview border label: " ws › tab N · agent · status · cwd "
+label() {
+    local kind target
+    kind="$(field "$1" 2)"
+    target="$(field "$1" 3)"
+    case "$kind" in
+        ws | tab)
+            entry_pane "$kind" "$target" | jq -r "$JQ_LIB"'
+                [ .ws.label + (if (.ws.tab_count // 1) > 1 then " › tab \(.tab.number)" else "" end),
+                  (.pane.agent // empty),
+                  (if (.pane.agent_status // "unknown") != "unknown" then .pane.agent_status else empty end),
+                  ((.pane.foreground_cwd // "") | home | select(. != "")) ]
+                | " " + join(" · ") + " "' ;;
+        cfg | dir) printf ' %s ' "$target" ;;
+    esac
+}
+
+kill_entry() {
+    case "$(field "$1" 2)" in
+        ws) herdr workspace close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+        tab) herdr tab close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+    esac
 }
 
 # focus the workspace labelled NAME, or create it in PATH (running CMD once)
@@ -136,21 +221,21 @@ pick() {
     local selected kind target name path
     selected="$(
         list all | fzf \
-            --ansi --no-sort \
+            --ansi --no-sort --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1 \
-            --border-label ' sesh ' --prompt '⚡  ' \
-            --header '  ^a ⚡ all ^t 🪟 herdr ^g ⚙️ configs ^x 📁 zoxide
-  ^b 🌐 browser ^c 📝 scratch ^f 🔎 find ^d 🗑️ kill' \
+            --border-label ' herdr ' --prompt 'all › ' \
+            --header '^t herdr  ^g cfg  ^x dirs  ^f find  ^a all  ^b web  ^s scratch  ^d kill' \
             --bind 'tab:down,btab:up' \
-            --bind "ctrl-a:change-prompt(⚡  )+reload('$SELF' list all)" \
-            --bind "ctrl-t:change-prompt(🪟  )+reload('$SELF' list ws)" \
-            --bind "ctrl-g:change-prompt(⚙️  )+reload('$SELF' list cfg)" \
-            --bind "ctrl-x:change-prompt(📁  )+reload('$SELF' list dir)" \
-            --bind "ctrl-f:change-prompt(🔎  )+reload('$SELF' list find)" \
-            --bind 'ctrl-c:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
+            --bind "ctrl-a:change-prompt(all › )+reload('$SELF' list all)" \
+            --bind "ctrl-t:change-prompt(herdr › )+reload('$SELF' list ws)" \
+            --bind "ctrl-g:change-prompt(cfg › )+reload('$SELF' list cfg)" \
+            --bind "ctrl-x:change-prompt(dirs › )+reload('$SELF' list dir)" \
+            --bind "ctrl-f:change-prompt(find › )+reload('$SELF' list find)" \
+            --bind 'ctrl-s:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
             --bind "ctrl-b:become('$SELF' browser)" \
-            --bind "ctrl-d:execute-silent('$SELF' kill {})+reload('$SELF' list ws)" \
-            --preview-window 'right:60%' \
+            --bind "ctrl-d:execute-silent('$SELF' kill {})+change-prompt(herdr › )+reload('$SELF' list ws)" \
+            --bind "focus:transform-preview-label('$SELF' label {})" \
+            --preview-window 'right:55%' \
             --preview "'$SELF' preview {}"
     )" || selected=""
     [ -z "$selected" ] && exit 0
@@ -165,6 +250,7 @@ pick() {
     target="$(field "$selected" 3)"
     case "$kind" in
         ws) herdr workspace focus "$target" >/dev/null ;;
+        tab) herdr tab focus "$target" >/dev/null ;;
         cfg)
             path="$(expand "$(sesh_field "$target" path)")"
             connect "$target" "$path" "$(sesh_field "$target" startup_command)"
@@ -180,7 +266,8 @@ pick() {
 case "${1:-}" in
     list) list "${2:-all}" ;;
     preview) preview "$2" ;;
-    kill) kill_ws "$2" ;;
+    label) label "$2" ;;
+    kill) kill_entry "$2" ;;
     browser) browser ;;
     *) pick ;;
 esac
