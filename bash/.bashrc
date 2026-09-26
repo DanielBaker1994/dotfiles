@@ -21,10 +21,10 @@ mediaconnect() {
     ssh daniel@10.0.0.247
 }
 proxmoxmediaconnect() {
-    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && echo "Please ensure your YubiKey is ready, you will need to tap it." && ssh root@10.0.0.84 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
+    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && printf '\033[1;33mPlease ensure your YubiKey is ready, you will need to tap it.\033[0m\n' && ssh root@10.0.0.84 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
 }
 proxmoxpersonalconnect() {
-    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && echo "Please ensure your YubiKey is ready, you will need to tap it." && ssh root@10.0.0.226 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
+    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && printf '\033[1;33mPlease ensure your YubiKey is ready, you will need to tap it.\033[0m\n' && ssh root@10.0.0.226 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
 }
 export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 

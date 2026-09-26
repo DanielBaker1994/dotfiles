@@ -1,4 +1,3 @@
-keybind = global:ctrl+shift+alt+cmd+c=toggle_quick_terminal
 keybind = global:alt+space=toggle_quick_terminal
 keybind = global:ctrl+`=toggle_quick_terminal
 macos-titlebar-style = hidden
