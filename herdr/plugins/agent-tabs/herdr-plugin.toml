@@ -1,5 +1,5 @@
 # Marks tab labels with the agent running in them + its status:
-#   "◐󰛄 4" = claude working in tab 4, "×⬓ 2" = opencode needs input.
+#   "◐ 󰛄 4" = claude working in tab 4, "× ⬓ 2" = opencode needs input.
 # Status glyphs = herdr's own; agent icons = Nerd Font. Overrides: icons.conf
 # in the plugin config dir. Also sets the pane token $tab_name (plain label)
 # for the sidebar's agent rows.

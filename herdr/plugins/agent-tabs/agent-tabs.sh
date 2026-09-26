@@ -2,7 +2,7 @@
 #
 # agent-tabs.sh sync | startup | toggle
 #
-# Every tab with an agent gets "<status><agent> " in front of its label; the
+# Every tab with an agent gets "<status> <agent> " in front of its label; the
 # prefix is stripped and re-applied on each sync, so a manual rename keeps
 # its name and a tab whose agent exits goes back to plain. A label that is
 # just a number counts as the default one and follows the tab's number.
@@ -72,8 +72,9 @@ plan() {
         | [$panes[] | select(.tab_id == $tab.tab_id and .agent)] as $agents
         | ($agents | sort_by($rank[.agent_status] // 4) | first // null) as $pane
         | (if $off == "1" or $pane == null then ""
-           else ($icons["status." + ($tab.agent_status // "")] // "")
-                + ($icons[$pane.agent] // $icons["agent.default"] // "")
+           else [($icons["status." + ($tab.agent_status // "")] // ""),
+                 ($icons[$pane.agent] // $icons["agent.default"] // "")]
+                | map(select(. != "")) | join(" ")
            end) as $prefix
         | (if $prefix == "" then $base else $prefix + " " + $base end) as $label
         | (if $label != $tab.label then "tab\t\($tab.tab_id)\t\($label)" else empty end),
