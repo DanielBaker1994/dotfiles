@@ -1,0 +1,97 @@
+onboarding = false
+
+[theme]
+name = "tokyo-night"
+
+auto_switch = false
+[theme.custom]
+sidebar_bg = "#121212"
+panel_bg = "#1e1e2e"
+text = "#cdd6f4"
+
+[terminal]
+default_shell = ""
+new_cwd = "follow"
+
+[keys]
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+focus_pane_right = "prefix+l"
+
+navigate_pane_left = "h"
+navigate_pane_down = "j"
+navigate_pane_up = "k"
+navigate_pane_right = "l"
+
+next_tab = "prefix+n"
+previous_tab = "prefix+p"
+
+new_tab = "prefix+c"
+
+split_horizontal = "prefix+-"
+split_vertical = "prefix+|"
+
+resize_pane_left = "alt+h"
+resize_pane_down = "alt+j"
+resize_pane_up = "alt+k"
+resize_pane_right = "alt+l"
+
+# Built-in workspace picker disabled; sesh picker takes its place via keys.command below
+workspace_picker = ""
+
+edit_scrollback = "prefix+e"
+
+move_tab_previous = "prefix+<"
+move_tab_next = "prefix+>"
+
+[ui]
+tab_bar_position = "top"
+mouse_capture = true
+copy_on_select = true
+pane_borders = "auto"
+pane_outer_borders = true
+pane_gaps = true
+sidebar_width = 26
+sidebar_start_collapsed = false
+
+status_indicators = "symbols"
+[ui.toast.clipboard]
+enabled = true
+position = "bottom-center"
+
+[advanced]
+scrollback_limit_bytes = 50000000
+
+# Sesh-style session picker (reads sesh.toml + zoxide + fd + browser + scratch)
+[[keys.command]]
+key = "prefix+w"
+type = "popup"
+command = "~/.dotfiles/sesh/connect-herdr.sh"
+width = "90%"
+height = "85%"
+
+[experimental]
+kitty_graphics = true
+
+# tmux-style last jumps (plugin: ~/.dotfiles/herdr/plugins/last)
+[[keys.command]]
+key = "prefix+shift+l"
+type = "plugin_action"
+command = "local.last.workspace"
+description = "last workspace"
+
+# [[keys.command]]
+# key = "prefix+l"
+# type = "plugin_action"
+# command = "local.last.tab"
+# description = "last tab"
+
+[ui.toast]
+delivery = "herdr"
+
+# agent rows: $tab_name = the tab's label without the agent-tabs glyph prefix
+# (plugin: ~/.dotfiles/herdr/plugins/agent-tabs); herdr's state_icon already
+# shows the status
+[ui.sidebar.agents]
+rows = [["state_icon", "machine", "workspace", "$tab_name"], ["agent"]]

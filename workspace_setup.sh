@@ -36,6 +36,7 @@ declare -A dotfiles=(
     ["$HOME/.tmux.conf"]="$SCRIPT_DIR/tmux/.tmux.conf"
     ["$HOME/.config/starship.toml"]="$SCRIPT_DIR/starship/starship.toml"
     ["$HOME/.config/sesh/sesh.toml"]="$SCRIPT_DIR/sesh/sesh.toml"
+    ["$HOME/.config/herdr/config.toml"]="$SCRIPT_DIR/herdr/config.toml"
     ["$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"]="$SCRIPT_DIR/ghostty/config.ghostty"
 )
 
@@ -72,6 +73,17 @@ echo "==> Ensuring homebrew packages are installed..."
 #   font-hack-nerd-font      -> terminal/tmux
 brew install --cask font-sketchybar-app-font
 brew install --cask font-hack-nerd-font
+
+# herdr plugins: link every plugin under herdr/plugins (last, agent-tabs).
+# The link lives in herdr's own state (~/.config/herdr/plugins.json), not a
+# symlink; re-linking an already linked plugin is harmless.
+if command -v herdr >/dev/null; then
+    echo
+    echo "==> Linking herdr plugins..."
+    for plugin in "$SCRIPT_DIR"/herdr/plugins/*/; do
+        herdr plugin link "${plugin%/}" >/dev/null && echo "Linked herdr plugin: ${plugin%/}"
+    done
+fi
 
 # ---------------------------------------------------------------------------
 # System tweaks (idempotent)

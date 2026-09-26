@@ -1,0 +1,40 @@
+# Marks tab labels with the agent running in them + its status:
+#   "◐󰛄 4" = claude working in tab 4, "×⬓ 2" = opencode needs input.
+# Status glyphs = herdr's own; agent icons = Nerd Font. Overrides: icons.conf
+# in the plugin config dir. Also sets the pane token $tab_name (plain label)
+# for the sidebar's agent rows.
+id = "local.agent-tabs"
+name = "Agent tab indicators"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Prefix tab labels with the agent's icon and status glyph"
+platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["./agent-tabs.sh", "startup"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["./agent-tabs.sh", "sync"]
+
+# default labels follow the tab number when tabs are renumbered
+[[events]]
+on = "tab.created"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "tab.closed"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "tab.moved"
+command = ["./agent-tabs.sh", "sync"]
+
+[[actions]]
+id = "toggle"
+title = "Toggle agent tab indicators"
+command = ["./agent-tabs.sh", "toggle"]
