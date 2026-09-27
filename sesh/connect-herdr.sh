@@ -3,7 +3,14 @@
 #
 # connect-herdr.sh — sesh-style picker for herdr (prefix+w popup)
 #
-#   connect-herdr.sh                 picker (fzf + preview)
+# The picker UI is herdr-picker.mjs (Node, mouse; drag a split row onto a
+# workspace / tab to move it);
+# this script is its data / action backend. Without node the fzf picker runs.
+#
+#   connect-herdr.sh                 picker (node, else fzf)
+#   connect-herdr.sh fzf             the fzf picker
+#   connect-herdr.sh state           workspaces / tabs / panes as one JSON
+#   connect-herdr.sh go LINE|PATH    act on a picked entry (or a scratch path)
 #   connect-herdr.sh list [MODE]     entries: all | agents | dirs | browse (| ws | cfg)
 #   connect-herdr.sh preview LINE    preview for one entry
 #   connect-herdr.sh label LINE      preview border label for one entry
@@ -13,7 +20,8 @@
 #
 # Entry line: DISPLAY<TAB>KIND<TAB>TARGET
 #   ws  = live herdr workspace (TARGET = workspace id)
-#   tab = tab of a live workspace, listed under it when it has >1 (TARGET = tab id)
+#   tab = tab of a live workspace, always listed under it (TARGET = tab id)
+#   pane = split of a tab, listed under it (TARGET = pane id; enter focuses the tab)
 #   agent = pane running an agent (TARGET = pane id)
 #   cfg = sesh.toml session    (TARGET = session name)
 #   dir = directory            (TARGET = path)
@@ -27,7 +35,11 @@ DIRS_MAX="${HERDR_PICK_MAX_DIRS:-12}"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
 field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
-expand() { local p="$1"; [[ $p == "~"* ]] && p="$HOME${p:1}"; printf '%s' "$p"; }
+expand() {
+    local p="$1"
+    [[ $p == "~"* ]] && p="$HOME${p:1}"
+    printf '%s' "$p"
+}
 
 workspaces_json() { herdr workspace list 2>/dev/null || echo '{}'; }
 
@@ -68,6 +80,11 @@ state() {
 JQ_LIB='
 def c(n; s): "\u001b[\(n)m\(s)\u001b[39m";
 def dim(s): c(90; s);
+# row colors by kind: workspace, tab number / text, agent name
+def wsc(s): "\u001b[1;94m\(s)\u001b[22;39m";
+def tabn(s): c(35; s);
+def tabc(s): c(36; s);
+def agentc(s): "\u001b[38;5;215m\(s)\u001b[39m";
 def icon: {working: c(33; "●"), blocked: c(31; "▲"), done: c(32; "✓"),
            idle: c(32; "○")}[.] // " ";
 def home: sub("^" + env.HOME; "~");
@@ -76,9 +93,11 @@ def base: split("/") | map(select(. != "")) | last // "/";
 def tab_pane($s): . as $id | [$s.panes[] | select(.tab_id == $id)] |
     (first(.[] | select(.focused)) // first(.[]) // {});
 def agents($s): . as $id | [$s.panes[] | select(.tab_id == $id) | .agent // empty] | unique;
+def pane_text: if .agent then agentc(.agent)
+    else .terminal_title_stripped // ((.foreground_cwd // .cwd // "") | base) end;
 def tab_text($s): (.tab_id | agents($s)) as $a | (.tab_id | tab_pane($s)) as $p |
-    if ($a | length) > 0 then $a | join(", ")
-    else $p.terminal_title_stripped // (($p.foreground_cwd // "") | base) end;
+    if ($a | length) > 0 then $a | map(agentc(.)) | join(", ")
+    else tabc($p.terminal_title_stripped // (($p.foreground_cwd // "") | base)) end;
 '
 
 list_ws() {
@@ -86,15 +105,16 @@ list_ws() {
         . as $s | .ws[] | . as $w
         | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] | sort_by(.number) as $tabs
         | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
-        | ([ (if $w.tab_count > 1 then "\($w.tab_count) tabs" else empty end),
-             (if ($agents | length) > 0 then $agents | join(", ") else empty end),
-             (if $w.focused then "current" else empty end) ] | join(" · ")) as $meta
-        | "\($w.agent_status | icon) \($w.label)\(if $meta != "" then "  " + dim($meta) else "" end)\tws\t\($w.workspace_id)",
-          (if $w.tab_count > 1 then
-              $tabs | to_entries[] | .value as $t
-              | (if .key == ($tabs | length) - 1 then "└" else "├" end) as $branch
-              | "  \(dim($branch)) \($t.agent_status | icon) \(dim($t.number | tostring)) \($t | tab_text($s))\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)"
-           else empty end)'
+        | ([ (if $w.tab_count > 1 then dim("\($w.tab_count) tabs") else empty end),
+             (if ($agents | length) > 0 then $agents | map(agentc(.)) | join(dim(", ")) else empty end),
+             (if $w.focused then dim("current") else empty end) ] | join(dim(" · "))) as $meta
+        | "\($w.agent_status | icon) \(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)",
+          ($tabs | to_entries[] | .value as $t
+           | (.key == ($tabs | length) - 1) as $last
+           | [$s.panes[] | select(.tab_id == $t.tab_id)] as $splits
+           | "  \(dim(if $last then "└" else "├" end)) \($t.agent_status | icon) \(tabn($t.number | tostring)) \($t | tab_text($s))\(if ($splits | length) > 1 then "  " + dim("\($splits | length) splits") else "" end)\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)",
+             ($splits | to_entries[] | .value as $p
+              | "  \(if $last then " " else dim("│") end)   \(dim(if .key == ($splits | length) - 1 then "└" else "├" end)) \(dim("⠿")) \($p.agent_status | icon) \($p | pane_text)  \(dim($p.pane_id | split(":") | last))\tpane\t\($p.pane_id)"))'
 }
 
 # one row per agent pane; the ones that need you first
@@ -108,7 +128,7 @@ list_agents() {
             . as $p
             | first($s.ws[] | select(.workspace_id == $p.workspace_id)) as $w
             | first($s.tabs[] | select(.tab_id == $p.tab_id)) as $t
-            | "\($p.agent_status | icon) \($w.label) \(dim("› " + ($t.number | tostring)))  \($p.agent)  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
+            | "\($p.agent_status | icon) \(wsc($w.label)) \(dim("›")) \(tabn($t.number | tostring))  \(agentc($p.agent))  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
           end'
 }
 
@@ -124,7 +144,8 @@ list_cfg() {
         name="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
         grep -qxF -- "$name" <<<"$live" && continue
         grep -qxF -- "$(expand "$(sesh_field "$name" path)")" <<<"$cwds" && continue
-        printf '%s  \e[90msaved\e[39m\tcfg\t%s\n' "$line" "$name"
+        # keep sesh's icon, the name in yellow
+        printf '%s\e[33m%s\e[39m  \e[90msaved\e[39m\tcfg\t%s\n' "${line%%"$name"*}" "$name" "$name"
     done
 }
 
@@ -183,12 +204,16 @@ list_find() {
 list() {
     local mode="${1:-all}"
     case "${mode%% *}" in
-        ws) list_ws ;;
-        agents) list_agents ;;
-        cfg) list_cfg ;;
-        dirs) list_dir full ;;
-        browse) list_find ;;
-        *) list_ws; list_cfg; list_dir all ;;
+    ws) list_ws ;;
+    agents) list_agents ;;
+    cfg) list_cfg ;;
+    dirs) list_dir full ;;
+    browse) list_find ;;
+    *)
+        list_ws
+        list_cfg
+        list_dir all
+        ;;
     esac
 }
 
@@ -196,7 +221,7 @@ list() {
 entry_pane() {
     state | jq -c --arg kind "$1" --arg id "$2" "$JQ_LIB"'
         . as $s
-        | (if $kind == "agent" then first($s.panes[] | select(.pane_id == $id))
+        | (if $kind == "agent" or $kind == "pane" then first($s.panes[] | select(.pane_id == $id))
            else null end) as $ap
         | (if $kind == "tab" then $id
            elif $ap then $ap.tab_id
@@ -211,12 +236,13 @@ preview() {
     kind="$(field "$1" 2)"
     target="$(field "$1" 3)"
     case "$kind" in
-        ws | tab | agent)
-            pane="$(entry_pane "$kind" "$target" | jq -r '.pane.pane_id // empty')"
-            [ -n "$pane" ] && herdr pane read "$pane" --source visible --format ansi 2>/dev/null ||
-                echo "(no preview)" ;;
-        cfg | dir) sesh preview "$target" 2>/dev/null || ls -la "$(expand "$target")" ;;
-        *) echo "(no preview)" ;;
+    ws | tab | agent | pane)
+        pane="$(entry_pane "$kind" "$target" | jq -r '.pane.pane_id // empty')"
+        [ -n "$pane" ] && herdr pane read "$pane" --source visible --format ansi 2>/dev/null ||
+            echo "(no preview)"
+        ;;
+    cfg | dir) sesh preview "$target" 2>/dev/null || ls -la "$(expand "$target")" ;;
+    *) echo "(no preview)" ;;
     esac
 }
 
@@ -226,34 +252,36 @@ label() {
     kind="$(field "$1" 2)"
     target="$(field "$1" 3)"
     case "$kind" in
-        ws | tab | agent)
-            entry_pane "$kind" "$target" | jq -r "$JQ_LIB"'
+    ws | tab | agent | pane)
+        entry_pane "$kind" "$target" | jq -r "$JQ_LIB"'
                 [ .ws.label + (if (.ws.tab_count // 1) > 1 then " › tab \(.tab.number)" else "" end),
                   (.pane.agent // empty),
                   (if (.pane.agent_status // "unknown") != "unknown" then .pane.agent_status else empty end),
                   ((.pane.foreground_cwd // "") | home | select(. != "")) ]
-                | " " + join(" · ") + " "' ;;
-        cfg | dir) printf ' %s ' "$target" ;;
+                | " " + join(" · ") + " "'
+        ;;
+    cfg | dir) printf ' %s ' "$target" ;;
     esac
 }
 
 kill_entry() {
     case "$(field "$1" 2)" in
-        ws) herdr workspace close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
-        tab) herdr tab close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
-        dir) zoxide remove "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+    ws) herdr workspace close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+    tab) herdr tab close "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
+    dir) zoxide remove "$(field "$1" 3)" >/dev/null 2>&1 || true ;;
     esac
 }
 
 help() {
     local d=$'\e[90m' b=$'\e[1m' r=$'\e[0m' y=$'\e[33m' g=$'\e[32m' red=$'\e[31m' c=$'\e[36m'
+    local B=$'\e[1;94m' m=$'\e[35m' o=$'\e[38;5;215m'
     cat <<EOF
 ${b}What's in the list${r}
 
-  ${y}●${r} ${g}○${r} name      ${b}open${r}    a herdr workspace that is running now
-     ├ 2 claude           its tabs (shown when it has more than one),
-                          with the agent running in each
-  ${d}${r} name  ${d}saved${r}           a session from sesh/sesh.toml: opens a
+  ${y}●${r} ${B}name${r}        ${b}open${r}    a herdr workspace that is running now
+     ├ ${m}2${r} ${o}claude${r}           its tabs, with the agent running in each
+     │   ├ ${d}⠿${r} ○ ${o}claude${r}     and each tab's splits (enter focuses the tab)
+  ${d}${r} ${y}name${r}  ${d}saved${r}           a session from sesh/sesh.toml: opens a
                           workspace at its path + runs its startup command
   ${c}${r} path  ${d}recent${r}          a directory you use a lot (zoxide):
                           opens a new workspace there
@@ -262,6 +290,11 @@ ${b}Directories${r}
   all shows only frecent ones: zoxide score >= ${DIRS_MIN_SCORE}, or a git repo,
   top ${DIRS_MAX}. ^x dirs shows every one with its score. ^d on a
   directory forgets it in zoxide for good (also for z / cd).
+
+${b}Moving splits${r}
+  drag a ${d}⠿${r} split row with the mouse onto a workspace (→ new tab
+  there) or a tab / another split (→ split into that tab). It moves
+  as soon as you let go.
 
 ${b}Agent status${r}
   ${y}●${r} working   ${g}○${r} idle   ${g}✓${r} done   ${red}▲${r} needs input
@@ -310,19 +343,18 @@ browser() {
 }
 
 pick() {
-    local selected kind target name path
+    local selected
     selected="$(
         list all | fzf \
             --height 100% --margin 0 --padding 0,1 \
             --ansi --no-sort --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1 \
             --border-label ' herdr sessions · ? help ' --prompt 'all › ' \
-            --header $'^a all  ^t agents  ^x dirs  ^f browse\n^s new  ^b web  ^d close/forget  ? help' \
+            --header $'^a all  ^t agents  ^x dirs\n^s new  ^b web  ^d close/forget  ? help' \
             --bind 'tab:down,btab:up' \
             --bind "ctrl-a:change-prompt(all › )+reload('$SELF' list all)" \
             --bind "ctrl-t:change-prompt(agents › )+reload('$SELF' list agents)" \
             --bind "ctrl-x:change-prompt(dirs › )+reload('$SELF' list dirs)" \
-            --bind "ctrl-f:change-prompt(browse › )+reload('$SELF' list find)" \
             --bind 'ctrl-s:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
             --bind "ctrl-b:become('$SELF' browser)" \
             --bind "ctrl-d:execute-silent('$SELF' kill {})+reload('$SELF' list \"\$FZF_PROMPT\")" \
@@ -332,37 +364,52 @@ pick() {
             --preview "'$SELF' preview {}"
     )" || selected=""
     [ -z "$selected" ] && exit 0
+    act "$selected"
+}
 
-    # scratch prints a bare path
+# switch to / create what a picker line points at; a bare path (scratch) too
+act() {
+    local selected="$1" kind target name path
+    [ -n "$selected" ] || return 0
     if [[ $selected != *$'\t'* ]]; then
         connect "$(basename "$selected")" "$selected"
-        exit 0
+        return
     fi
 
     kind="$(field "$selected" 2)"
     target="$(field "$selected" 3)"
     case "$kind" in
-        ws) herdr workspace focus "$target" >/dev/null ;;
-        tab) herdr tab focus "$target" >/dev/null ;;
-        agent) herdr agent focus "$target" >/dev/null ;;
-        cfg)
-            path="$(expand "$(sesh_field "$target" path)")"
-            connect "$target" "$path" "$(sesh_field "$target" startup_command)"
-            ;;
-        dir)
-            path="$(expand "$target")"
-            name="$(basename "$path")"
-            connect "$name" "$path"
-            ;;
+    ws) herdr workspace focus "$target" >/dev/null ;;
+    tab) herdr tab focus "$target" >/dev/null ;;
+    agent) herdr agent focus "$target" >/dev/null ;;
+    pane) # a split: focus its tab
+        herdr tab focus "$(herdr pane get "$target" | jq -r '.result.pane.tab_id')" >/dev/null ;;
+    cfg)
+        path="$(expand "$(sesh_field "$target" path)")"
+        connect "$target" "$path" "$(sesh_field "$target" startup_command)"
+        ;;
+    dir)
+        path="$(expand "$target")"
+        name="$(basename "$path")"
+        connect "$name" "$path"
+        ;;
     esac
 }
 
 case "${1:-}" in
-    list) list "${2:-all}" ;;
-    preview) preview "$2" ;;
-    label) label "$2" ;;
-    help) help ;;
-    kill) kill_entry "$2" ;;
-    browser) browser ;;
-    *) pick ;;
+list) list "${2:-all}" ;;
+preview) preview "$2" ;;
+label) label "$2" ;;
+help) help ;;
+kill) kill_entry "$2" ;;
+browser) browser ;;
+state) state ;;
+go) act "${2:-}" ;;
+fzf) pick ;;
+*)
+    if command -v node >/dev/null 2>&1; then
+        exec node "$(dirname -- "$SELF")/herdr-picker.mjs"
+    fi
+    pick
+    ;;
 esac
