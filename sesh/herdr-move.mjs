@@ -11,17 +11,24 @@
 
 export function buildModel(state) {
     const ws = [...(state.ws ?? [])].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
-    const tabs = [...(state.tabs ?? [])].sort((a, b) => (a.number ?? 0) - (b.number ?? 0));
+    // tab order is `herdr tab list` order (display order): .number is a creation
+    // counter that keeps gaps after moves/closes, so it must not drive order
+    const tabs = [...(state.tabs ?? [])];
     const workspaces = ws.map((w) => ({
         id: w.workspace_id, label: w.label ?? w.workspace_id, number: w.number,
         focused: !!w.focused, status: w.agent_status ?? "unknown",
         activeTabId: w.active_tab_id ?? null,
     }));
     const wsIds = new Set(workspaces.map((w) => w.id));
-    const tabList = tabs.filter((t) => wsIds.has(t.workspace_id)).map((t) => ({
-        id: t.tab_id, wsId: t.workspace_id, number: t.number, label: t.label ?? "",
-        status: t.agent_status ?? "unknown",
-    }));
+    const perWs = new Map();
+    const tabList = tabs.filter((t) => wsIds.has(t.workspace_id)).map((t) => {
+        const position = (perWs.get(t.workspace_id) ?? 0) + 1;
+        perWs.set(t.workspace_id, position);
+        return {
+            id: t.tab_id, wsId: t.workspace_id, number: t.number, position,
+            label: t.label ?? "", status: t.agent_status ?? "unknown",
+        };
+    });
     const tabIds = new Set(tabList.map((t) => t.id));
     const perTab = new Map();
     const panes = (state.panes ?? []).filter((p) => tabIds.has(p.tab_id)).map((p) => {

@@ -1,0 +1,23 @@
+# Copy a file path from the last command's output (prefix+f).
+#   open    → captures the focused pane's rect, opens the overlay over it
+#   overlay → hints every path in the output between the last two prompts;
+#             type a hint to copy it, Esc / timeout closes
+# Settings: config.toml next to this file.
+id = "local.copy-path"
+name = "Copy path"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Hint and copy file paths from the last command's output"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "open"
+title = "Copy path"
+description = "Hint file paths in the focused pane's last output and copy one"
+command = ["./copy-path.py", "open"]
+
+[[panes]]
+id = "overlay"
+title = "copy-path"
+placement = "overlay"
+command = ["./copy-path.py"]

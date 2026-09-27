@@ -98,12 +98,17 @@ def pane_text: if .agent then agentc(.agent)
 def tab_text($s): (.tab_id | agents($s)) as $a | (.tab_id | tab_pane($s)) as $p |
     if ($a | length) > 0 then $a | map(agentc(.)) | join(", ")
     else tabc($p.terminal_title_stripped // (($p.foreground_cwd // "") | base)) end;
+# 1-based position of a tab within its workspace, in `herdr tab list` order
+# (the agent-tabs plugin renames labels to this; .number is a creation counter)
+def tab_pos($s): . as $id
+    | [$s.tabs[] | select(.workspace_id == ($id | split(":")[0])) | .tab_id] as $ids
+    | (($ids | index($id)) // 0) + 1;
 '
 
 list_ws() {
     state | jq -r "$JQ_LIB"'
         . as $s | .ws[] | . as $w
-        | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] | sort_by(.number) as $tabs
+        | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] as $tabs
         | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
         | ([ (if $w.tab_count > 1 then dim("\($w.tab_count) tabs") else empty end),
              (if ($agents | length) > 0 then $agents | map(agentc(.)) | join(dim(", ")) else empty end),
@@ -112,7 +117,7 @@ list_ws() {
           ($tabs | to_entries[] | .value as $t
            | (.key == ($tabs | length) - 1) as $last
            | [$s.panes[] | select(.tab_id == $t.tab_id)] as $splits
-           | "  \(dim(if $last then "└" else "├" end)) \($t.agent_status | icon) \(tabn($t.number | tostring)) \($t | tab_text($s))\(if ($splits | length) > 1 then "  " + dim("\($splits | length) splits") else "" end)\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)",
+           | "  \(dim(if $last then "└" else "├" end)) \($t.agent_status | icon) \(tabn($t.tab_id | tab_pos($s) | tostring)) \($t | tab_text($s))\(if ($splits | length) > 1 then "  " + dim("\($splits | length) splits") else "" end)\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)",
              ($splits | to_entries[] | .value as $p
               | "  \(if $last then " " else dim("│") end)   \(dim(if .key == ($splits | length) - 1 then "└" else "├" end)) \(dim("⠿")) \($p.agent_status | icon) \($p | pane_text)  \(dim($p.pane_id | split(":") | last))\tpane\t\($p.pane_id)"))'
 }
@@ -128,7 +133,7 @@ list_agents() {
             . as $p
             | first($s.ws[] | select(.workspace_id == $p.workspace_id)) as $w
             | first($s.tabs[] | select(.tab_id == $p.tab_id)) as $t
-            | "\($p.agent_status | icon) \(wsc($w.label)) \(dim("›")) \(tabn($t.number | tostring))  \(agentc($p.agent))  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
+            | "\($p.agent_status | icon) \(wsc($w.label)) \(dim("›")) \(tabn($t.tab_id | tab_pos($s) | tostring))  \(agentc($p.agent))  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
           end'
 }
 
@@ -228,6 +233,7 @@ entry_pane() {
            else first($s.ws[] | select(.workspace_id == $id) | .active_tab_id) end) as $tid
         | {pane: ($ap // ($tid | tab_pane($s))),
            tab: first($s.tabs[] | select(.tab_id == $tid)),
+           position: ($tid | tab_pos($s)),
            ws: first($s.ws[] | select(.workspace_id == ($tid | split(":")[0])))}'
 }
 
@@ -254,7 +260,7 @@ label() {
     case "$kind" in
     ws | tab | agent | pane)
         entry_pane "$kind" "$target" | jq -r "$JQ_LIB"'
-                [ .ws.label + (if (.ws.tab_count // 1) > 1 then " › tab \(.tab.number)" else "" end),
+                [ .ws.label + (if (.ws.tab_count // 1) > 1 then " › tab \(.position)" else "" end),
                   (.pane.agent // empty),
                   (if (.pane.agent_status // "unknown") != "unknown" then .pane.agent_status else empty end),
                   ((.pane.foreground_cwd // "") | home | select(. != "")) ]

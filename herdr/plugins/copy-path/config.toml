@@ -1,0 +1,46 @@
+# copy-path settings (read on every prefix+f; no reload needed).
+# Everything is decided from the pane's visible TEXT: the plugin never runs
+# anything in the pane or on a remote host, so it works the same over ssh.
+
+scope      = "output"  # "output" = rows between the last two prompts, "screen" = whole pane
+timeout_ms = 5000      # close after this long without a key press
+flash_ms   = 250       # blink of the picked path before the overlay closes
+
+# --- prompt detection ---------------------------------------------------------
+# A row matching prompt_regex is a prompt's INPUT row; the command is the text
+# after the match. starship: "(INS) ❯ ls"; plain bash: "root@box:/var/log# ls".
+prompt_regex  = '❯ ?|^[\w.-]+@[\w.-]+:\S*[$#] ?'
+# Rows a prompt spans (starship here = dir row + input row). Rows above the
+# input row are only part of the prompt when the input row has no dir itself.
+prompt_height = 2
+
+# --- PS1 path building ----------------------------------------------------------
+# true: copy full paths built from the dir shown in the prompt the command ran
+# under ("./a" and "a" → "<dir>/a", "../a" normalised; /abs and ~/x unchanged).
+use_ps1 = true
+# Where the dir sits in the prompt; the first pattern with a (?P<dir>…) match wins.
+# Only dirs starting with ~ or / are used (starship's truncated display is not).
+ps1_dir_regex = [
+    '(?:^|\sin\s)(?P<dir>~[^\s]*|/[^\s]*)',   # starship: "~/x via …", "root in host in ~"
+    ':(?P<dir>~[^\s$#]*|/[^\s$#]*)[$#]',      # bash: user@host:~/dir$
+]
+expand_home = false   # true: ~/x → $HOME/x (a remote ~ is not your ~)
+
+# --- detection ------------------------------------------------------------------
+# After these commands, every bare word in the output is a name (ls -l: the
+# last column). Otherwise a word needs a "/" or an extension to count.
+list_commands = ["ls", "ll", "la", "l", "eza", "exa", "lsd", "fd", "find"]
+ignore_regex  = '^(\w+://|-|[\d.,:_/-]+$|[0-9a-f]{7,40}$)'  # URLs, flags, numbers, dates, SHAs
+# Local-only helpers (off: they need the local disk, meaningless over ssh):
+cwd_fallback = false  # no dir in the prompt → use the pane's working dir
+check_exists = false  # a bare word that exists under the dir counts (local panes only)
+
+alphabet = "asdfghjklwertyuiopzxcvbnm"   # hint letters, easiest first
+
+[style]   # "#rrggbb" or a 0-255 color number
+hint_fg   = "#1e1e2e"
+hint_bg   = "#f9e2af"
+match_fg  = "#f9e2af"
+dim_fg    = "#6c7086"
+status_fg = "#cdd6f4"
+status_bg = "#313244"

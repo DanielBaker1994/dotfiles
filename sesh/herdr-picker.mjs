@@ -349,7 +349,7 @@ function moveSel(d) {
 
 // ── drag and drop: names, targets, the move itself ──────────────────────
 const wsName = (id) => pick.model?.ws.get(id)?.label ?? id;
-const tabName = (id) => { const t = pick.model?.tab.get(id); return t ? `${wsName(t.wsId)} › tab ${t.number}` : id; };
+const tabName = (id) => { const t = pick.model?.tab.get(id); return t ? `${wsName(t.wsId)} › tab ${t.position}` : id; };
 const destText = (d) => !d ? "" : d.kind === "ws" ? `${wsName(d.wsId)} (new tab)` : `${tabName(d.tabId)} (split)`;
 const paneWhat = (p) => p.agent || p.title || basename(p.cwd || "") || "shell";
 
@@ -465,7 +465,7 @@ function landingLines(d, iw, ih) {
         ? fit(" ".repeat(Math.max(0, Math.floor((iw - 44) / 2))) + dim("drop on a workspace (new tab) or a tab (split)"), iw) : "");
     if (d.dest.kind === "ws") {
         const tabs = (pick.model?.tabs ?? []).filter((t) => t.wsId === d.dest.wsId);
-        const strip = " " + tabs.map((t) => dim(` ${t.number} `)).join(" ") + " " + fg(ACCENT, bold("[+]"));
+        const strip = " " + tabs.map((t) => dim(` ${t.position} `)).join(" ") + " " + fg(ACCENT, bold("[+]"));
         return [strip, "", ...antsRect(iw, ih - 2, [chip, "", dim(`new tab in ${wsName(d.dest.wsId)}`)])];
     }
     const lw = Math.floor(iw / 2);

@@ -19,47 +19,34 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)
 
-BACKUP_ROOT="/tmp/backup_configs_$(date +%Y%m%d_%H%M%S)"
+BACKUP_PREFIX="${BACKUP_PREFIX:-/tmp/backup_configs}"
+. "$SCRIPT_DIR/symlinks.sh"
+
+case "${1:-}" in
+    validate|--validate|check)
+        case "${2:-}" in
+            --check|check) validate_sym_links check ;;
+            --fix|fix)     validate_sym_links fix ;;
+            *)             validate_sym_links prompt ;;
+        esac
+        exit $?
+        ;;
+    --fix|fix)
+        validate_sym_links fix
+        exit $?
+        ;;
+    ""|--install|install)
+        ;;
+    *)
+        printf 'Usage: %s [validate [--check|--fix]]\n' "$0" >&2
+        exit 2
+        ;;
+esac
 
 # Ghostty CLI on PATH (idempotent; -f ignores "already exists")
 sudo ln -sf /Applications/Ghostty.app/Contents/MacOS/ghostty /usr/local/bin/ghostty
 
-mkdir -p "$BACKUP_ROOT"
-
-declare -A dotfiles=(
-    # shell
-    ["$HOME/.bash_profile"]="$SCRIPT_DIR/bash/.bash_profile"
-    ["$HOME/.bashrc"]="$SCRIPT_DIR/bash/.bashrc"
-    ["$HOME/.inputrc"]="$SCRIPT_DIR/bash/.inputrc"
-    # editors / tools
-    ["$HOME/.config/nvim"]="$SCRIPT_DIR/nvim"
-    ["$HOME/.tmux.conf"]="$SCRIPT_DIR/tmux/.tmux.conf"
-    ["$HOME/.config/starship.toml"]="$SCRIPT_DIR/starship/starship.toml"
-    ["$HOME/.config/sesh/sesh.toml"]="$SCRIPT_DIR/sesh/sesh.toml"
-    ["$HOME/.config/herdr/config.toml"]="$SCRIPT_DIR/herdr/config.toml"
-    ["$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"]="$SCRIPT_DIR/ghostty/config.ghostty"
-)
-
-for home_path in "${!dotfiles[@]}"; do
-    source_path="${dotfiles[$home_path]}"
-
-    if [[ ! -e $source_path && ! -L $source_path ]]; then
-        echo "Error: source path missing: $source_path" >&2
-        exit 1
-    fi
-
-    if [[ -L $home_path ]]; then
-        rm "$home_path"
-    elif [[ -e $home_path ]]; then
-        echo "Backing up existing $home_path to $BACKUP_ROOT"
-        cp -R "$home_path" "$BACKUP_ROOT/"
-        rm -rf "$home_path"
-    fi
-
-    mkdir -p "$(dirname "$home_path")"
-    ln -s "$source_path" "$home_path"
-    echo "Created symlink: $home_path -> $source_path"
-done
+ensure_sym_links
 
 # ---------------------------------------------------------------------------
 # Tooling / dependencies
@@ -74,7 +61,7 @@ echo "==> Ensuring homebrew packages are installed..."
 brew install --cask font-sketchybar-app-font
 brew install --cask font-hack-nerd-font
 
-# herdr plugins: link every plugin under herdr/plugins (last, agent-tabs).
+# herdr plugins: link every plugin under herdr/plugins (last, agent-tabs, copy-path).
 # The link lives in herdr's own state (~/.config/herdr/plugins.json), not a
 # symlink; re-linking an already linked plugin is harmless.
 if command -v herdr >/dev/null; then
@@ -83,6 +70,7 @@ if command -v herdr >/dev/null; then
     for plugin in "$SCRIPT_DIR"/herdr/plugins/*/; do
         herdr plugin link "${plugin%/}" >/dev/null && echo "Linked herdr plugin: ${plugin%/}"
     done
+    herdr server reload-config >/dev/null || true
 fi
 
 # ---------------------------------------------------------------------------
@@ -102,4 +90,4 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 defaults write com.apple.spaces spans-displays -bool true
 
 echo
-echo "Done. Backups (if any) are in: $BACKUP_ROOT"
+echo "Done. Backups (if any) are under: $BACKUP_PREFIX-*"

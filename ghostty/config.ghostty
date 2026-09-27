@@ -27,6 +27,10 @@ font-family = "JetBrainsMono Nerd Font"
 
 # custom-shader = ~/.dotfiles/ghostty/shaders/soft_trail_shader.glsl
 
+# Interpret terminal colors in Display P3 so the same hex values render
+# richer/more saturated on the wide-gamut (Liquid Retina) panel.
+window-colorspace = display-p3
+
 # Colors (Tokyo Night night)
 background = #1a1b26
 foreground = #c0caf5

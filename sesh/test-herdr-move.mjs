@@ -11,8 +11,10 @@ const STATE = {
         { workspace_id: "wG", label: "home_server", number: 3, active_tab_id: "wG:t1" },
     ],
     tabs: [
+        // display order != .number (the creation counter keeps gaps after moves)
         { tab_id: "wB:t1", workspace_id: "wB", number: 1, label: "1" },
-        { tab_id: "wB:t2", workspace_id: "wB", number: 2, label: "○ ⬓ 2" },
+        { tab_id: "wB:t8", workspace_id: "wB", number: 8, label: "2" },
+        { tab_id: "wB:t2", workspace_id: "wB", number: 2, label: "○ ⬓ 3" },
         { tab_id: "wD:t1", workspace_id: "wD", number: 1, label: "1" },
         { tab_id: "wG:t1", workspace_id: "wG", number: 1, label: "1" },
     ],
@@ -33,6 +35,13 @@ test("model keeps ids, pane index within its tab, original workspace", () => {
     assert.equal(model.pane.get("wB:p8").index, 1);
     assert.equal(model.pane.get("wB:p8").tabId, "wB:t1");
     assert.equal(model.pane.get("wG:p1").wsId, "wG");
+});
+
+test("tabs keep list order and carry a 1-based position", () => {
+    const wb = model.tabs.filter((t) => t.wsId === "wB");
+    assert.deepEqual(wb.map((t) => t.id), ["wB:t1", "wB:t8", "wB:t2"]);
+    assert.deepEqual(wb.map((t) => t.position), [1, 2, 3]);
+    assert.equal(model.tab.get("wB:t8").position, 2);
 });
 
 test("dropping on its own tab is a no-op; own workspace only when it's alone", () => {
