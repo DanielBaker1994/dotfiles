@@ -5,7 +5,8 @@
 # Every tab with an agent gets "<status> <agent> " in front of its label; the
 # prefix is stripped and re-applied on each sync, so a manual rename keeps
 # its name and a tab whose agent exits goes back to plain. A label that is
-# just a number counts as the default one and follows the tab's number.
+# just a number counts as the default one and follows the tab's position
+# in its workspace (1, 2, 3 … with no gaps).
 # Status glyphs are herdr's own (status_indicators = "symbols"); agent icons
 # are Nerd Font glyphs (a full cell, bigger than plain Unicode symbols),
 # except opencode: ⬓ is its logo (a frame, bottom half filled).
@@ -66,9 +67,14 @@ plan() {
         | ([$icons[], $old[]] | map(select(. != "") | esc) | unique | join("|")) as $any
         | {blocked: 0, done: 1, working: 2, idle: 3} as $rank
         | ($p.result.panes // []) as $panes
-        | ($t.result.tabs // [])[] as $tab
+        | ($t.result.tabs // []) as $tabs
+        # position within its workspace (list order = cmd+N order); herdr'"'"'s
+        # own .number is a creation counter that keeps gaps after moves/closes
+        | (reduce $tabs[] as $x ({n: {}, pos: {}};
+             .n[$x.workspace_id] += 1 | .pos[$x.tab_id] = .n[$x.workspace_id]) | .pos) as $pos
+        | $tabs[] as $tab
         | ($tab.label | sub("^((" + $any + ")+ )+"; "")) as $base
-        | (if $base | test("^[0-9]+$") then $tab.number | tostring else $base end) as $base
+        | (if $base | test("^[0-9]+$") then $pos[$tab.tab_id] | tostring else $base end) as $base
         | [$panes[] | select(.tab_id == $tab.tab_id and .agent)] as $agents
         | ($agents | sort_by($rank[.agent_status] // 4) | first // null) as $pane
         | (if $off == "1" or $pane == null then ""

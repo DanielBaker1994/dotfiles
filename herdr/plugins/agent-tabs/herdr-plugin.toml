@@ -21,7 +21,9 @@ command = ["./agent-tabs.sh", "sync"]
 on = "pane.agent_detected"
 command = ["./agent-tabs.sh", "sync"]
 
-# default labels follow the tab number when tabs are renumbered
+# default (number) labels follow the tab's position: re-sync on anything that
+# adds, removes or reorders tabs. cmd+w only sends pane.closed, and moving a
+# pane (prefix+w drag) only pane.moved, even when that empties/creates a tab.
 [[events]]
 on = "tab.created"
 command = ["./agent-tabs.sh", "sync"]
@@ -32,6 +34,22 @@ command = ["./agent-tabs.sh", "sync"]
 
 [[events]]
 on = "tab.moved"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "pane.moved"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "pane.closed"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "pane.exited"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "workspace.closed"
 command = ["./agent-tabs.sh", "sync"]
 
 [[actions]]
