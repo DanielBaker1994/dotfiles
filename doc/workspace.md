@@ -102,9 +102,9 @@ which pings the running daemon over a Unix socket or launches it):
   `aerospace/notes_icon.png` next to the binary to override it); both also
   appear in the Hyper+S picker rows and each window's header
 - Hyper+S then `/health-checks` -> read-only window running `jira-doctor.sh`
-  (commands.conf `type = output`); its header carries `poll all/KAN/SAM1…`
+  (commands.toml `type = output`); its header carries `poll all/KAN/SAM1…`
   buttons that force a poll for just that json
-- `commands.conf` defines the note/list windows (paths, sources, fields,
+- `commands.toml` defines the note/list windows (paths, sources, fields,
   copy-fields); `jira/jira-doctor.sh` asserts the whole stack is wired
 - **Build + launch (ONE command)**: `~/workspace-switcher/build.sh` — always rebuilds
   from source, re-signs the .app bundle, re-grants mic/speech, kills stale
@@ -138,7 +138,7 @@ which pings the running daemon over a Unix socket or launches it):
 
 ## Voice notes (record -> Apple speech recognition)
 
-Notes and voice are ONE window: `commands.conf [notes]` has `voice = true`
+Notes and voice are ONE window: `commands.toml [notes]` has `voice = true`
 (a note window plus the record/pause/stop meter strip at the bottom — every
 note tab, markdown images, and paste work exactly as in plain notes).
 Launching `workspace_switcher.sh notes` or `voice` opens/focuses the same
@@ -169,7 +169,7 @@ nothing you say is ever dropped, and text is never finalized mid-word.
   ```
   (GUI equiv: System Settings → Apple Intelligence & Siri → Siri & Dictation.
   `/health-checks` reports this state.)
-- Dictation locale: `voice-locale` in the `[app]` section of commands.conf.
+- Dictation locale: `voice-locale` in the `[app]` section of commands.toml.
 
 ## Note images (paste a photo, see it inline)
 
@@ -182,7 +182,7 @@ clipboard (or dropping an image file onto the note) saves it as
 the caret — no RTF, no manual export. Right-click a rendered photo →
 "copy image path" puts its ABSOLUTE path on the clipboard. Saves serialize
 attachments back to `![](rel)` so the note stays plain markdown on disk.
-Duplicate note paths in commands.conf (`paths = ~/notes, ~/notes/x.md`) are
+Duplicate note paths in commands.toml (`paths = ~/notes, ~/notes/x.md`) are
 deduped to one tab.
 
 ## Karabiner (Hyper key + switcher binding)

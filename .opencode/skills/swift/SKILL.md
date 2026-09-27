@@ -117,12 +117,12 @@ flags in any manual build.
 
 - `PopupWindow.swift` — reusable framework: window/panel, chrome/header,
   rows, search/filter, editor, meter bar, socket toggle server.
-- `workspace_switcher.swift` — host: commands.conf parsing (`[app]`,
+- `workspace_switcher.swift` — host: commands.toml parsing (`[app]`,
   `[icons]`, per-command sections), aerospace IPC, icons, voice recorder
   (AVAudioRecorder + SFSpeechRecognizer), AppDelegate.
 - `main.swift` — entry: `applyAppConfigFromDisk()` FIRST (socket names come
   from config), then arg dispatch (`toggle`/`notes`/`jira`/`voice`).
-- `commands.conf` — every machine string + window definition lives here
+- `commands.toml` — every machine string + window definition lives here
   (`[app]` section). Config-driven is the goal: new windows need no code.
 
 ## Swift/AppKit effectiveness

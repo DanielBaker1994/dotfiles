@@ -326,14 +326,14 @@ Checks, in order:
 | cache & json | `~/.cache/jira/jiras.json` issue count; `aerospace/jira_json/all.json` mtime |
 | poll agent | plist installed at `~/Library/LaunchAgents/com.jira.poll.plist` (matches the repo copy) and **loaded** in launchd |
 | poll schedule | `LAST_POLL`/`STATUS`/`ITEMS` from `~/.cache/jira/poll-state`, then `next run = LAST_POLL + StartInterval` (overdue ⇒ WARN if loaded, FAIL if not) |
-| switcher daemon | binary newer than its Swift sources, daemon process alive, `commands.conf` has `copy-fields`, `aerospace.toml` floats `app-name = workspace-switcher` and wires `focus-bridge.sh` into `on-focus-changed`, karabiner Hyper+S/J/N bindings present |
+| switcher daemon | binary newer than its Swift sources, daemon process alive, `commands.toml` has `copy-fields`, `aerospace.toml` floats `app-name = workspace-switcher` and wires `focus-bridge.sh` into `on-focus-changed`, karabiner Hyper+S/J/N bindings present |
 
 Alias: `jira-doctor` (see the jira aliases in `bash/.bashrc`, sourced from `.bashrc`).
 
 ### The jeera window (jira list popup)
 
 The window that renders `jira_json/*.json` is the `workspace-switcher`
-daemon's list window (`aerospace/commands.conf` `[jira]` section). Beyond
+daemon's list window (`aerospace/commands.toml` `[jira]` section). Beyond
 search/filter/tabs it supports copying issues:
 
 - every row has a **checkbox**; clicking it (or `Ctrl+Space` on the selected row)
@@ -363,7 +363,7 @@ sketchybar. jeera's glyph is the official Jira mark shipped as
 watches its json sources and reloads a tab within ~2s of the poll rewriting
 it, so an open window never shows stale rows.
 
-Every window behavior is commands.conf-driven (no code per window):
+Every window behavior is commands.toml-driven (no code per window):
 `checkbox`, `resize`, `drag`, `sticky`, `height`, `search-width`,
 `row-actions` (`browser`, `details`), `browse-url`, `max-row-stretch`, `font`,
 plus the copy keys above. Header buttons are live: `copy selected` /
@@ -373,7 +373,7 @@ count.
 
 ### `/doctor` (palette command) and its poll buttons
 
-`commands.conf` sections with `type = output` run a shell command and show its
+`commands.toml` sections with `type = output` run a shell command and show its
 output in a read-only floating window (Hyper+S → `/doctor`; re-invoking re-runs
 into the same window, Esc dismisses, header click copies the output).
 
