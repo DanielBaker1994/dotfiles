@@ -61,6 +61,11 @@ echo "==> Ensuring homebrew packages are installed..."
 brew install --cask font-sketchybar-app-font
 brew install --cask font-hack-nerd-font
 
+# Rosetta 2 (Apple silicon): lets Intel-only apps run (oahd is its daemon).
+if [[ "$(uname -m)" == "arm64" ]] && ! pgrep -q oahd; then
+    sudo softwareupdate --install-rosetta --agree-to-license
+fi
+
 # herdr plugins: link every plugin under herdr/plugins (last, agent-tabs, copy-path).
 # The link lives in herdr's own state (~/.config/herdr/plugins.json), not a
 # symlink; re-linking an already linked plugin is harmless.
