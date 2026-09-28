@@ -18,13 +18,17 @@
 #   connect-herdr.sh kill LINE       close a workspace / tab, forget a zoxide dir
 #   connect-herdr.sh browser         prompt for a URL, open it in a workspace
 #
-# Entry line: DISPLAY<TAB>KIND<TAB>TARGET
+# Entry line: DISPLAY<TAB>KIND<TAB>TARGET<TAB>SEARCH[<TAB>more]
 #   ws  = live herdr workspace (TARGET = workspace id)
 #   tab = tab of a live workspace, always listed under it (TARGET = tab id)
 #   pane = split of a tab, listed under it (TARGET = pane id; enter focuses the tab)
 #   agent = pane running an agent (TARGET = pane id)
 #   cfg = sesh.toml session    (TARGET = session name)
 #   dir = directory            (TARGET = path)
+# SEARCH is what the picker matches on (space label + dir / session name / path).
+# more = a non-frecent dir: the picker shows it only while a query is typed.
+# fzf can only search fields it shows, so SEARCH is padded far off-screen and
+# matched with --nth so it filters the label without showing it.
 
 set -euo pipefail
 
@@ -32,6 +36,8 @@ SESH_TOML="$HOME/.dotfiles/sesh/sesh.toml"
 # zoxide dirs in "all": frecency score >= MIN (or a git repo root), top MAX
 DIRS_MIN_SCORE="${HERDR_PICK_MIN_SCORE:-1}"
 DIRS_MAX="${HERDR_PICK_MAX_DIRS:-12}"
+# off-screen pad before the SEARCH field (fzf --no-hscroll keeps it hidden)
+SEARCH_PAD="$(printf '%*s' 1000 '')"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
 field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
@@ -106,25 +112,26 @@ def tab_pos($s): . as $id
 '
 
 list_ws() {
-    state | jq -r "$JQ_LIB"'
+    state | jq -r --arg pad "$SEARCH_PAD" "$JQ_LIB"'
         . as $s | .ws[] | . as $w
         | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] as $tabs
+        | "\($pad)\($w.label) \($w.active_tab_id | tab_pane($s) | .cwd // "" | home)" as $q
         | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
         | ([ (if $w.tab_count > 1 then dim("\($w.tab_count) tabs") else empty end),
              (if ($agents | length) > 0 then $agents | map(agentc(.)) | join(dim(", ")) else empty end),
              (if $w.focused then dim("current") else empty end) ] | join(dim(" · "))) as $meta
-        | "\($w.agent_status | icon) \(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)",
+        | "\($w.agent_status | icon) \(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)\t\($q)",
           ($tabs | to_entries[] | .value as $t
            | (.key == ($tabs | length) - 1) as $last
            | [$s.panes[] | select(.tab_id == $t.tab_id)] as $splits
-           | "  \(dim(if $last then "└" else "├" end)) \($t.agent_status | icon) \(tabn($t.tab_id | tab_pos($s) | tostring)) \($t | tab_text($s))\(if ($splits | length) > 1 then "  " + dim("\($splits | length) splits") else "" end)\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)",
+           | "  \(dim(if $last then "└" else "├" end)) \($t.agent_status | icon) \(tabn($t.tab_id | tab_pos($s) | tostring)) \($t | tab_text($s))\(if ($splits | length) > 1 then "  " + dim("\($splits | length) splits") else "" end)\(if $t.tab_id == $w.active_tab_id then " " + dim("•") else "" end)\ttab\t\($t.tab_id)\t\($q)",
              ($splits | to_entries[] | .value as $p
-              | "  \(if $last then " " else dim("│") end)   \(dim(if .key == ($splits | length) - 1 then "└" else "├" end)) \(dim("⠿")) \($p.agent_status | icon) \($p | pane_text)  \(dim($p.pane_id | split(":") | last))\tpane\t\($p.pane_id)"))'
+              | "  \(if $last then " " else dim("│") end)   \(dim(if .key == ($splits | length) - 1 then "└" else "├" end)) \(dim("⠿")) \($p.agent_status | icon) \($p | pane_text)  \(dim($p.pane_id | split(":") | last))\tpane\t\($p.pane_id)\t\($q)"))'
 }
 
 # one row per agent pane; the ones that need you first
 list_agents() {
-    state | jq -r "$JQ_LIB"'
+    state | jq -r --arg pad "$SEARCH_PAD" "$JQ_LIB"'
         . as $s
         | {blocked: 0, done: 1, working: 2, idle: 3} as $rank
         | [.panes[] | select(.agent)] | sort_by($rank[.agent_status] // 4, .pane_id)
@@ -133,7 +140,7 @@ list_agents() {
             . as $p
             | first($s.ws[] | select(.workspace_id == $p.workspace_id)) as $w
             | first($s.tabs[] | select(.tab_id == $p.tab_id)) as $t
-            | "\($p.agent_status | icon) \(wsc($w.label)) \(dim("›")) \(tabn($t.tab_id | tab_pos($s) | tostring))  \(agentc($p.agent))  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)"
+            | "\($p.agent_status | icon) \(wsc($w.label)) \(dim("›")) \(tabn($t.tab_id | tab_pos($s) | tostring))  \(agentc($p.agent))  \(dim($p.terminal_title_stripped // ""))\tagent\t\($p.pane_id)\t\($pad)\($w.label)"
           end'
 }
 
@@ -150,14 +157,14 @@ list_cfg() {
         grep -qxF -- "$name" <<<"$live" && continue
         grep -qxF -- "$(expand "$(sesh_field "$name" path)")" <<<"$cwds" && continue
         # keep sesh's icon, the name in yellow
-        printf '%s\e[33m%s\e[39m  \e[90msaved\e[39m\tcfg\t%s\n' "${line%%"$name"*}" "$name" "$name"
+        printf '%s\e[33m%s\e[39m  \e[90msaved\e[39m\tcfg\t%s\t%s%s\n' "${line%%"$name"*}" "$name" "$name" "$SEARCH_PAD" "$name"
     done
 }
 
 # zoxide dirs, cleaned up: resolved (/tmp = /private/tmp, scores summed),
-# existing only, minus open workspaces / sesh.toml paths. MODE all = only
-# frecent ones (score >= DIRS_MIN_SCORE or a git root, top DIRS_MAX); full =
-# every one, with its score.
+# existing only, minus open workspaces / sesh.toml paths. MODE all = frecent
+# ones (score >= DIRS_MIN_SCORE or a git root, top DIRS_MAX) first, the rest
+# tagged "more" (shown only when searching); full = every one, with its score.
 list_dir() {
     zoxide query -ls 2>/dev/null | python3 -c '
 import os, sys, tomllib
@@ -181,16 +188,20 @@ for line in sys.stdin:
     if len(path) < len(d[1]):
         d[1] = path
 rows = sorted(((sc, p, r) for r, (sc, p) in dirs.items() if r not in skip), reverse=True)
+top = set()
 if mode == "all":
-    rows = [x for x in rows
-            if x[0] >= float(min_score) or os.path.exists(os.path.join(x[2], ".git"))]
-    rows = rows[: int(max_n)]
-for sc, p, _ in rows:
+    top = [x for x in rows
+           if x[0] >= float(min_score) or os.path.exists(os.path.join(x[2], ".git"))]
+    top = top[: int(max_n)]
+    rows = top + [x for x in rows if x not in top]
+    top = set(top)
+for sc, p, r in rows:
     shown = "~" + p[len(home):] if p == home or p.startswith(home + "/") else p
     if shown.startswith("/private/"):  # macOS: /tmp, /var are links into /private
         shown = shown[len("/private"):]
     tag = f"{sc:g}" if mode == "full" else "recent"
-    print(f"\033[36m\033[39m {shown}  \033[90m{tag}\033[39m\tdir\t{p}")
+    more = "\tmore" if mode == "all" and (sc, p, r) not in top else ""
+    print(f"\033[36m\033[39m {shown}  \033[90m{tag}\033[39m\tdir\t{p}\t{" " * 1000}{p}{more}")
 ' "${1:-all}" "$DIRS_MIN_SCORE" "$DIRS_MAX" "$SESH_TOML" "$(live_cwds)"
 }
 
@@ -201,7 +212,7 @@ list_find() {
     fd -H -d 2 -t d -E .Trash -E .git -E node_modules . "$base" 2>/dev/null |
         while IFS= read -r d; do
             d="${d%/}"
-            printf '\e[33m\e[39m %s\tdir\t%s\n' "${d/#$HOME/\~}" "$d"
+            printf '\e[33m\e[39m %s\tdir\t%s\t%s%s\n' "${d/#$HOME/\~}" "$d" "$SEARCH_PAD" "$d"
         done
 }
 
@@ -294,7 +305,7 @@ ${b}What's in the list${r}
 
 ${b}Directories${r}
   all shows only frecent ones: zoxide score >= ${DIRS_MIN_SCORE}, or a git repo,
-  top ${DIRS_MAX}. ^x dirs shows every one with its score. ^d on a
+  top ${DIRS_MAX}; typing searches every one. ^x dirs lists all with scores. ^d on a
   directory forgets it in zoxide for good (also for z / cd).
 
 ${b}Moving splits${r}
@@ -351,10 +362,10 @@ browser() {
 pick() {
     local selected
     selected="$(
-        list all | fzf \
+        list all | awk -F'\t' '$5 != "more"' | fzf \
             --height 100% --margin 0 --padding 0,1 \
-            --ansi --no-sort --highlight-line --info inline-right \
-            --delimiter $'\t' --with-nth 1 \
+            --ansi --highlight-line --info inline-right \
+            --delimiter $'\t' --with-nth 1,4 --nth 2 --no-hscroll --ellipsis '' \
             --border-label ' herdr sessions · ? help ' --prompt 'all › ' \
             --header $'^a all  ^t agents  ^x dirs\n^s new  ^b web  ^d close/forget  ? help' \
             --bind 'tab:down,btab:up' \

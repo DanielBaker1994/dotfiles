@@ -29,3 +29,6 @@
 	smudge = git-lfs smudge -- %f
 	process = git-lfs filter-process
 	required = true
+[user]
+	name = Your Name
+	email = you@example.com

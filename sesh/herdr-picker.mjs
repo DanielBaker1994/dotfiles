@@ -261,35 +261,52 @@ function loadState() {
     });
 }
 function item(line) {
-    const [display = "", kind = "", target = ""] = line.split("\t");
-    return { line, display, kind, target, plain: strip(display) };
+    const [display = "", kind = "", target = "", search = "", flag = ""] = line.split("\t");
+    // more: a non-frecent zoxide dir, only listed while searching
+    return { line, display, kind, target, search: strip(search).trim(), plain: strip(display), more: flag === "more" };
 }
 
-// fzf-ish: space-separated terms, each a fuzzy subsequence; smart case; input order kept (--no-sort)
+// fzf-ish: space-separated terms, each a fuzzy subsequence; smart case.
+// Returns match positions (into text) plus a score: contiguous runs, word
+// boundaries and earlier matches score higher, so top matches sort first.
 function match(text, query) {
     const terms = query.split(/\s+/).filter(Boolean);
     const chars = Array.from(text);
     const pos = new Set();
+    let score = 0;
     for (const term of terms) {
         const cs = term !== term.toLowerCase();
         const t = Array.from(cs ? term : term.toLowerCase());
-        let ti = 0;
+        let ti = 0, prev = -2;
         const hit = [];
         for (let i = 0; i < chars.length && ti < t.length; i++) {
             const c = cs ? chars[i] : chars[i].toLowerCase();
-            if (c === t[ti]) { hit.push(i); ti++; }
+            if (c !== t[ti]) continue;
+            hit.push(i);
+            score += i === prev + 1 ? 6 : -Math.min(i - prev - 1, 8);
+            if (i === 0 || /[\s\-/_.]/.test(chars[i - 1] ?? "")) score += 10;
+            score += 1;
+            prev = i;
+            ti++;
         }
         if (ti < t.length) return null;
         hit.forEach((h) => pos.add(h));
     }
-    return pos;
+    return { pos, score: score - text.length * 0.02 };
 }
 function refilter(sel = 0) {
     pick.view = [];
     for (const it of pick.items) {
-        const pos = pick.query ? match(it.plain, pick.query) : new Set();
-        if (pos) pick.view.push({ it, pos });
+        if (pick.query) {
+            const m = match(it.search || it.plain, pick.query);
+            if (!m) continue;
+            const hl = match(it.plain, pick.query); // highlight only what's shown
+            pick.view.push({ it, pos: hl ? hl.pos : new Set(), score: m.score });
+        } else if (!it.more) {
+            pick.view.push({ it, pos: new Set(), score: 0 });
+        }
     }
+    if (pick.query) pick.view.sort((a, b) => b.score - a.score); // best matches first
     pick.sel = Math.max(0, Math.min(sel, pick.view.length - 1));
     schedulePreview();
     render();
