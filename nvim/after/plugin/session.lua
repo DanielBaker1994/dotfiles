@@ -1,9 +1,16 @@
 -- Automatic, worktree-root-scoped session management (see lua/user/session.lua).
--- Sessions are only created/restored when cwd is exactly a worktree root dir
--- (root/<prefix>-* from NVIM_CD_TARGETS, e.g. ~/jira/JT-1234).
+-- The session is keyed on the workspace resolved from the launch dir
+-- (user.workspace): a root/<prefix>-* worktree (e.g. ~/jira/JT-1234) or a
+-- configured root; :cd inside nvim doesn't change it.
 local session = require('user.session')
+local workspace = require('user.workspace')
 
 session.setup()
+
+-- Prompt once at startup if the machine-local Jira prefix file is missing.
+vim.schedule(function()
+    workspace.ensure_jira_prefix()
+end)
 
 vim.api.nvim_create_user_command('SessionSave', function()
     local ok, res = session.save()

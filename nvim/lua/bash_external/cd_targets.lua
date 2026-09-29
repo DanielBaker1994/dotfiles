@@ -1,18 +1,9 @@
--- NVIM_CD_TARGETS — workspace roots + per-root targets (see cd.lua, session.lua).
+-- NVIM_CD_TARGETS — workspace roots + per-root targets (resolved by lua/user/workspace.lua).
 --
--- New format (readable, one root per block separated by a blank line):
+-- One root per block, blocks separated by a blank line:
 --   root=<dir>
---   prefix=<prefix>
+--   prefix=<prefix>   (optional; omitted -> the cached Jira prefix)
 --   <name>=<subpath>
---
---   e.g.
---   root=$HOME/jira
---   prefix=JT
---   top=.
---   cpp=cpp
---
--- Legacy tab format (single root) is still accepted:
---   root<TAB>dir / prefix<TAB>P / name<TAB>subpath
 --
 -- Returns { roots = { { root, prefix, targets = { name -> subpath } }, ... } }.
 local bx = require('bash_external')
@@ -37,33 +28,7 @@ local handle = bx.value('cd_targets', 'NVIM_CD_TARGETS', function(stdout)
     local parsed = { roots = {} }
     stdout = vim.trim(stdout or '')
 
-    -- Legacy tab format: lines contain tabs, e.g. root<TAB>dir.
-    if stdout:find('\t') then
-        local legacy_root = nil
-        local legacy_prefix = nil
-        local legacy_targets = {}
-        for line in vim.gsplit(stdout, '\n') do
-            local fields = vim.split(line, '\t')
-            local key = fields[1]
-            if key == 'root' then
-                legacy_root = expand_home(fields[2])
-            elseif key == 'prefix' then
-                legacy_prefix = fields[2]
-            elseif legacy_root then
-                legacy_targets[key] = fields[2] or '.'
-            end
-        end
-        if legacy_root then
-            table.insert(parsed.roots, {
-                root = legacy_root,
-                prefix = legacy_prefix or '',
-                targets = legacy_targets,
-            })
-        end
-        return parsed
-    end
-
-    -- New block format: `key=value` lines, roots separated by a blank line.
+    -- `key=value` lines, roots separated by a blank line.
     for _, block in ipairs(vim.split(stdout, '\n\n')) do
         local root = nil
         local prefix = nil

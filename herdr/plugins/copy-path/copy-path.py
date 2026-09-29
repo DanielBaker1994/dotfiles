@@ -29,15 +29,23 @@ HERE = os.path.dirname(os.path.realpath(__file__))
 PLUGIN_ID = os.environ.get("HERDR_PLUGIN_ID", "local.copy-path")
 CTX_ENV = "COPY_PATH_CTX"
 
+# ❯ (starship/pure), user@host:dir$ / user@host dir % / [user@host dir]$, or a
+# dir-first "~/x $" / "/x>"; an optional "(venv) " prefix on the last two.
+PROMPT_REGEX = (r"❯ ?"
+                r"|^(?:\(\S+\) ?)?\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%]\]? ?"
+                r"|^(?:\(\S+\) ?)?[~/]\S*\s?[$#%>] ")
+DIR_REGEX = [r"(?:^|\sin\s)(?P<dir>~[^\s$#%>]*|/[^\s$#%>]*)",
+             r":(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]",
+             r"(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>]*|/[^\s\])$#%>]*)"]
+
 DEFAULTS = {
     "scope": "output",
     "timeout_ms": 5000,
     "flash_ms": 250,
-    "prompt_regex": r"❯ ?|^[\w.-]+@[\w.-]+:\S*[$#] ?",
+    "prompt_regex": PROMPT_REGEX,
     "prompt_height": 2,
     "use_ps1": False,
-    "ps1_dir_regex": [r"(?:^|\sin\s)(?P<dir>~[^\s]*|/[^\s]*)",
-                      r":(?P<dir>~[^\s$#]*|/[^\s$#]*)[$#]"],
+    "ps1_dir_regex": DIR_REGEX,
     "expand_home": False,
     "list_commands": ["ls", "ll", "la", "l", "eza", "exa", "lsd", "fd", "find"],
     "ignore_regex": r"^(\w+://|-|[\d.,:_/-]+$|[0-9a-f]{7,40}$)",
@@ -140,13 +148,21 @@ class Hit:
     label: str = ""
 
 
+def prompt_text(rows, row, cfg):
+    """The input row minus the command typed after the prompt (a path in the
+    command is not the prompt's dir)."""
+    m = re.search(cfg["prompt_regex"], rows[row])
+    return rows[row][:m.end()] if m else rows[row]
+
+
 def prompt_dir(rows, row, cfg):
     """Dir printed by the prompt whose input row is `row`: the input row
     itself, else the rows above it (a multi-line prompt)."""
     block = [row] + [r for r in range(row - 1, row - int(cfg["prompt_height"]), -1) if r >= 0]
     for r in block:
+        text = prompt_text(rows, r, cfg) if r == row else rows[r]
         for pattern in cfg["ps1_dir_regex"]:
-            m = re.search(pattern, rows[r])
+            m = re.search(pattern, text)
             if m and m.group("dir").startswith(("~", "/")):
                 return m.group("dir")
     return None
@@ -155,8 +171,11 @@ def prompt_dir(rows, row, cfg):
 def prompt_start(rows, row, cfg):
     """First row of the prompt block ending at input row `row`."""
     for pattern in cfg["ps1_dir_regex"]:
-        if re.search(pattern, rows[row]):
+        if re.search(pattern, prompt_text(rows, row, cfg)):
             return row
+    m = re.search(cfg["prompt_regex"], rows[row])
+    if m and "❯" not in m.group():
+        return row   # a self-contained "user@host dir $" prompt is one row
     return max(0, row - int(cfg["prompt_height"]) + 1)
 
 

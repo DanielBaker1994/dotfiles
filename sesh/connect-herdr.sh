@@ -117,10 +117,11 @@ list_ws() {
         | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] as $tabs
         | "\($pad)\($w.label) \($w.active_tab_id | tab_pane($s) | .cwd // "" | home)" as $q
         | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
-        | ([ (if $w.tab_count > 1 then dim("\($w.tab_count) tabs") else empty end),
+        | ([$s.panes[] | select(.workspace_id == $w.workspace_id)] | length) as $npanes
+        | ([ dim("tabs \($tabs | length): panes \($npanes)"),
              (if ($agents | length) > 0 then $agents | map(agentc(.)) | join(dim(", ")) else empty end),
              (if $w.focused then dim("current") else empty end) ] | join(dim(" · "))) as $meta
-        | "\($w.agent_status | icon) \(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)\t\($q)",
+        | "\(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)\t\($q)",
           ($tabs | to_entries[] | .value as $t
            | (.key == ($tabs | length) - 1) as $last
            | [$s.panes[] | select(.tab_id == $t.tab_id)] as $splits
@@ -318,11 +319,15 @@ ${b}Agent status${r}
 
 ${b}Keys${r}
   enter     switch to it (workspace / tab / agent), or create it
-  ^a        all        open workspaces, saved sessions, frecent dirs
+  ^s        spaces     only the open herdr workspaces (the start view)
+  ^a        all        open workspaces + saved sessions + frecent dirs
+  ^m        expand     show every workspace's tabs + splits (drag to move);
+                       again to collapse back to one line per workspace
+                       (^e does the same where the terminal can't tell ^m from enter)
   ^t        agents     only agents, the ones that need you first
   ^x        dirs       every zoxide directory, with its score
   ^f        browse     folders under the current pane's directory
-  ^s        new        scratch workspace (a name → /tmp/name, or a path)
+  ^o        new        scratch workspace (a name → /tmp/name, or a path)
   ^b        web        ask for a URL, open it in a browser workspace
   ^d        close      close workspace / tab, forget a directory
   tab ^n    down       shift-tab ^p   up
@@ -367,12 +372,13 @@ pick() {
             --ansi --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1,4 --nth 2 --no-hscroll --ellipsis '' \
             --border-label ' herdr sessions · ? help ' --prompt 'all › ' \
-            --header $'^a all  ^t agents  ^x dirs\n^s new  ^b web  ^d close/forget  ? help' \
+            --header $'^s spaces  ^a all  ^t agents  ^x dirs\n^o new  ^b web  ^d close/forget  ? help' \
             --bind 'tab:down,btab:up' \
             --bind "ctrl-a:change-prompt(all › )+reload('$SELF' list all)" \
             --bind "ctrl-t:change-prompt(agents › )+reload('$SELF' list agents)" \
             --bind "ctrl-x:change-prompt(dirs › )+reload('$SELF' list dirs)" \
-            --bind 'ctrl-s:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
+            --bind "ctrl-s:change-prompt(spaces › )+reload('$SELF' list ws)" \
+            --bind 'ctrl-o:become($HOME/.dotfiles/sesh/create_scratch.sh)' \
             --bind "ctrl-b:become('$SELF' browser)" \
             --bind "ctrl-d:execute-silent('$SELF' kill {})+reload('$SELF' list \"\$FZF_PROMPT\")" \
             --bind "?:change-preview-label( help )+preview('$SELF' help)" \

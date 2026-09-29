@@ -1,55 +1,16 @@
 -- <leader>cd — pick a directory to cd into.
 --
--- The workspace is resolved from the directory nvim was LAUNCHED from
--- (cwd) — never from the open buffer:
---   1. a configured root/<prefix>-<seg> worktree containing the cwd
---      (e.g. ~/jira/JT-1234 from cwd=~/jira/JT-1234/cpp)
---   2. a configured root dir containing the cwd (e.g. ~/.dotfiles)
---   3. the cwd itself
---
+-- The workspace comes from user.workspace (resolved from the launch dir).
 -- Entries: the matched root's configured targets (bash/external.sh
 -- NVIM_CD_TARGETS), then zoxide results strictly inside the workspace.
 local M = {}
 
-local cd_targets = require('bash_external.cd_targets')
-
--- The directory nvim was launched from (OS-level process cwd). Unlike
--- vim.fn.getcwd(), this never changes when :cd runs inside nvim, so zoxide
--- scoping can't be skewed by cd'ing around.
-local launch_cwd = vim.fn.resolve(vim.uv.cwd())
-
-local function resolve_workspace()
-    local cwd = launch_cwd
-    local config = cd_targets.get()
-    if config and config.roots then
-        for _, r in ipairs(config.roots) do
-            local root = vim.fn.resolve(vim.fn.expand(r.root))
-            if vim.fn.isdirectory(root) == 1 then
-                if r.prefix and r.prefix ~= '' then
-                    local base = root .. '/' .. r.prefix .. '-'
-                    if vim.startswith(cwd, base) then
-                        local seg = cwd:sub(#base + 1):match('^[^/]+')
-                        if seg then
-                            local dir = vim.fn.resolve(base .. seg)
-                            if vim.fn.isdirectory(dir) == 1 then
-                                return dir, r
-                            end
-                        end
-                    end
-                end
-                if cwd == root or vim.startswith(cwd, root .. '/') then
-                    return root, r
-                end
-            end
-        end
-    end
-    return cwd, nil
-end
+local workspace = require('user.workspace')
 
 -- { name = display, dir = absolute }: configured targets first (first-wins
 -- on duplicate dirs), then zoxide paths inside the workspace.
 local function build_entries()
-    local ws, entry = resolve_workspace()
+    local ws, entry = workspace.resolve()
     local entries, seen = {}, {}
     local function add(name, dir)
         if dir and not seen[dir] then
@@ -166,9 +127,8 @@ end
 
 -- Close buffers outside the resolved workspace (only inside a configured root).
 function M.clear_other_buffers()
-    local ws, entry = resolve_workspace()
-    if not entry then
-        vim.notify('Not inside a configured workspace root', vim.log.levels.WARN)
+    local ws = workspace.check()
+    if not ws then
         return
     end
     local cur = vim.api.nvim_get_current_buf()

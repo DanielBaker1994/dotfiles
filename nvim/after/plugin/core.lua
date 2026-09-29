@@ -229,6 +229,12 @@ local user_cd = require('user.cd')
 vim.keymap.set('n', '<leader>cd', function()
     user_cd.pick()
 end, { desc = 'CD to worktree target' })
+vim.api.nvim_create_user_command('WorkspaceCheck', function()
+    local ws = require('user.workspace').check()
+    if ws then
+        vim.notify('Workspace: ' .. ws, vim.log.levels.INFO)
+    end
+end, { desc = 'Validate Jira prefix + configured workspace' })
 vim.api.nvim_create_user_command('Cd', function(opts)
     user_cd.cd(opts.args)
 end, { nargs = 1, desc = 'CD to target' })

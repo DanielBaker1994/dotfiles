@@ -103,13 +103,13 @@ function termStart() {
     process.stdin.resume();
     process.stdin.setEncoding("utf8");
     // alt screen, hide cursor, no autowrap, drag mouse + SGR
-    out.write(`${E}?1049h${E}?25l${E}?7l${E}?1002h${E}?1006h`);
+    out.write(`${E}?1049h${E}?25l${E}?7l${E}?1002h${E}?1006h${E}>1u`);
     termOn = true;
 }
 function termStop() {
     if (!termOn) return;
     termOn = false;
-    out.write(`${E}?1006l${E}?1002l${E}?7h${E}?25h${RESET}${E}?1049l`);
+    out.write(`${E}<u${E}?1006l${E}?1002l${E}?7h${E}?25h${RESET}${E}?1049l`);
     try { process.stdin.setRawMode(false); } catch { /* closed */ }
     process.stdin.pause();
 }
@@ -198,9 +198,9 @@ process.stdin.on("data", (d) => {
 
 // ── app state ───────────────────────────────────────────────────────────
 const size = () => ({ W: out.columns || 100, H: out.rows || 30 });
-const PROMPTS = { all: "all", agents: "agents", dirs: "dirs", browse: "browse" };
+const PROMPTS = { ws: "spaces", all: "all", agents: "agents", dirs: "dirs", browse: "browse" };
 const pick = {
-    mode: "all", items: [], loading: false, loadGen: 0,
+    mode: "ws", expanded: false, items: [], loading: false, loadGen: 0,
     query: "", sel: 0, top: 0, view: [],
     help: false, preview: { key: "", text: "", label: "", scroll: 0 },
     lastClick: { t: 0, idx: -1 },
@@ -228,7 +228,7 @@ function loadList(mode, keepSel = false) {
     pick.items = [];
     pick.loading = true;
     if (!keepSel) { pick.sel = 0; pick.top = 0; }
-    if (mode === "all") loadState();
+    if (mode === "all" || mode === "ws") loadState();
     const p = spawn(SH, ["list", mode], { stdio: ["ignore", "pipe", "ignore"] });
     let partial = "";
     p.stdout.setEncoding("utf8");
@@ -297,6 +297,7 @@ function match(text, query) {
 function refilter(sel = 0) {
     pick.view = [];
     for (const it of pick.items) {
+        if (!pick.expanded && (it.kind === "tab" || it.kind === "pane")) continue; // collapsed: workspaces only
         if (pick.query) {
             const m = match(it.search || it.plain, pick.query);
             if (!m) continue;
@@ -310,6 +311,17 @@ function refilter(sel = 0) {
     pick.sel = Math.max(0, Math.min(sel, pick.view.length - 1));
     schedulePreview();
     render();
+}
+// ^m: expanded (tabs + splits under each workspace, drag to move) <-> collapsed
+function toggleExpanded() {
+    const cur = current();
+    pick.expanded = !pick.expanded;
+    refilter();
+    if (!cur) return;
+    const ws = cur.target.split(":")[0];
+    let i = pick.view.findIndex((v) => v.it.line === cur.line);
+    if (i < 0) i = pick.view.findIndex((v) => v.it.kind === "ws" && v.it.target === ws);
+    if (i >= 0) { pick.sel = i; schedulePreview(); render(); }
 }
 function highlight(display, pos) {
     if (!pos.size) return display;
@@ -502,8 +514,8 @@ function drawPick(W, H) {
     const status = pick.status && Date.now() < pick.status.until ? pick.status.text : null;
     const head = [
         `${fg(ACCENT, PROMPTS[pick.mode] + " › ")}${pick.query}${sgr(7)} ${sgr(27)}`,
-        status ?? dim(`^a all  ^t agents  ^x dirs  ^f browse${pick.mode === "all" ? "  drag ⠿ to move" : ""}`),
-        dim("^s new  ^b web  ^d close/forget  ? help"),
+        status ?? dim(`^s spaces  ^a all  ^t agents  ^x dirs  ^f browse${pick.mode === "all" || pick.mode === "ws" ? `  ^m ${pick.expanded ? "collapse" : "expand"}${pick.expanded ? "  drag ⠿ to move" : ""}` : ""}`),
+        dim("^o new  ^b web  ^d close/forget  ? help"),
         dim("─".repeat(iw)),
     ];
     const info = dim(`${pick.loading ? "⋯ " : ""}${pick.view.length}/${pick.items.length}`);
@@ -569,11 +581,13 @@ function pickKey(k) {
         case "shift+tab": case "ctrl+p": case "up": return moveSel(-1);
         case "pagedown": return moveSel(pick.geo?.rowsH ?? 10);
         case "pageup": return moveSel(-(pick.geo?.rowsH ?? 10));
+        case "ctrl+m": case "ctrl+e": return pick.mode === "all" || pick.mode === "ws" ? toggleExpanded() : undefined;
         case "ctrl+a": return loadList("all");
         case "ctrl+t": return loadList("agents");
         case "ctrl+x": return loadList("dirs");
         case "ctrl+f": return loadList("browse");
-        case "ctrl+s": return scratch();
+        case "ctrl+s": pick.expanded = false; pick.query = ""; pick.help = false; return loadList("ws"); // the start view
+        case "ctrl+o": return scratch();
         case "ctrl+b": return quit(handOff(SH, ["browser"]).status ?? 0);
         case "ctrl+d": {
             const it = current();
@@ -667,5 +681,5 @@ function draw() {
 }
 
 termStart();
-loadList("all");
+loadList("ws");
 render();

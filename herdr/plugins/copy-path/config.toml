@@ -9,7 +9,8 @@ flash_ms   = 250       # blink of the picked path before the overlay closes
 # --- prompt detection ---------------------------------------------------------
 # A row matching prompt_regex is a prompt's INPUT row; the command is the text
 # after the match. starship: "(INS) ❯ ls"; plain bash: "root@box:/var/log# ls".
-prompt_regex  = '❯ ?|^[\w.-]+@[\w.-]+:\S*[$#] ?'
+prompt_regex  = '❯ ?|^(?:\(\S+\) ?)?\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%]\]? ?|^(?:\(\S+\) ?)?[~/]\S*\s?[$#%>] '
+# ^ ❯ · user@host:dir$ · user@host dir % · [user@host dir]$ · dir-first "~/x $" ("(venv) " ok)
 # Rows a prompt spans (starship here = dir row + input row). Rows above the
 # input row are only part of the prompt when the input row has no dir itself.
 prompt_height = 2
@@ -21,8 +22,9 @@ use_ps1 = true
 # Where the dir sits in the prompt; the first pattern with a (?P<dir>…) match wins.
 # Only dirs starting with ~ or / are used (starship's truncated display is not).
 ps1_dir_regex = [
-    '(?:^|\sin\s)(?P<dir>~[^\s]*|/[^\s]*)',   # starship: "~/x via …", "root in host in ~"
-    ':(?P<dir>~[^\s$#]*|/[^\s$#]*)[$#]',      # bash: user@host:~/dir$
+    '(?:^|\sin\s)(?P<dir>~[^\s$#%>]*|/[^\s$#%>]*)',   # starship: "~/x via …", "root in host in ~"
+    ':(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]',   # bash: user@host:~/dir$
+    '(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>]*|/[^\s\])$#%>]*)',   # any ~/ or / word: "(venv) ~/x %", "bob@box ~/x $"
 ]
 expand_home = false   # true: ~/x → $HOME/x (a remote ~ is not your ~)
 

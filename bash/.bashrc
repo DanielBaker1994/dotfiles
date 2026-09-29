@@ -136,7 +136,7 @@ win() {
 # git worktree list
 
 # External commands & config consumed by nvim (EXTERNAL_BUILD_AND_OPEN_PDF,
-# EXTERNAL_PATHS_GLOBAL, NVIM_CD_TARGETS, JIRA_*). Kept together in one file.
+# EXTERNAL_PATHS_GLOBAL, NVIM_CD_TARGETS, JIRA_URL). Kept together in one file.
 if [ -f ~/.dotfiles/bash/external.sh ]; then
     source "$HOME/.dotfiles/bash/external.sh"
 fi

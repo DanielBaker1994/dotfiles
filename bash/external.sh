@@ -6,7 +6,8 @@
 # Sourced by both ~/.dotfiles/bash/.bash_profile and ~/.dotfiles/bash/.bashrc.
 
 # Used by nvim :Jira (lua/bash_external/jira.lua) to build the ticket link.
-export JIRA_NAME_PREFIX="JT"
+# The ticket prefix (e.g. JT) is prompted for once by nvim and cached in
+# nvim/lua/user/jira_prefix.lua (gitignored) — see lua/user/workspace.lua.
 export JIRA_URL="https://sudosignup.atlassian.net"
 
 # Used by nvim <leader>pi (lua/bash_external/asset_pictures_dir.lua).
@@ -32,13 +33,12 @@ function EXTERNAL_PATHS_GLOBAL() {
 # Used by nvim Cd targets (lua/bash_external/cd_targets.lua).
 # Each workspace root is a block of `key=value` lines separated by a blank line:
 #   root=   base dir where this workspace lives (worktrees live directly inside)
-#   prefix= name prefix of each worktree dir (e.g. JT -> JT-123); if the dir is
-#           itself a single repo (e.g. ~/.dotfiles), prefix matches nothing and
-#           the dir itself is treated as the workspace
+#   prefix= name prefix of each worktree dir (e.g. DOT -> DOT-123); omitted ->
+#           the cached Jira prefix. If the dir is itself a single repo (e.g.
+#           ~/.dotfiles), prefix matches nothing and the dir itself is the workspace
 function NVIM_CD_TARGETS() {
     cat <<EOF
 root=$HOME/jira
-prefix=JT
 
 root=$HOME/.dotfiles
 prefix=DOT

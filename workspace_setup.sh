@@ -84,9 +84,14 @@ fi
 echo
 echo "==> Applying macOS system tweaks..."
 
-# Hide the native menu bar (macOS 26: System Settings > Control Center >
-# "Automatically hide and show the menu bar" — this defaults key is equivalent)
-defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
+# Auto-hide the native menu bar so SketchyBar (position=top) takes its place.
+# macOS 26+: System Settings > Control Center > "Automatically hide and show the
+# menu bar" = Always. The legacy _HIHideMenuBar key alone is NOT enough — the
+# newer controlcenter AutoHideMenuBarOption (0=Always … 3=Never) overrides it.
+defaults write NSGlobalDomain _HIHideMenuBar -bool true
+defaults write com.apple.controlcenter AutoHideMenuBarOption -int 0
+osascript -e 'tell application "System Events" to set autohide menu bar of dock preferences to true'
+killall ControlCenter Finder 2>/dev/null || true
 
 # "Displays have separate Spaces" off (spans-displays = 1): makes every monitor
 # share one set of workspaces. AeroSpace recommends this for stable focus and to

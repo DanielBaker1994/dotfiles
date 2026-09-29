@@ -1,51 +1,19 @@
 local M = {}
 
--- NVIM_CD_TARGETS provides root (worktree base dir) + prefix (dir prefix).
--- Sessions only exist for a worktree ROOT directory itself (cwd == root/<prefix>-*),
--- never for subdirectories or folders outside the prefix root.
-local cd_targets = require('bash_external.cd_targets')
-
-local function get_config()
-    return cd_targets.get()
-end
+-- Sessions exist only for a configured workspace (user.workspace): a
+-- root/<prefix>-* worktree or a single-repo root, resolved from the LAUNCH
+-- dir — so :cd into a subdir never stops the session from saving, and
+-- launching from a subdir restores the worktree's session.
+local workspace = require('user.workspace')
 
 local function session_dir()
     return vim.fn.stdpath('state') .. '/sessions'
 end
 
--- Return the session boundary dir ONLY when the current working directory IS
--- that root exactly: a root/<prefix>-* worktree (e.g. ~/jira/JT-1234), or a
--- configured single-repo root (e.g. ~/.dotfiles). Returns nil otherwise, so
--- sessions are never created in subdirectories or outside configured roots.
+-- Workspace dir, or nil outside every configured root.
 function M.get_worktree_root()
-    local c = get_config()
-    if not c or not c.roots then
-        return nil
-    end
-    local cwd = vim.fn.resolve(vim.fn.getcwd())
-    for _, r in ipairs(c.roots) do
-        local root = vim.fn.resolve(vim.fn.expand(r.root))
-        if vim.fn.isdirectory(root) == 1 then
-            if r.prefix and r.prefix ~= '' then
-                local prefix_match = '^' .. vim.pesc(r.prefix) .. '-'
-                local ok, iter = pcall(vim.fs.dir, root)
-                if ok then
-                    for name in iter do
-                        if name:match(prefix_match) then
-                            local dir = vim.fn.resolve(root .. '/' .. name)
-                            if cwd == dir then
-                                return dir
-                            end
-                        end
-                    end
-                end
-            end
-            if cwd == root then
-                return root
-            end
-        end
-    end
-    return nil
+    local ws, entry = workspace.resolve()
+    return entry and ws or nil
 end
 
 -- One session file per worktree root: ~/.local/state/nvim/sessions/<safe>.vim
@@ -102,16 +70,32 @@ end
 
 -- Buffers loaded via `:source` of a session during VimEnter miss filetype
 -- detection (nvim skips it for edits inside VimEnter), so they get no syntax
--- highlighting. Force a one-time `:e` reload so detection runs.
+-- highlighting, and the lazy-loaded LSP config (event = BufReadPre) may load
+-- after their FileType already fired, so no server attaches. Force a one-time
+-- reload / FileType re-fire so detection and LSP attach run.
 local function reload_unhighlighted_buffers()
+    local ok_lazy, lazy = pcall(require, 'lazy')
+    if ok_lazy then
+        pcall(lazy.load, { plugins = { 'nvim-lspconfig' } })
+    end
     for _, buf in ipairs(vim.api.nvim_list_bufs()) do
         if vim.api.nvim_buf_is_valid(buf)
+            and vim.api.nvim_buf_is_loaded(buf)
             and vim.bo[buf].buftype == ''
-            and vim.bo[buf].filetype == ''
             and vim.api.nvim_buf_get_name(buf) ~= '' then
-            pcall(vim.api.nvim_buf_call, buf, function()
-                vim.cmd('silent! edit')
-            end)
+            local ft = vim.bo[buf].filetype
+            -- A real file can inherit a stale 'oil' filetype from the `nvim .`
+            -- directory buffer during restore; treat it as undetected.
+            if ft == '' or ft == 'oil' then
+                pcall(vim.api.nvim_buf_call, buf, function()
+                    vim.cmd('silent! edit')
+                end)
+            elseif #vim.lsp.get_clients({ bufnr = buf }) == 0 then
+                pcall(vim.api.nvim_exec_autocmds, 'FileType', {
+                    buffer = buf,
+                    modeline = false,
+                })
+            end
         end
     end
 end

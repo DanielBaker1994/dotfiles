@@ -218,5 +218,41 @@ class LabelTest(unittest.TestCase):
         self.assertEqual([h.label for h in hits], ["a", "s", "a"])
 
 
+class PromptShapesTest(unittest.TestCase):
+    """PS1 + listed name → absolute path, for common prompt shapes."""
+
+    def check(self, prompt, expect, cmd="ls", out="a.txt", dir_=None):
+        lines = prompt.split("\n")
+        rows = lines[:-1] + [lines[-1] + cmd, out] + lines[:-1] + [lines[-1]]
+        region = cp.find_region(rows, CFG)
+        self.assertEqual(region.dir, dir_)
+        self.assertEqual(copies(cp.find_paths(rows, region, CFG)), expect)
+
+    def test_shapes(self):
+        for prompt, dir_ in [
+            ("~/proj via 🐍\n❯ ", "~/proj"),
+            ("~/proj ❯ ", "~/proj"),
+            ("(venv) ~/proj ❯ ", "~/proj"),
+            ("bob@box:~/proj$ ", "~/proj"),
+            ("(venv) bob@box:~/proj$ ", "~/proj"),
+            ("bob@box ~/proj % ", "~/proj"),
+            ("bob@box ~/proj $ ", "~/proj"),
+            ("~/proj % ", "~/proj"),
+            ("~/proj $ ", "~/proj"),
+        ]:
+            with self.subTest(prompt=prompt):
+                self.check(prompt, [dir_ + "/a.txt"], dir_=dir_)
+
+    def test_absolute_dir_and_gt(self):
+        self.check("root@box:/var/log# ", ["/var/log/a.txt"], dir_="/var/log")
+        self.check("/tmp/x> ", ["/tmp/x/a.txt"], dir_="/tmp/x")
+
+    def test_basename_only_prompt_stays_relative(self):
+        self.check("[bob@box proj]$ ", ["a.txt"])
+
+    def test_command_text_is_not_the_prompt_dir(self):
+        self.check("~/proj ❯ ", ["~/proj/a.txt"], cmd="echo in /etc", dir_="~/proj")
+
+
 if __name__ == "__main__":
     unittest.main()

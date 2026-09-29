@@ -5,3 +5,4 @@ nvim/lazy-lock.json
 .qwen/*
 *.pyc
 bash/build_deploy.history
+nvim/lua/user/jira_prefix.lua

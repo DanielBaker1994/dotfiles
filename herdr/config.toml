@@ -89,11 +89,11 @@ type = "plugin_action"
 command = "local.copy-path.open"
 description = "copy path"
 
-# [[keys.command]]
-# key = "prefix+l"
-# type = "plugin_action"
-# command = "local.last.tab"
-# description = "last tab"
+[[keys.command]]
+key = "prefix+;"
+type = "plugin_action"
+command = "local.last.tab"
+description = "last tab"
 
 [ui.toast]
 delivery = "herdr"

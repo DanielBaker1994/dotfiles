@@ -129,7 +129,17 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # DAY-TO-DAY (no repo needed): ~/.config/sketchybar/manage_icons.sh
 #   add <App> <glyph> | lookup <App> | list | count   (edits icon_map.json + restarts)
 
-# Bar layout (bottom, left side, left-to-right):
+# Bar position: TOP (2026-09-28), replacing the native menu bar, which is auto-hidden
+#   (_HIHideMenuBar=true; hover at the top edge to reveal it over the bar).
+#   Paired with aerospace gaps outer.bottom=10, outer.top=[{monitor.main=15}, 48].
+#   GOTCHA: on the notch MacBook, visibleFrame still starts 33.5pt down even with
+#   the menu bar hidden, so the gap is measured from there: 33.5+15 ≈ 48 (bar ends at 38).
+#   External (no-notch) monitors start at 0 -> 48.
+#   Notch (~x 762-948pt on 1710pt screen): pills must stay left of it ->
+#   aerospacer.sh SPACE_WIDTH=56 (12 pills ≈ 690pt). Adding workspaces? re-check width.
+#   Auto-hide needs com.apple.controlcenter AutoHideMenuBarOption=0 too (see workspace_setup.sh).
+#   If the menu bar is ever un-hidden: set sketchybar y_offset ~38 or it collides.
+# Bar layout (top, left side, left-to-right):
 #   space.lead / space.<id> pills / space.tail  (all from aerospacer.sh)
 # Start: brew services start sketchybar
 

@@ -1,16 +1,12 @@
 -- :Jira — read the git branch name from the open buffer's directory, extract
--- the Jira ticket (JIRA_NAME_PREFIX-<number>), and open it in Chrome.
--- JIRA_NAME_PREFIX / JIRA_URL are fetched/cached by the bash_external module
--- (see lua/bash_external/jira.lua); the definitions live in
--- ~/.dotfiles/bash/external.sh.
+-- the Jira ticket (<prefix>-<number>), and open it in Chrome.
+-- The prefix is prompted for once and cached by lua/user/workspace.lua;
+-- JIRA_URL is fetched/cached by lua/bash_external/jira.lua (defined in
+-- ~/.dotfiles/bash/external.sh).
 local M = {}
 
-local jira_env = require('bash_external.jira')
-
-local function env()
-    local e = jira_env.get()
-    return e.prefix, e.url
-end
+local jira_url = require('bash_external.jira')
+local workspace = require('user.workspace')
 
 local function buffer_dir()
     local dir = vim.fn.expand('%:p:h')
@@ -29,9 +25,9 @@ local function branch_for(dir)
 end
 
 function M.open()
-    local prefix, base_url = env()
-    if not prefix or prefix == '' then
-        vim.notify('Jira: JIRA_NAME_PREFIX is not set in ~/.dotfiles/bash/external.sh', vim.log.levels.ERROR)
+    local prefix, base_url = workspace.ensure_jira_prefix(), jira_url.get()
+    if not prefix then
+        vim.notify('Jira: ticket prefix is not set', vim.log.levels.ERROR)
         return
     end
     if not base_url or base_url == '' then
