@@ -292,7 +292,7 @@ if not vim.g.lazy_did_setup then
             event = { 'BufReadPre', 'BufNewFile' },
             opts = {},
         },
-        { 'numToStr/Comment.nvim',          config = function() require('Comment').setup() end },
+        { 'numToStr/Comment.nvim',                    config = function() require('Comment').setup() end },
         {
             'folke/todo-comments.nvim',
             dependencies = { 'nvim-treesitter/nvim-treesitter' },
@@ -358,7 +358,7 @@ if not vim.g.lazy_did_setup then
         },
         'nvim-telescope/telescope-ui-select.nvim',
         'nvim-telescope/telescope-live-grep-args.nvim',
-        { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make', cond = vim.fn.executable('make') == 1 },
+        { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make',                                    cond = vim.fn.executable('make') == 1 },
         'nvim-pack/nvim-spectre',
         {
             "saghen/blink.cmp",
@@ -494,13 +494,13 @@ if not vim.g.lazy_did_setup then
                     end,
                 })
 
-                vim.api.nvim_create_autocmd('BufWritePre', {
-                    pattern = { '*.cpp', '*.h' },
-                    desc = 'Format C/C++ on save',
-                    callback = function()
-                        vim.lsp.buf.format()
-                    end,
-                })
+                -- vim.api.nvim_create_autocmd('BufWritePre', {
+                --     pattern = { '*.cpp', '*.h' },
+                --     desc = 'Format C/C++ on save',
+                --     callback = function()
+                --         vim.lsp.buf.format()
+                --     end,
+                -- })
             end,
         },
         'folke/neodev.nvim',
@@ -527,10 +527,29 @@ if not vim.g.lazy_did_setup then
                     shade_terminals = false,
                 })
                 local Terminal = require('toggleterm.terminal').Terminal
+                -- Inside herdr: zoom our pane while lazygit is open, restore on close.
+                local herdr = vim.env.HERDR_BIN_PATH or 'herdr'
+                local pane = vim.env.HERDR_PANE_ID
+                local in_herdr = vim.env.HERDR_ENV and pane
+                local was_zoomed = false
+                local function herdr_zoom(on)
+                    -- print(table.concat({ herdr, 'pane', 'zoom', '--pane', pane, on and '--on' or '--off' }, " "))
+                    vim.system({ herdr, 'pane', 'zoom', '--pane', pane, on and '--on' or '--off' })
+                end
                 local lazygit = Terminal:new({
                     cmd = 'lazygit',
                     direction = 'float',
                     float_opts = { border = 'curved' },
+                    on_open = function()
+                        if not in_herdr then return end
+                        local out = vim.system({ herdr, 'pane', 'layout', '--pane', pane }):wait()
+                        local ok, data = pcall(vim.json.decode, out.stdout or '')
+                        was_zoomed = ok and data.result.layout.zoomed == true
+                        if not was_zoomed then herdr_zoom(true) end
+                    end,
+                    on_close = function()
+                        if in_herdr and not was_zoomed then herdr_zoom(false) end
+                    end,
                 })
                 function _G.LazyGitToggle()
                     local dir = vim.fn.getcwd()

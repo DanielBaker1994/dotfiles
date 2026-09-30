@@ -131,12 +131,18 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 
 # Bar position: TOP (2026-09-28), replacing the native menu bar, which is auto-hidden
 #   (_HIHideMenuBar=true; hover at the top edge to reveal it over the bar).
-#   Paired with aerospace gaps outer.bottom=10, outer.top=[{monitor.main=15}, 48].
+#   Paired with aerospace gaps outer.bottom=10, outer.top=[{monitor."built-in"=15}, 48].
+#   NOT monitor.main: "main" = whichever display has the menu bar (often the external
+#   when docked) -> external got 15 (windows under bar), laptop got 81 (huge gap).
 #   GOTCHA: on the notch MacBook, visibleFrame still starts 33.5pt down even with
 #   the menu bar hidden, so the gap is measured from there: 33.5+15 ≈ 48 (bar ends at 38).
 #   External (no-notch) monitors start at 0 -> 48.
 #   Notch (~x 762-948pt on 1710pt screen): pills must stay left of it ->
 #   aerospacer.sh SPACE_WIDTH=56 (12 pills ≈ 690pt). Adding workspaces? re-check width.
+#   Bar hides while the native menu bar is revealed: sketchybar/helpers/menubar_watch.swift
+#   (built+launched by sketchybarrc -> ~/.cache/sketchybar/menubar_watch). Detects the
+#   WindowServer "Menubar" window going on-screen; polls only while cursor is near top.
+#   ~/.config/sketchybar/helpers is a symlink into workspace-switcher/config (per-item links!).
 #   Auto-hide needs com.apple.controlcenter AutoHideMenuBarOption=0 too (see workspace_setup.sh).
 #   If the menu bar is ever un-hidden: set sketchybar y_offset ~38 or it collides.
 # Bar layout (top, left side, left-to-right):
@@ -177,6 +183,22 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 
 # brew trust --formula felixkratz/formulae/sketchybar
 # brew services start sketchybar
+
+# ---- AeroSpace "workspace 10" on the external (DisplayLink) — FIXED 2026-09-29 ----
+# Source rule (tree/Workspace.swift getStubWorkspace): a newly connected monitor gets
+# an invisible workspace force-assigned to it; if none, AeroSpace invents the first
+# unused number NOT in persistent-workspaces -> "10". Old config pinned everything to
+# ['DELL','main'] = one monitor, so the other got "10" whenever the DisplayLink name
+# didn't match or the Dell was main. Fix: 1-8,M,Y,W = ['^(?!built-in)','built-in','main']
+# (any non-built-in screen, name-independent), 9 = ['built-in','main'].
+# No config switch disables the stub, so there's also a GUARD:
+#   workspace-switcher/config/aerospace/no_stray_workspaces.sh
+#   runs on aerospace exec-on-workspace-change + sketchybar display_change/system_woke
+#   (item stray_guard). Any workspace not in M Y W 1-9 -> windows moved to a real one,
+#   monitor switched to its assigned workspace, stray GC'd. Fast path 1 CLI call (~30ms).
+#   Phantom monitor w/ nothing assigned: windows evacuated, stray left empty+invisible.
+#   Log: log show --predicate 'senderImagePath contains "logger"' --last 1h | grep no_stray
+#   Tested 2026-09-29: `aerospace workspace 10` and a window on 10 both reverted in <2s.
 
 # ---- AeroSpace debug-windows (for dialog/focus issues) ----
 # 1. aerospace debug-windows          # starts recording

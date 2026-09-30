@@ -11,12 +11,16 @@
 #   connect-herdr.sh fzf             the fzf picker
 #   connect-herdr.sh state           workspaces / tabs / panes as one JSON
 #   connect-herdr.sh go LINE|PATH    act on a picked entry (or a scratch path)
-#   connect-herdr.sh list [MODE]     entries: all | agents | dirs | browse (| ws | cfg)
+#   connect-herdr.sh list [MODE]     entries: all | agents | dirs (| ws | cfg)
 #   connect-herdr.sh preview LINE    preview for one entry
 #   connect-herdr.sh label LINE      preview border label for one entry
 #   connect-herdr.sh help            key / source legend (? in the picker)
 #   connect-herdr.sh kill LINE       close a workspace / tab, forget a zoxide dir
 #   connect-herdr.sh browser         prompt for a URL, open it in a workspace
+#
+# Runs as a herdr popup, but needs no attached terminal: it drives the server
+# over its socket, so it also works from a plain shell. A running server is
+# required (ensure_herdr errors with a hint otherwise).
 #
 # Entry line: DISPLAY<TAB>KIND<TAB>TARGET<TAB>SEARCH[<TAB>more]
 #   ws  = live herdr workspace (TARGET = workspace id)
@@ -40,11 +44,41 @@ DIRS_MAX="${HERDR_PICK_MAX_DIRS:-12}"
 SEARCH_PAD="$(printf '%*s' 1000 '')"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
 
+# herdr binary: the pane injects HERDR_BIN_PATH; otherwise fall back to PATH and
+# the default install dir. Prepend its dir to PATH so the Node picker, which
+# shells out to bare `herdr`, resolves the same binary.
+HERDR_BIN="${HERDR_BIN_PATH:-}"
+[ -x "$HERDR_BIN" ] || HERDR_BIN="$(command -v herdr 2>/dev/null || true)"
+[ -x "$HERDR_BIN" ] || HERDR_BIN="$HOME/.local/bin/herdr"
+if [ -x "$HERDR_BIN" ]; then
+    PATH="$(dirname -- "$HERDR_BIN"):$PATH"
+    export PATH
+fi
+
 field() { printf '%s' "$1" | cut -d$'\t' -f"$2"; }
 expand() {
     local p="$1"
     [[ $p == "~"* ]] && p="$HOME${p:1}"
     printf '%s' "$p"
+}
+
+# Preflight for every herdr-touching command. Normally this runs as a herdr
+# popup (HERDR_ENV=1), but it also works from a plain terminal: the CLI reaches
+# the server over the socket, so no TUI has to be attached. The one hard
+# requirement is a live server; if none is running, stop with a hint.
+ensure_herdr() {
+    if [ ! -x "$HERDR_BIN" ]; then
+        printf 'herdr: binary not found (checked $HERDR_BIN_PATH, PATH, %s)\n' \
+            "$HOME/.local/bin/herdr" >&2
+        exit 1
+    fi
+    [ "${HERDR_ENV:-}" = 1 ] && return 0
+    if ! "$HERDR_BIN" workspace list >/dev/null 2>&1; then
+        printf 'herdr: no server running at %s\n' \
+            "${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}" >&2
+        printf 'herdr: start it first — `herdr` to attach, or `herdr server` headless.\n' >&2
+        exit 1
+    fi
 }
 
 workspaces_json() { herdr workspace list 2>/dev/null || echo '{}'; }
@@ -68,10 +102,6 @@ with open(path, "rb") as f:
 PY
 }
 
-current_dir() {
-    herdr pane current 2>/dev/null | jq -r '.result.pane.foreground_cwd // empty' || true
-}
-
 # workspace/tab/pane lists → one JSON {ws, tabs, panes}
 state() {
     jq -n \
@@ -85,7 +115,7 @@ state() {
 # jq helpers shared by list_ws / label / preview
 JQ_LIB='
 def c(n; s): "\u001b[\(n)m\(s)\u001b[39m";
-def dim(s): c(90; s);
+def dim(s): c("38;5;247"; s);
 # row colors by kind: workspace, tab number / text, agent name
 def wsc(s): "\u001b[1;94m\(s)\u001b[22;39m";
 def tabn(s): c(35; s);
@@ -206,17 +236,6 @@ for sc, p, r in rows:
 ' "${1:-all}" "$DIRS_MIN_SCORE" "$DIRS_MAX" "$SESH_TOML" "$(live_cwds)"
 }
 
-list_find() {
-    local base
-    base="$(current_dir)"
-    [ -d "$base" ] || base="$HOME"
-    fd -H -d 2 -t d -E .Trash -E .git -E node_modules . "$base" 2>/dev/null |
-        while IFS= read -r d; do
-            d="${d%/}"
-            printf '\e[33m\e[39m %s\tdir\t%s\t%s%s\n' "${d/#$HOME/\~}" "$d" "$SEARCH_PAD" "$d"
-        done
-}
-
 # MODE may be a picker prompt ("dirs › ")
 list() {
     local mode="${1:-all}"
@@ -225,7 +244,6 @@ list() {
     agents) list_agents ;;
     cfg) list_cfg ;;
     dirs) list_dir full ;;
-    browse) list_find ;;
     *)
         list_ws
         list_cfg
@@ -310,9 +328,11 @@ ${b}Directories${r}
   directory forgets it in zoxide for good (also for z / cd).
 
 ${b}Moving splits${r}
-  drag a ${d}⠿${r} split row with the mouse onto a workspace (→ new tab
+  drag a ${d}⠿${r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab
   there) or a tab / another split (→ split into that tab). It moves
-  as soon as you let go.
+  as soon as you let go (a tab's splits move together and land side by
+  side; moving a tab does not undo). Keys instead: select the row,
+  ^g, ↑/↓ to a workspace or tab, enter.
 
 ${b}Agent status${r}
   ${y}●${r} working   ${g}○${r} idle   ${g}✓${r} done   ${red}▲${r} needs input
@@ -324,9 +344,10 @@ ${b}Keys${r}
   ^m        expand     show every workspace's tabs + splits (drag to move);
                        again to collapse back to one line per workspace
                        (^e does the same where the terminal can't tell ^m from enter)
+  ^z        undo       put the last moved split back
+  ^g        move       move the selected split with the keys (↑/↓, enter)
   ^t        agents     only agents, the ones that need you first
   ^x        dirs       every zoxide directory, with its score
-  ^f        browse     folders under the current pane's directory
   ^o        new        scratch workspace (a name → /tmp/name, or a path)
   ^b        web        ask for a URL, open it in a browser workspace
   ^d        close      close workspace / tab, forget a directory
@@ -372,7 +393,7 @@ pick() {
             --ansi --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1,4 --nth 2 --no-hscroll --ellipsis '' \
             --border-label ' herdr sessions · ? help ' --prompt 'all › ' \
-            --header $'^s spaces  ^a all  ^t agents  ^x dirs\n^o new  ^b web  ^d close/forget  ? help' \
+            --header $'^s spaces  ^a all  ^t agents  ^x dirs  ^o new  ^b web  ^d close  ? help' \
             --bind 'tab:down,btab:up' \
             --bind "ctrl-a:change-prompt(all › )+reload('$SELF' list all)" \
             --bind "ctrl-t:change-prompt(agents › )+reload('$SELF' list agents)" \
@@ -420,19 +441,24 @@ act() {
 }
 
 case "${1:-}" in
-list) list "${2:-all}" ;;
-preview) preview "$2" ;;
-label) label "$2" ;;
 help) help ;;
-kill) kill_entry "$2" ;;
-browser) browser ;;
-state) state ;;
-go) act "${2:-}" ;;
-fzf) pick ;;
 *)
-    if command -v node >/dev/null 2>&1; then
-        exec node "$(dirname -- "$SELF")/herdr-picker.mjs"
-    fi
-    pick
+    ensure_herdr
+    case "${1:-}" in
+    list) list "${2:-all}" ;;
+    preview) preview "$2" ;;
+    label) label "$2" ;;
+    kill) kill_entry "$2" ;;
+    browser) browser ;;
+    state) state ;;
+    go) act "${2:-}" ;;
+    fzf) pick ;;
+    *)
+        if command -v node >/dev/null 2>&1; then
+            exec node "$(dirname -- "$SELF")/herdr-picker.mjs"
+        fi
+        pick
+        ;;
+    esac
     ;;
 esac

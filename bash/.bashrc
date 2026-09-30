@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Guard against a stale `f` alias from a previous .bashrc: bash expands aliases
 # at parse time, so an existing alias would corrupt this function definition.
+export WEBEX_TOKEN="MmQ5MmVhMTQtZjA1Yi00ZDIxLWEzYWEtZGNiZjgwZmFkYzBlODdiYjIyZDgtNzc2_PC75_30cb51a8-915f-4c1a-aacd-59d8046dc20b"
 unalias f 2>/dev/null
 unalias mediaconnect proxmoxmediaconnect proxmoxpersonalconnect 2>/dev/null
 f() {

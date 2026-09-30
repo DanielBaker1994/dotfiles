@@ -65,3 +65,18 @@ export function moveArgv(paneId, to) {
         return ["pane", "move", paneId, "--tab", to.tabId, "--split", "right", "--no-focus"];
     return ["pane", "move", paneId, "--new-tab", "--workspace", to.wsId, "--no-focus"];
 }
+
+// same for a whole tab: its own tab, or a new tab in the workspace it's already in
+export function isNoopTab(model, tabId, dest) {
+    const t = model.tab.get(tabId);
+    if (!t || !dest) return true;
+    return dest.kind === "tab" ? dest.tabId === tabId : dest.wsId === t.wsId;
+}
+
+// herdr can't move a tab, so its splits move one by one: the first one lands
+// per `dest` (new tab / split into a tab), the rest join it. Returns the pane
+// ids in order; `rest(tabId)` gives the argv of each later one, once the first
+// has said which tab it landed in. Layout inside the tab is not kept (all splits right).
+export function tabPaneIds(model, tabId) {
+    return model.panes.filter((p) => p.tabId === tabId).map((p) => p.id);
+}

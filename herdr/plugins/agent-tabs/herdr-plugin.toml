@@ -52,6 +52,18 @@ command = ["./agent-tabs.sh", "sync"]
 on = "workspace.closed"
 command = ["./agent-tabs.sh", "sync"]
 
+[[events]]
+on = "pane.focused"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "tab.focused"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
+on = "pane.created"
+command = ["./agent-tabs.sh", "sync"]
+
 [[actions]]
 id = "toggle"
 title = "Toggle agent tab indicators"

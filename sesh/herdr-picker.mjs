@@ -20,7 +20,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildModel, isNoop, moveArgv, shortId } from "./herdr-move.mjs";
+import { buildModel, isNoop, isNoopTab, moveArgv, shortId, tabPaneIds } from "./herdr-move.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SH = join(HERE, "connect-herdr.sh");
@@ -33,11 +33,13 @@ const LOG_DIR = join(HOME, ".cache", "herdr-picker");
 const E = "\x1b[";
 const sgr = (...n) => `${E}${n.join(";")}m`;
 const RESET = sgr(0);
-const dim = (s) => `${sgr(90)}${s}${sgr(39)}`;
+// secondary text: a readable mid-grey (SGR 90 is near-invisible on dark themes)
+const MUTED = "38;5;247";
+const dim = (s) => `${sgr(MUTED)}${s}${sgr(39)}`;
 const fg = (n, s) => `${sgr(n)}${s}${sgr(39)}`;
 const bold = (s) => `${sgr(1)}${s}${sgr(22)}`;
 const ACCENT = 35; // magenta ≈ herdr's mauve
-const SEL_BG = sgr(48, 5, 237);
+const SEL_BG = sgr(48, 5, 239);
 const TARGET_BG = sgr(48, 5, 53);
 const TOKEN_RE = /\x1b\[[0-9;:?<>=]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[P^_][^\x1b]*\x1b\\|\x1b[@-Z\\-_]|[\s\S]/gu;
 
@@ -198,7 +200,7 @@ process.stdin.on("data", (d) => {
 
 // ── app state ───────────────────────────────────────────────────────────
 const size = () => ({ W: out.columns || 100, H: out.rows || 30 });
-const PROMPTS = { ws: "spaces", all: "all", agents: "agents", dirs: "dirs", browse: "browse" };
+const PROMPTS = { ws: "spaces", all: "all", agents: "agents", dirs: "dirs" };
 const pick = {
     mode: "ws", expanded: false, items: [], loading: false, loadGen: 0,
     query: "", sel: 0, top: 0, view: [],
@@ -206,10 +208,12 @@ const pick = {
     lastClick: { t: 0, idx: -1 },
     geo: null,
     model: null,     // buildModel(state), for drag and drop
-    drag: null,      // {paneId, what, x, y, active, dest}
+    drag: null,      // {paneId, what, x, y, active, dest, tabId?}: tabId = dragging a whole tab
     status: null,    // {text, until}: result of the last move, over the key hints
     flash: null,     // {paneId, t0}: the moved row, fading green
     phase: 0,        // animation tick
+    undo: null,      // {paneId, dest, what}: how to put the last moved split back
+    moving: null,    // {paneId, what, dest}: keyboard move mode (m)
 };
 
 let renderQueued = false;
@@ -316,6 +320,7 @@ function refilter(sel = 0) {
 function toggleExpanded() {
     const cur = current();
     pick.expanded = !pick.expanded;
+    if (pick.expanded) setStatus(`drag a split or tab onto a workspace or tab  ${dim("· ^g moves with keys")}`);
     refilter();
     if (!cur) return;
     const ws = cur.target.split(":")[0];
@@ -407,6 +412,21 @@ function destRange(dest) {
     return [head, last];
 }
 
+// a drag of this row: a split (⠿ row) or a whole tab; null for anything else
+function dragFor(it, x, y) {
+    const base = { x, y, x0: x, y0: y, active: false, dest: null };
+    if (it.kind === "pane") {
+        const p = pick.model?.pane.get(it.target);
+        return p ? { ...base, paneId: p.id, what: paneWhat(p) } : null;
+    }
+    if (it.kind === "tab") {
+        const t = pick.model?.tab.get(it.target);
+        const ids = t ? tabPaneIds(pick.model, t.id) : [];
+        const p = ids.length ? pick.model.pane.get(ids[0]) : null;
+        return p ? { ...base, tabId: t.id, paneId: p.id, what: ids.length > 1 ? `${ids.length} splits` : paneWhat(p) } : null;
+    }
+    return null;
+}
 function setStatus(text) {
     pick.status = { text, until: Date.now() + 2500 };
     setTimeout(render, 2600);
@@ -421,9 +441,48 @@ function herdr(argv) {
 function log(line) {
     try { mkdirSync(LOG_DIR, { recursive: true }); appendFileSync(join(LOG_DIR, "moves.log"), line + "\n"); } catch { /* best effort */ }
 }
+const dragNoop = (d, dest) => (d.tabId ? isNoopTab(pick.model, d.tabId, dest) : isNoop(pick.model, d.paneId, dest));
+const dragLabel = (d) => `${d.tabId ? "tab " + (pick.model?.tab.get(d.tabId)?.position ?? shortId(d.tabId)) : shortId(d.paneId)} · ${d.what}`;
+const dragMove = (d, dest) => (d.tabId ? moveTab(d.tabId, dest) : movePane(d.paneId, dest));
+
+// a whole tab: its splits move one by one (herdr has no tab move), the first
+// creating / joining the destination, the rest joining it
+function moveTab(tabId, dest) {
+    const t = pick.model.tab.get(tabId);
+    const ids = tabPaneIds(pick.model, tabId);
+    const what = `${tabName(tabId)}${ids.length > 1 ? ` (${ids.length} splits)` : ""}`;
+    const stamp = new Date().toISOString();
+    let landed = dest.kind === "tab" ? dest.tabId : null, last = null;
+    try {
+        for (const id of ids) {
+            const argv = moveArgv(id, landed ? { kind: "tab", wsId: dest.wsId, tabId: landed } : dest);
+            const r = herdr(argv);
+            const np = r?.result?.move_result?.pane;
+            last = np?.pane_id ?? last;
+            landed ??= np?.tab_id ?? (np?.pane_id ? herdr(["pane", "get", np.pane_id])?.result?.pane?.tab_id : null);
+            log(`${stamp} ${DRY ? "DRY " : ""}ok   tab ${tabId}: herdr ${argv.join(" ")}  → ${np?.pane_id ?? "-"}`);
+            if (DRY) break;
+        }
+        pick.undo = null;
+        setStatus(DRY ? fg(33, `dry run: move tab ${tabId} (${ids.length} panes)`)
+            : `${fg(32, "✓")} moved ${bold(what)} ${fg(ACCENT, "→")} ${destText(dest)}`);
+        if (last) { pick.flash = { paneId: last, t0: Date.now() }; animate(); }
+    } catch (e) {
+        const msg = String(e.stderr || e.message || e).trim().split("\n")[0];
+        log(`${stamp} fail tab ${tabId}  ${msg}`);
+        setStatus(fg(31, `✗ couldn't move ${what}: ${msg}`));
+    }
+    prevCache.clear();
+    pick.preview.key = "";
+    loadList(pick.mode, true);
+}
+
 function movePane(paneId, dest) {
     const p = pick.model.pane.get(paneId);
     const argv = moveArgv(paneId, dest);
+    // where it came from: its old tab if that keeps other splits, else a new tab there
+    const origin = pick.model.panes.filter((q) => q.tabId === p.tabId).length > 1
+        ? { kind: "tab", wsId: p.wsId, tabId: p.tabId } : { kind: "ws", wsId: p.wsId };
     const stamp = new Date().toISOString();
     const what = `${shortId(paneId)} ${paneWhat(p)}`;
     try {
@@ -431,7 +490,8 @@ function movePane(paneId, dest) {
         const newId = r?.result?.move_result?.pane?.pane_id ?? null;
         log(`${stamp} ${DRY ? "DRY " : ""}ok   herdr ${argv.join(" ")}  → ${newId ?? "-"}`);
         setStatus(DRY ? fg(33, `dry run: herdr ${argv.join(" ")}`)
-            : `${fg(32, "✓")} moved ${bold(what)} ${fg(ACCENT, "→")} ${destText(dest)}`);
+            : `${fg(32, "✓")} moved ${bold(what)} ${fg(ACCENT, "→")} ${destText(dest)}  ${dim("^z undo")}`);
+        pick.undo = !DRY && newId ? { paneId: newId, dest: origin, what: paneWhat(p) } : null;
         if (newId) { pick.flash = { paneId: newId, t0: Date.now() }; animate(); }
     } catch (e) {
         const msg = String(e.stderr || e.message || e).trim().split("\n")[0];
@@ -441,6 +501,51 @@ function movePane(paneId, dest) {
     prevCache.clear();
     pick.preview.key = "";
     loadList(pick.mode, true);
+}
+
+function undoMove() {
+    const u = pick.undo;
+    if (!u) return setStatus(dim("nothing to undo"));
+    pick.undo = null;
+    if (!pick.model?.pane.has(u.paneId)) return setStatus(fg(31, "✗ can't undo: split is gone"));
+    if (u.dest.kind === "tab" && !pick.model.tab.has(u.dest.tabId)) u.dest = { kind: "ws", wsId: u.dest.wsId };
+    movePane(u.paneId, u.dest);
+}
+// keyboard move (^g on a split): ↑/↓ pick a workspace or tab, enter drops, esc cancels
+function startMove() {
+    const it = current();
+    const d = it ? dragFor(it, -1, -1) : null;
+    if (!d) return setStatus(dim("^g moves a split or tab: expand (^m), select a ⠿ or tab row"));
+    d.active = true; d.kb = true;
+    pick.moving = d;
+    pick.drag = d;
+    moveMoveSel(0);
+}
+function moveMoveSel(dir) {
+    const ok = (i) => {
+        const it = pick.view[i]?.it;
+        const dest = it && it.kind !== "pane" ? destAt(i) : null;
+        return !!dest && !dragNoop(pick.moving, dest);
+    };
+    let i = -1;
+    if (dir === 0) i = pick.view.findIndex((_, j) => ok(j)); // first valid target
+    else for (let j = pick.sel + dir; j >= 0 && j < pick.view.length; j += dir) if (ok(j)) { i = j; break; }
+    if (i < 0) i = pick.sel;
+    pick.sel = i;
+    pick.drag.dest = ok(i) ? destAt(i) : null;
+    const rh = pick.geo?.rowsH ?? 10;
+    if (i < pick.top) pick.top = i;
+    if (i >= pick.top + rh) pick.top = i - rh + 1;
+    fetchDestPreview(pick.drag.dest);
+    animate();
+    render();
+}
+function endMove(drop) {
+    const d = pick.drag;
+    pick.drag = null; pick.moving = null;
+    if (drop && d?.dest) dragMove(d, d.dest);
+    animate();
+    render();
 }
 
 // ── animation: the drop frame + landing rectangle, the moved row's flash ─
@@ -489,7 +594,7 @@ function fetchDestPreview(dest) {
     });
 }
 function landingLines(d, iw, ih) {
-    const chip = `${fg(ACCENT, bold(`⠿ ${shortId(d.paneId)} · ${d.what}`))}`;
+    const chip = `${fg(ACCENT, bold(`⠿ ${dragLabel(d)}`))}`;
     if (!d.dest) return Array.from({ length: ih }, (_, i) => i === Math.floor(ih / 2) - 1
         ? fit(" ".repeat(Math.max(0, Math.floor((iw - 44) / 2))) + dim("drop on a workspace (new tab) or a tab (split)"), iw) : "");
     if (d.dest.kind === "ws") {
@@ -512,10 +617,22 @@ function drawPick(W, H) {
     const iw = listW - 2;
     const d = pick.drag?.active ? pick.drag : null;
     const status = pick.status && Date.now() < pick.status.until ? pick.status.text : null;
+    const key = (k, label, on = false) => `${bold(k)} ${on ? fg(ACCENT, label) : dim(label)}`;
+    const tog = pick.mode === "all" || pick.mode === "ws";
+    // priority order; what doesn't fit the list width is dropped. "? more" is always last and always kept
+    const hintItems = [
+        key("^s", "spaces", pick.mode === "ws"), key("^a", "all", pick.mode === "all"),
+        key("^t", "agents", pick.mode === "agents"), key("^x", "dirs", pick.mode === "dirs"),
+        ...(tog ? [key("^m", pick.expanded ? "collapse" : "expand")] : []),
+        key("^o", "new"),
+    ];
+    const more = key("?", "more");
+    let hint = "";
+    for (const h of hintItems) if (width(hint + "  " + h + "  " + more) <= iw - 2) hint += (hint ? "  " : "") + h;
+    hint += (hint ? "  " : "") + more;
     const head = [
         `${fg(ACCENT, PROMPTS[pick.mode] + " › ")}${pick.query}${sgr(7)} ${sgr(27)}`,
-        status ?? dim(`^s spaces  ^a all  ^t agents  ^x dirs  ^f browse${pick.mode === "all" || pick.mode === "ws" ? `  ^m ${pick.expanded ? "collapse" : "expand"}${pick.expanded ? "  drag ⠿ to move" : ""}` : ""}`),
-        dim("^o new  ^b web  ^d close/forget  ? help"),
+        pick.moving ? `${fg(ACCENT, bold("moving ⠿"))} ${dim("↑/↓ choose a workspace or tab · enter drop · esc cancel")}` : status ?? hint,
         dim("─".repeat(iw)),
     ];
     const info = dim(`${pick.loading ? "⋯ " : ""}${pick.view.length}/${pick.items.length}`);
@@ -536,8 +653,11 @@ function drawPick(W, H) {
         const v = pick.view[idx];
         if (!v) { rows.push(""); continue; }
         let text = highlight(v.it.display, v.pos);
-        if (d && v.it.kind === "pane" && v.it.target === d.paneId) // the one being dragged
+        const mine = d && (d.tabId ? (v.it.kind === "tab" && v.it.target === d.tabId) || (v.it.kind === "pane" && pick.model?.pane.get(v.it.target)?.tabId === d.tabId)
+            : v.it.kind === "pane" && v.it.target === d.paneId);
+        if (mine) // the one being dragged
             text = `${sgr(2, 9)}${v.it.plain}${sgr(22, 29)}  ${dim("⇢ moving")}`;
+        else if (d && !["ws", "tab", "pane"].includes(v.it.kind)) text = dim(v.it.plain); // not a drop target
         if (range && idx >= range[0] && idx <= range[1]) {
             const one = range[0] === range[1];
             const c = (s) => `${sgr(pulse())}${s}${sgr(39)}`;
@@ -561,8 +681,8 @@ function drawPick(W, H) {
     // the dragged split follows the cursor as a chip (✗ over nowhere)
     if (d && d.y >= 0 && d.y < lines.length) {
         const chip = d.dest
-            ? `${sgr(45, 30, 1)} ⠿ ${shortId(d.paneId)} · ${d.what} ${RESET}`
-            : `${sgr(100, 37)} ✗ ${shortId(d.paneId)} · ${d.what} ${RESET}`;
+            ? `${sgr(45, 30, 1)} ⠿ ${dragLabel(d)} ${RESET}`
+            : `${sgr(100, 37)} ✗ ${dragLabel(d)} ${RESET}`;
         const x = Math.max(0, Math.min(d.x + 2, W - width(chip)));
         const l = lines[d.y];
         lines[d.y] = slice(l, 0, x) + RESET + chip + slice(l, x + width(chip), W);
@@ -573,6 +693,13 @@ function drawPick(W, H) {
 // ── keys + mouse ────────────────────────────────────────────────────────
 function pickKey(k) {
     const id = keyId(k);
+    if (pick.moving) { // keyboard move mode swallows everything
+        if (id === "escape" || id === "ctrl+c") return endMove(false);
+        if (id === "enter") return endMove(true);
+        if (id === "down" || id === "tab" || id === "ctrl+n" || id === "j") return moveMoveSel(1);
+        if (id === "up" || id === "shift+tab" || id === "ctrl+p" || id === "k") return moveMoveSel(-1);
+        return;
+    }
     if (pick.drag && (id === "escape" || id === "ctrl+c")) { pick.drag = null; animate(); return render(); }
     switch (id) {
         case "escape": case "ctrl+c": case "ctrl+q": return quit(0);
@@ -585,7 +712,6 @@ function pickKey(k) {
         case "ctrl+a": return loadList("all");
         case "ctrl+t": return loadList("agents");
         case "ctrl+x": return loadList("dirs");
-        case "ctrl+f": return loadList("browse");
         case "ctrl+s": pick.expanded = false; pick.query = ""; pick.help = false; return loadList("ws"); // the start view
         case "ctrl+o": return scratch();
         case "ctrl+b": return quit(handOff(SH, ["browser"]).status ?? 0);
@@ -599,7 +725,10 @@ function pickKey(k) {
         case "ctrl+w": pick.query = pick.query.replace(/\S*\s*$/, ""); return refilter();
         case "backspace": pick.query = Array.from(pick.query).slice(0, -1).join(""); return refilter();
         case "?": return showHelp();
+        case "ctrl+z": return undoMove();
+        case "ctrl+g": return startMove();
     }
+
     if (k.ch && !k.ctrl && !k.alt) { pick.query += k.ch; refilter(); }
     else if (k.name === "space") { pick.query += " "; refilter(); }
 }
@@ -617,7 +746,7 @@ function scratch() {
 }
 function pickMouse(m) {
     const g = pick.geo;
-    if (!g) return;
+    if (!g || pick.moving) return;
     const rowIdx = (y) => (m.x < g.listW && y >= g.listY && y < g.listY + g.rowsH ? pick.top + (y - g.listY) : -1);
     const inPv = m.x >= g.pvX && m.y >= g.pvY && m.x < g.pvX + g.pw && m.y < g.pvY + g.ph;
     if (m.b === 64 || m.b === 65) { // wheel
@@ -630,13 +759,14 @@ function pickMouse(m) {
     const d = pick.drag;
     if (m.b & 32) { // motion while a button is held (1002)
         if (!d) return;
+        if (!d.active && Math.abs(m.x - d.x0) + Math.abs(m.y - d.y0) < 2) return; // a wobbly click isn't a drag
         d.active = true;
         d.x = m.x; d.y = m.y;
         if (m.y <= g.listY && pick.top > 0) pick.top--;                                        // edge auto-scroll
         else if (m.y >= g.listY + g.rowsH - 1 && pick.top + g.rowsH < pick.view.length) pick.top++;
         const idx = rowIdx(m.y);
         const dest = idx >= 0 ? destAt(idx) : null;
-        d.dest = dest && !isNoop(pick.model, d.paneId, dest) ? dest : null;
+        d.dest = dest && !dragNoop(d, dest) ? dest : null;
         fetchDestPreview(d.dest);
         animate();
         render();
@@ -645,7 +775,7 @@ function pickMouse(m) {
     if (m.release) {
         pick.drag = null;
         if (d?.active) {
-            if (d.dest) movePane(d.paneId, d.dest);
+            if (d.dest) dragMove(d, d.dest);
             animate();
             render();
         }
@@ -660,8 +790,7 @@ function pickMouse(m) {
     pick.sel = idx;
     // a press on a split arms a drag; it starts once the mouse moves
     const it = pick.view[idx].it;
-    const p = it.kind === "pane" ? pick.model?.pane.get(it.target) : null;
-    if (p) pick.drag = { paneId: p.id, what: paneWhat(p), x: m.x, y: m.y, active: false, dest: null };
+    pick.drag = dragFor(it, m.x, m.y);
     schedulePreview();
     render();
     if (dbl) { pick.drag = null; choose(); }

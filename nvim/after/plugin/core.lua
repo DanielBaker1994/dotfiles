@@ -89,8 +89,12 @@ vim.keymap.set('n', '<leader>gs', require('user.git_history').open,
 
 local gitsigns = require('gitsigns')
 vim.keymap.set('n', '<leader>gb', gitsigns.blame_line, { desc = '[G]it [B]lame line' })
--- Open the current buffer's path in GitHub Desktop (github CLI opens the
--- enclosing repo). Falls back to cwd for unnamed buffers; runs async.
+-- Open the current buffer's git repo in GitHub Desktop. Resolves the enclosing
+-- repo with `git rev-parse --show-toplevel` (the buffer's file may live in a
+-- subdirectory, and GitHub Desktop wants the repo root, not the file). Falls
+-- back to the buffer dir / cwd when the file is untracked; runs async.
+
+
 vim.keymap.set('n', '<leader>gh', function()
     local path = vim.fn.expand('%:p')
     if path == '' then
@@ -99,6 +103,11 @@ vim.keymap.set('n', '<leader>gh', function()
     if vim.fn.filereadable(path) == 0 and vim.fn.isdirectory(path) == 0 then
         vim.notify('github: path does not exist: ' .. path, vim.log.levels.WARN)
         return
+    end
+    local start_dir = vim.fn.isdirectory(path) == 1 and path or vim.fn.fnamemodify(path, ':h')
+    local root = vim.fn.systemlist({ 'git', '-C', start_dir, 'rev-parse', '--show-toplevel' })
+    if vim.v.shell_error == 0 and root[1] and root[1] ~= '' then
+        path = root[1]
     end
     vim.system({ 'github', 'open', path }, function(ret)
         if ret.code ~= 0 then
@@ -109,6 +118,7 @@ vim.keymap.set('n', '<leader>gh', function()
         end
     end)
 end, { desc = '[G]it [H]ub: open buffer in GitHub Desktop' })
+
 vim.keymap.set('n', '[h', gitsigns.prev_hunk, { desc = 'Previous git [H]unk' })
 vim.keymap.set('n', ']h', gitsigns.next_hunk, { desc = 'Next git [H]unk' })
 

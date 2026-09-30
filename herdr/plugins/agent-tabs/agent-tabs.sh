@@ -7,6 +7,8 @@
 # its name and a tab whose agent exits goes back to plain. A label that is
 # just a number counts as the default one and follows the tab's position
 # in its workspace (1, 2, 3 … with no gaps).
+# A tab without an agent gets the icon of its foreground process instead
+# (proc.nvim, proc.zsh ... in DEFAULT_ICONS; proc.default for unknown ones).
 # Status glyphs are herdr's own (status_indicators = "symbols"); agent icons
 # are Nerd Font glyphs (a full cell, bigger than plain Unicode symbols),
 # except opencode: ⬓ is its logo (a frame, bottom half filled).
@@ -37,7 +39,22 @@ DEFAULT_ICONS='{
   "codex": "󰙴",
   "copilot": "󰊤",
   "cursor": "󰆍",
-  "agent.default": "󰧑"
+  "agent.default": "󰧑",
+  "proc.nvim": "",
+  "proc.vim": "",
+  "proc.zsh": "",
+  "proc.bash": "",
+  "proc.fish": "",
+  "proc.sh": "",
+  "proc.lazygit": "",
+  "proc.git": "",
+  "proc.ssh": "󰣀",
+  "proc.htop": "",
+  "proc.btop": "",
+  "proc.node": "",
+  "proc.python": "",
+  "proc.python3": "",
+  "proc.default": ""
 }'
 
 # status events arrive in bursts; serialize (no flock on macOS)
@@ -53,6 +70,20 @@ icons() {
     jq -n --argjson d "$DEFAULT_ICONS" --argjson u "$user" '$d + $u'
 }
 
+# {"PANE_ID": "process"} for every non-agent pane: the foreground process
+# group leader (process-info also lists children, e.g. nvim's language servers)
+procs() {
+    local id
+    "$herdr" pane list 2>/dev/null | jq -r '.result.panes[]? | select(.agent | not) | .pane_id' |
+        while read -r id; do
+            "$herdr" pane process-info --pane "$id" 2>/dev/null | jq -r --arg id "$id" '
+                .result.process_info | select(. != null)
+                | (.foreground_process_group_id as $g | .foreground_processes
+                   | (map(select(.pid == $g))[0] // .[0]).name // empty)
+                | "\($id)\t\(.)"'
+        done | jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {(.[0]): .[1]}) | add // {}'
+}
+
 # "tab<TAB>TAB_ID<TAB>NEW_LABEL" for every tab whose label must change,
 # "meta<TAB>PANE_ID<TAB>PLAIN_LABEL" for every agent pane
 plan() {
@@ -60,6 +91,7 @@ plan() {
         --argjson icons "$(icons)" \
         --argjson t "$("$herdr" tab list 2>/dev/null || echo '{}')" \
         --argjson p "$("$herdr" pane list 2>/dev/null || echo '{}')" \
+        --argjson procs "$(procs)" \
         --arg off "$1" '
         def esc: gsub("(?<c>[\\\\^$.|?*+()\\[\\]{}])"; "\\\(.c)");
         # + the glyphs of earlier versions, so old prefixes get cleaned up
@@ -77,7 +109,12 @@ plan() {
         | (if $base | test("^[0-9]+$") then $pos[$tab.tab_id] | tostring else $base end) as $base
         | [$panes[] | select(.tab_id == $tab.tab_id and .agent)] as $agents
         | ($agents | sort_by($rank[.agent_status] // 4) | first // null) as $pane
-        | (if $off == "1" or $pane == null then ""
+        # tab without an agent: icon of the foreground process (focused pane first)
+        | ([$panes[] | select(.tab_id == $tab.tab_id)] | sort_by(.focused | not) | first // null) as $np
+        | (if $np == null then "" else $procs[$np.pane_id] // "" end) as $proc
+        | (if $off == "1" then ""
+           elif $pane == null then
+             ($icons["proc." + $proc] // $icons["proc.default"] // "")
            else [($icons["status." + ($tab.agent_status // "")] // ""),
                  ($icons[$pane.agent] // $icons["agent.default"] // "")]
                 | map(select(. != "")) | join(" ")

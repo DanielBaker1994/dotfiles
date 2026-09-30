@@ -14,10 +14,10 @@ default_shell = ""
 new_cwd = "follow"
 
 [keys]
-focus_pane_left = "prefix+h"
-focus_pane_down = "prefix+j"
-focus_pane_up = "prefix+k"
-focus_pane_right = "prefix+l"
+focus_pane_left = ["prefix+h", "ctrl+h"]
+focus_pane_down = ["prefix+j", "ctrl+j"]
+focus_pane_up = ["prefix+k", "ctrl+k"]
+focus_pane_right = ["ctrl+l"]
 
 navigate_pane_left = "h"
 navigate_pane_down = "j"
@@ -28,6 +28,10 @@ next_tab = "prefix+n"
 previous_tab = "prefix+p"
 
 new_tab = "prefix+c"
+
+# jump by attention: next / previous agent (sidebar order; see agent_panel_sort)
+next_agent = "prefix+a"
+previous_agent = "prefix+shift+a"
 
 split_horizontal = "prefix+-"
 split_vertical = "prefix+|"
@@ -57,6 +61,10 @@ sidebar_width = 26
 sidebar_start_collapsed = false
 
 status_indicators = "symbols"
+# blocked / done agents float to the top of the sidebar
+agent_panel_sort = "priority"
+# name the agent on each split's border
+show_agent_labels_on_pane_borders = true
 [ui.toast.clipboard]
 enabled = true
 position = "bottom-center"
@@ -90,7 +98,7 @@ command = "local.copy-path.open"
 description = "copy path"
 
 [[keys.command]]
-key = "prefix+;"
+key = "prefix+l"
 type = "plugin_action"
 command = "local.last.tab"
 description = "last tab"
@@ -101,6 +109,9 @@ delivery = "herdr"
 # agent rows: $tab_name = the tab's label without the agent-tabs glyph prefix
 # (plugin: ~/.dotfiles/herdr/plugins/agent-tabs); herdr's state_icon already
 # shows the status
+
+
+
 [ui.sidebar.agents]
 rows = [["state_icon", "machine", "workspace", "$tab_name"], ["agent"]]
 
