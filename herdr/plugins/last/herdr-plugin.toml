@@ -11,10 +11,7 @@ platforms = ["linux", "macos"]
 [[startup]]
 command = ["./last.sh", "record"]
 
-[[events]]
-on = "workspace.focused"
-command = ["./last.sh", "record"]
-
+# tab.focused also fires on workspace switches, so it records both ids.
 [[events]]
 on = "tab.focused"
 command = ["./last.sh", "record"]

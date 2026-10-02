@@ -2,9 +2,15 @@
 #
 # last.sh record | workspace | tab
 #
+# tmux-style "last" jumps, driven by Herdr's focus events.
+#
 # State (HERDR_PLUGIN_STATE_DIR):
 #   ws            "CURRENT PREVIOUS" workspace ids
 #   tab-<ws>      "CURRENT PREVIOUS" tab ids inside that workspace
+#
+# Herdr injects HERDR_WORKSPACE_ID / HERDR_TAB_ID for focus events and action
+# commands, so recording is just two file writes (no CLI round-trip). Only the
+# actual jump shells out, once.
 
 set -euo pipefail
 
@@ -12,51 +18,40 @@ herdr="${HERDR_BIN_PATH:-herdr}"
 state="${HERDR_PLUGIN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-last}"
 mkdir -p "$state"
 
-# focus events arrive in bursts; serialize (no flock on macOS)
-lock="$state/.lock"
-for _ in $(seq 50); do mkdir "$lock" 2>/dev/null && break; sleep 0.02; done
-trap 'rmdir "$lock" 2>/dev/null || true' EXIT
-
 read_pair() { cat "$state/$1" 2>/dev/null || true; }
 
-# push NEW onto the "CURRENT PREVIOUS" pair in FILE
+# push NEW onto the "CURRENT PREVIOUS" pair in FILE (atomic replace)
 push() {
     local file="$1" new="$2" cur prev
     read -r cur prev <<<"$(read_pair "$file")" || true
     [ "$new" = "${cur:-}" ] && return
-    printf '%s %s\n' "$new" "${cur:-}" >"$state/$file"
-}
-
-# drop ids of workspaces/tabs that no longer exist
-alive() { "$herdr" tab list 2>/dev/null | jq -e --arg id "$1" \
-    'any(.result.tabs[]; .tab_id == $id or .workspace_id == $id)' >/dev/null; }
-
-focused() {
-    "$herdr" tab list 2>/dev/null |
-        jq -r 'first(.result.tabs[] | select(.focused)) | "\(.workspace_id) \(.tab_id)"'
+    printf '%s %s\n' "$new" "${cur:-}" >"$state/$file.tmp.$$"
+    mv -f "$state/$file.tmp.$$" "$state/$file"
 }
 
 record() {
-    local ws tab
-    read -r ws tab <<<"$(focused)" || return 0
-    [ -n "${ws:-}" ] || return 0
-    push ws "$ws"
-    push "tab-$ws" "$tab"
+    [ -n "${HERDR_WORKSPACE_ID:-}" ] || return 0
+    push ws "$HERDR_WORKSPACE_ID"
+    [ -n "${HERDR_TAB_ID:-}" ] && push "tab-$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID"
 }
 
 jump() {
     local file="$1" kind="$2" cur prev
     read -r cur prev <<<"$(read_pair "$file")" || true
-    [ -n "${prev:-}" ] && alive "$prev" || return 0
-    "$herdr" "$kind" focus "$prev" >/dev/null
+    [ -n "${prev:-}" ] || return 0
+    "$herdr" "$kind" focus "$prev" >/dev/null 2>&1 || true
 }
 
 case "${1:-}" in
     record) record ;;
-    workspace) record; jump ws workspace ;;
+    workspace)
+        record
+        jump ws workspace
+        ;;
     tab)
         record
-        read -r ws _ <<<"$(focused)"
-        jump "tab-$ws" tab
+        ws="${HERDR_WORKSPACE_ID:-}"
+        if [ -z "$ws" ]; then read -r ws _ <<<"$(read_pair ws)" || true; fi
+        if [ -n "$ws" ]; then jump "tab-$ws" tab; fi
         ;;
 esac
