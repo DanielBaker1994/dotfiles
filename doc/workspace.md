@@ -1,7 +1,7 @@
 # Daniel Workspace Documents
 Setting up workspace and suggested commands.
 
-```{.bash}
+```bash
 # For neovim easier now to ~/cd to workspace
 cd ~
 ln -s ~/src/cpp_workspace ~/cpp
@@ -11,7 +11,7 @@ ln -s ~/src/root_workspace ~/root
 
 
 
-```{.vim}
+```vim
 # Telescope filter files. Rip grep create inclusive OR.
 # Note two spaces folowing target string.
 teststring  **.cpp **.h
@@ -32,7 +32,7 @@ teststring  **.cpp **.h
 
 
 
-> [!INFO]
+> [!NOTE]
 > Code blocks like \"vim\" do not exist in pandoc. They can be added by passing a syntax definition.
 >
 > A valid XML style file can be copied and renamed to the new type:
@@ -49,7 +49,7 @@ teststring  **.cpp **.h
 
 
 
-> [!INFO]
+> [!NOTE]
 > iTerm2 window can be hidden like Kitty.
 
 ![](/Users/danielbaker/.dotfiles/doc/hiding_menu_bar.png)

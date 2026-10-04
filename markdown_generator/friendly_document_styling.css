@@ -32,134 +32,44 @@ body {
 /* } */
 /**/
 
-    div.admonition {
-      display: block;
-      margin: 0.8em 0;
-      padding: 0.8em 1em;
-      border-left: 6px solid transparent;
-      border-radius: 6px;
-      font-family: "Courier New", Courier, monospace;
-      background: rgba(0,0,0,0.03);
-      position: relative;
-      color: inherit;
-      box-sizing: border-box;
-    }
-    div.admonition::before {
-      /* positioning and sizing for admonition icons; actual icon content
-         is provided by the specific variant (::before) rules so we don't
-         get duplicate icons from the base rule. */
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-      font-size: 1.1em;
-      line-height: 1;
-    }
-  /* default */
-  div.admonition > p {    margin-left: 1.6em; margin-bottom: 0.4em; }
-  
-  
-  
+/* GitHub alerts (> [!NOTE] ...): pandoc -f gfm emits
+   <div class="note"><div class="title"><p>Note</p></div> ...body... </div>
+   for the five standard types. --a = stripe/icon, --bg = tint, --t = text. */
+div.note, div.tip, div.important, div.warning, div.caution {
+  margin: 0.8em 0;
+  padding: 0.7em 1em 0.5em;
+  border-left: 6px solid var(--a);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--t);
+  box-sizing: border-box;
+}
+div.note      { --a: #0b66c3; --bg: rgba(11,102,195,0.05); --t: #063a63; }
+div.tip       { --a: #0a8a3a; --bg: rgba(10,138,58,0.05); --t: #064e2a; }
+div.important { --a: #8250df; --bg: rgba(130,80,223,0.05); --t: #3d1f78; }
+div.warning   { --a: #e09b00; --bg: rgba(224,155,0,0.06); --t: #5b3b00; }
+div.caution   { --a: #b00020; --bg: rgba(176,0,32,0.06); --t: #5a0b12; }
 
-  /* log and file admonitions: deeper orange left stripe and matching tint */
-  div.admonition.log {
-    border-left-color: #b07219;
-    background: rgba(176,112,25,0.06);
-    color: #5a3b12;
-  }
-  div.admonition.file {
-    border-left-color: #b07219;
-    background: rgba(176,112,25,0.06);
-    color: #5a3b12;
-  }
-
-    div.admonition.error {
-      border-left-color: #b00020;
-      background: rgba(176,0,32,0.06);
-      color: #5a0b12;
-    }
-    div.admonition.warning {
-      border-left-color: #e09b00;
-      background: rgba(224,155,0,0.06);
-      color: #5b3b00;
-    }
-    div.admonition.warning::before {
-      content: ""; 
-      color: inherit;
-      font-family: "Hack Nerd Font", monospace;
-      font-size: 1.1em;
-      line-height: 1;
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-    }
-    div.admonition.tip {
-      border-left-color: #0a8a3a;
-      background: rgba(10,138,58,0.05);
-      color: #064e2a;
-    }
-    div.admonition.tip::before {
-      content: "󰌶"; 
-      color: inherit;
-      font-family: "Hack Nerd Font", monospace;
-      font-size: 1.1em;
-      line-height: 1;
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-    }
-    div.admonition.info {
-      border-left-color: #0b66c3;
-      background: rgba(11,102,195,0.05);
-      color: #063a63;
-    }
-    div.admonition.info::before {
-      content: ""; 
-      color: inherit;
-      font-family: "Hack Nerd Font", monospace;
-      font-size: 1.1em;
-      line-height: 1;
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-    }
-
-    /* Error variant emits the chosen high-plane glyph with a themed color */
-    div.admonition.error::before {
-      /* emit the high-plane codepoint directly; browser accepts up to 6 hex digits */
-      content: "󱐌"; 
-      color: #9a1b1b;          /* primary icon color */
-      font-family: "Hack Nerd Font", monospace;
-      font-size: 1.1em;
-      line-height: 1;
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-    }
-
-
-    div.admonition.file::before {
-      /* emit the high-plane codepoint directly; browser accepts up to 6 hex digits */
-      content: "";
-      color: #b07219;
-      font-family: "Hack Nerd Font", monospace;
-      font-size: 1.1em;
-      line-height: 1;
-      position: absolute;
-      left: 0.6em;
-      top: 0.6em;
-    }
-
-
-
-
-
-
-
-
-
-
-
-
+div.note > div.title, div.tip > div.title, div.important > div.title,
+div.warning > div.title, div.caution > div.title {
+  font-weight: 700;
+  color: var(--a);
+}
+div.note > div.title p, div.tip > div.title p, div.important > div.title p,
+div.warning > div.title p, div.caution > div.title p { margin: 0 0 0.3em; }
+div.note > div.title::before, div.tip > div.title::before, div.important > div.title::before,
+div.warning > div.title::before, div.caution > div.title::before {
+  font-family: "Hack Nerd Font", monospace;
+  float: left;
+  margin-right: 0.45em;
+}
+div.note > div.title::before      { content: "\ea74"; }
+div.tip > div.title::before       { content: "\f0336"; }
+div.important > div.title::before { content: "\f06a"; }
+div.warning > div.title::before   { content: "\f071"; }
+div.caution > div.title::before   { content: "\f140c"; }
+div.note > p:last-child, div.tip > p:last-child, div.important > p:last-child,
+div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 
 
 /* Common pseudo-element style for all language icons (single authoritative block) */
@@ -400,7 +310,7 @@ a {
   border-bottom: 1px solid rgba(43,108,176,0.35);
 }
 
-/* Plain blockquotes. Tagged alerts become div.admonition via admonition.lua,
+/* Plain blockquotes. GitHub alerts become div.note / div.tip / ... (above),
    so this only styles standard markdown quotes. */
 blockquote {
   margin: 0.8em 0;
@@ -448,6 +358,7 @@ nav#TOC a { border-bottom: none; }
 
 /* Keep blocks intact across page breaks */
 h1, h2, h3 { break-after: avoid; }
-pre, table, div.admonition, blockquote, img { break-inside: avoid; }
+pre, table, blockquote, img,
+div.note, div.tip, div.important, div.warning, div.caution { break-inside: avoid; }
 
 </style>

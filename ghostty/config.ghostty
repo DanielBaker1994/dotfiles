@@ -23,6 +23,9 @@ confirm-close-surface = true
 
 # Ensure ctrl+s is never consumed by ghostty and always reaches the shell/tmux.
 keybind = ctrl+s=unbind
+
+
+keybind = cmd+shift+j=write_scrollback_file:paste,plain
 font-family = "JetBrainsMono Nerd Font"
 
 # custom-shader = ~/.dotfiles/ghostty/shaders/soft_trail_shader.glsl

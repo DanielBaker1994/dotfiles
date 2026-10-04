@@ -7,37 +7,38 @@ Paired raw → rendered examples
 
 
 
-## Admonitions
+## Alerts
+
+GitHub alerts: exactly five types (NOTE, TIP, IMPORTANT, WARNING, CAUTION),
+rendered by GitHub, nvim (render-markdown) and pandoc `-f gfm` without a filter.
+Any other `[!TAG]` stays a plain blockquote.
 
 
-> [!WARNING]
-> WARNING on a very long line still going 1233456788
+> [!NOTE]
+> NOTE on a very long line still going 1233456788 abcdedfghighklmonopyerstuvwxyz
 >
-> Note the line break before is required to avoid single line
-
-
-
-> [!ERROR]
-> ERROR I wanted two lines. 
-> But this renders on one line.
->
-> But this renders on a new line.
-
-
+> `~/.config/markdown_generator/friendly_document_styling.css`
 
 
 > [!TIP]
 > TIP on a very long line still going 1233456788 abcdedfghighklmonopyerstuvwxyz
 
 
-> [!INFO]
-> INFO on a very long line still going 1233456788 abcdedfghighklmonopyerstuvwxyz
+> [!IMPORTANT]
+> IMPORTANT: key information needed to succeed.
 
 
-> [!FILE]
-> ~/.config/markdown_generator/friendly_document_styling.css
+> [!WARNING]
+> WARNING on a very long line still going 1233456788
 >
-> /tmp/directory/test.txt
+> A blank `>` line starts a new paragraph; a plain newline joins lines.
+
+
+> [!CAUTION]
+> CAUTION I wanted two lines.
+> But this renders on one line.
+>
+> But this renders on a new line.
 
 
 
@@ -107,7 +108,7 @@ int main(){ std::cout << "hello"; }
 ## File block
 
 
-```{.file}
+```file
 /path/to/some/file.txt
 ~/.config/markdown_generator/friendly_document_styling.css
 ```
@@ -160,7 +161,7 @@ int main(){ std::cout << "hello"; }
 Here is `inline code` rendered as a chip, next to [a link to pandoc.org](https://pandoc.org)
 and ordinary text.
 
-> A plain blockquote without a `[!TAG]` first line keeps standard markdown
+> A plain blockquote without a `[!NOTE]`-style first line keeps standard markdown
 > styling: muted text behind a soft blue left bar.
 
 ----
@@ -190,14 +191,14 @@ Wired into the pandoc pipeline in `EXTERNAL_BUILD_AND_OPEN_PDF`
 (`~/.dotfiles/bash/external.sh`):
 
 ```bash
-pandoc -s -f markdown+raw_html -t html5 \
+pandoc -s -f gfm -t html5 \
   --include-in-header="$DOTDIR/markdown_generator/friendly_document_styling.css" \
   --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
   --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \
   -o out.html in.md
 ```
 
-> [!INFO]
+> [!NOTE]
 > `--include-in-header` and `--include-after-body` both insert files
 > VERBATIM - nothing is auto-wrapped for you. Following the repo convention
 > (`friendly_document_styling.css` does the same), the CSS include carries its

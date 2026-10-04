@@ -59,10 +59,9 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         return 1
     }
 
-    local markdown_admontion_file="$DOTDIR/markdown_generator/admonition.lua"
     local markdown_css_styling="$DOTDIR/markdown_generator/friendly_document_styling.css"
-    if [[ ! -f "$NERDFONT_PATH_GLOBAL" || ! -f "$markdown_admontion_file" || ! -f "$markdown_css_styling" ]]; then
-        echo "One or more required resources are missing html_styling: $NERDFONT_PATH_GLOBAL $markdown_admontion_file $markdown_css_styling"
+    if [[ ! -f "$NERDFONT_PATH_GLOBAL" || ! -f "$markdown_css_styling" ]]; then
+        echo "One or more required resources are missing html_styling: $NERDFONT_PATH_GLOBAL $markdown_css_styling"
         return 1
     fi
 
@@ -84,9 +83,10 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
     if [[ -f $html_tmp ]]; then
         rm "$html_tmp"
     fi
-    if pandoc -s -f markdown+raw_html -t html5 \
+    # gfm: GitHub alerts (> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]) become
+    # div.note / div.tip / ... natively (pandoc's alerts extension)
+    if pandoc -s -f gfm -t html5 \
         --resource-path="$ASSET_PICTURES_DIRECTORY_GLOBAL:$DOTDIR/markdown_generator" \
-        --lua-filter="$markdown_admontion_file" \
         --syntax-highlighting=tango \
         -V lang=en \
         --include-in-header="$markdown_css_styling" \
