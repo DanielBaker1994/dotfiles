@@ -7,6 +7,7 @@
 # State (HERDR_PLUGIN_STATE_DIR):
 #   ws            "CURRENT PREVIOUS" workspace ids
 #   tab-<ws>      "CURRENT PREVIOUS" tab ids inside that workspace
+#   mru           "WORKSPACE EPOCH" lines, most recently focused first (picker sort + "last" column)
 #
 # Herdr injects HERDR_WORKSPACE_ID / HERDR_TAB_ID for focus events and action
 # commands, so recording is just two file writes (no CLI round-trip). Only the
@@ -29,8 +30,15 @@ push() {
     mv -f "$state/$file.tmp.$$" "$state/$file"
 }
 
+# move WS to the top of the mru list (kept to 100 entries)
+push_mru() {
+    { printf '%s %s\n' "$1" "$(date +%s)"; grep -v -- "^$1 " "$state/mru" 2>/dev/null || true; } | head -100 >"$state/mru.tmp.$$"
+    mv -f "$state/mru.tmp.$$" "$state/mru"
+}
+
 record() {
     [ -n "${HERDR_WORKSPACE_ID:-}" ] || return 0
+    push_mru "$HERDR_WORKSPACE_ID"
     push ws "$HERDR_WORKSPACE_ID"
     [ -n "${HERDR_TAB_ID:-}" ] && push "tab-$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID"
 }

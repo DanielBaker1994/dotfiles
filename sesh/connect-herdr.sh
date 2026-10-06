@@ -39,7 +39,7 @@ set -euo pipefail
 SESH_TOML="$HOME/.dotfiles/sesh/sesh.toml"
 # zoxide dirs in "all": frecency score >= MIN (or a git repo root), top MAX
 DIRS_MIN_SCORE="${HERDR_PICK_MIN_SCORE:-1}"
-DIRS_MAX="${HERDR_PICK_MAX_DIRS:-12}"
+DIRS_MAX="${HERDR_PICK_MAX_DIRS:-40}"
 # off-screen pad before the SEARCH field (fzf --no-hscroll keeps it hidden)
 SEARCH_PAD="$(printf '%*s' 1000 '')"
 SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
@@ -141,17 +141,41 @@ def tab_pos($s): . as $id
     | (($ids | index($id)) // 0) + 1;
 '
 
+# "WORKSPACE EPOCH" lines, most recently focused first (written by herdr/plugins/last)
+MRU_FILE="${HERDR_MRU_FILE:-$HOME/.local/state/herdr/plugins/local.last/mru}"
+# open-workspace table: STATUS NAME TABS AGENTS LAST (the picker draws the matching header)
+# sort: recent (default) | name | status, from HERDR_PICK_SORT (^r in the picker)
+
 list_ws() {
-    state | jq -r --arg pad "$SEARCH_PAD" "$JQ_LIB"'
-        . as $s | .ws[] | . as $w
+    local mru
+    mru="$(jq -Rn '[inputs | select(. != "") | split(" ") | {id: .[0], t: ((.[1] // "0") | tonumber)}]' \
+        <"$MRU_FILE" 2>/dev/null || echo '[]')"
+    state | jq -r --arg pad "$SEARCH_PAD" --arg sort "${HERDR_PICK_SORT:-recent}" --argjson mru "$mru" "$JQ_LIB"'
+        def padr($n): .[0:$n] as $t | $t + ([range($n - ($t | length))] | map(" ") | join(""));
+        def age($e): (now | floor) - $e as $d
+            | if $d < 60 then "now" elif $d < 3600 then "\($d / 60 | floor)m"
+              elif $d < 86400 then "\($d / 3600 | floor)h" else "\($d / 86400 | floor)d" end;
+        ($mru | map(.id)) as $ids
+        | def rank($w): ($ids | index($w.workspace_id)) as $i
+            | if $i == null then 1000 else $i end;
+        # recent: previous workspace first, the current one right after it,
+        # then the rest by last focus; never-focused ones keep herdr order
+        def recent($w): if $w.focused then 0.5 else rank($w) end;
+        {blocked: 0, working: 1, done: 2, idle: 3} as $srank
+        | def key($w): if $sort == "name" then [($w.label | ascii_downcase)]
+            elif $sort == "status" then [($srank[$w.agent_status] // 4), recent($w)]
+            else [recent($w)] end;
+        . as $s | (.ws | to_entries | sort_by([key(.value), .key]) | map(.value))[] | . as $w
+        | ([$mru[] | select(.id == $w.workspace_id) | .t] | first) as $t
         | [$s.tabs[] | select(.workspace_id == $w.workspace_id)] as $tabs
         | "\($pad)\($w.label) \($w.active_tab_id | tab_pane($s) | .cwd // "" | home)" as $q
         | ([$tabs[].tab_id | agents($s)[]] | unique) as $agents
-        | ([$s.panes[] | select(.workspace_id == $w.workspace_id)] | length) as $npanes
-        | ([ dim("tabs \($tabs | length): panes \($npanes)"),
-             (if ($agents | length) > 0 then $agents | map(agentc(.)) | join(dim(", ")) else empty end),
-             (if $w.focused then dim("current") else empty end) ] | join(dim(" · "))) as $meta
-        | "\(wsc($w.label))\(if $meta != "" then "  " + $meta else "" end)\tws\t\($w.workspace_id)\t\($q)",
+        | ([ $w.agent_status | icon,
+             wsc($w.label | padr(22)),
+             (($tabs | length | tostring) | padr(4)),
+             agentc(($agents | join(", ")) | padr(20)),
+             dim(if $w.focused then "here" elif $t then age($t) else "-" end) ] | join(" ")) as $meta
+        | "\($meta)\tws\t\($w.workspace_id)\t\($q)",
           ($tabs | to_entries[] | .value as $t
            | (.key == ($tabs | length) - 1) as $last
            | [$s.panes[] | select(.tab_id == $t.tab_id)] as $splits
@@ -195,7 +219,7 @@ list_cfg() {
 # zoxide dirs, cleaned up: resolved (/tmp = /private/tmp, scores summed),
 # existing only, minus open workspaces / sesh.toml paths. MODE all = frecent
 # ones (score >= DIRS_MIN_SCORE or a git root, top DIRS_MAX) first, the rest
-# tagged "more" (shown only when searching); full = every one, with its score.
+# last, full = every one, with its score. Nothing is hidden in either mode.
 list_dir() {
     zoxide query -ls 2>/dev/null | python3 -c '
 import os, sys, tomllib
@@ -231,7 +255,7 @@ for sc, p, r in rows:
     if shown.startswith("/private/"):  # macOS: /tmp, /var are links into /private
         shown = shown[len("/private"):]
     tag = f"{sc:g}" if mode == "full" else "recent"
-    more = "\tmore" if mode == "all" and (sc, p, r) not in top else ""
+    more = ""  # nothing is hidden: ^a lists every directory, frecent ones first
     print(f"\033[36m\033[39m {shown}  \033[90m{tag}\033[39m\tdir\t{p}\t{" " * 1000}{p}{more}")
 ' "${1:-all}" "$DIRS_MIN_SCORE" "$DIRS_MAX" "$SESH_TOML" "$(live_cwds)"
 }
@@ -323,8 +347,8 @@ ${b}What's in the list${r}
                           opens a new workspace there
 
 ${b}Directories${r}
-  all shows only frecent ones: zoxide score >= ${DIRS_MIN_SCORE}, or a git repo,
-  top ${DIRS_MAX}; typing searches every one. ^x dirs lists all with scores. ^d on a
+  ^a lists every existing zoxide directory (frecent ones, score >= ${DIRS_MIN_SCORE} or a
+  git repo, first; top ${DIRS_MAX}). ^x lists them with scores. ^d on a
   directory forgets it in zoxide for good (also for z / cd).
 
 ${b}Moving splits${r}
@@ -348,6 +372,7 @@ ${b}Keys${r}
   ^g        move       move the selected split with the keys (↑/↓, enter)
   ^t        agents     only agents, the ones that need you first
   ^x        dirs       every zoxide directory, with its score
+  ^r        sort       open workspaces: recent → name → status
   ^o        new        scratch workspace (a name → /tmp/name, or a path)
   ^b        web        ask for a URL, open it in a browser workspace
   ^d        close      close workspace / tab, forget a directory
@@ -388,7 +413,7 @@ browser() {
 pick() {
     local selected
     selected="$(
-        list all | awk -F'\t' '$5 != "more"' | fzf \
+        list all | fzf \
             --height 100% --margin 0 --padding 0,1 \
             --ansi --highlight-line --info inline-right \
             --delimiter $'\t' --with-nth 1,4 --nth 2 --no-hscroll --ellipsis '' \

@@ -202,7 +202,7 @@ process.stdin.on("data", (d) => {
 const size = () => ({ W: out.columns || 100, H: out.rows || 30 });
 const PROMPTS = { ws: "spaces", all: "all", agents: "agents", dirs: "dirs" };
 const pick = {
-    mode: "ws", expanded: false, items: [], loading: false, loadGen: 0,
+    mode: "ws", sort: "recent", expanded: false, items: [], loading: false, loadGen: 0,
     query: "", sel: 0, top: 0, view: [],
     help: false, preview: { key: "", text: "", label: "", scroll: 0 },
     lastClick: { t: 0, idx: -1 },
@@ -233,7 +233,7 @@ function loadList(mode, keepSel = false) {
     pick.loading = true;
     if (!keepSel) { pick.sel = 0; pick.top = 0; }
     if (mode === "all" || mode === "ws") loadState();
-    const p = spawn(SH, ["list", mode], { stdio: ["ignore", "pipe", "ignore"] });
+    const p = spawn(SH, ["list", mode], { stdio: ["ignore", "pipe", "ignore"], env: { ...process.env, HERDR_PICK_SORT: pick.sort } });
     let partial = "";
     p.stdout.setEncoding("utf8");
     p.stdout.on("data", (chunk) => {
@@ -608,6 +608,15 @@ function landingLines(d, iw, ih) {
     return rect.map((r, i) => fit(left[i] ?? "", lw) + dim("│") + r);
 }
 
+// column header for the open-workspace table (widths match list_ws in connect-herdr.sh);
+// the sorted column is marked
+function tableHead(sort, iw) {
+    const col = (name, w, on) => (on ? name + "▾" : name).padEnd(w + 1);
+    const h = "    " + col("NAME", 22, sort === "name") + col("TABS", 4) + col("AGENTS", 20, sort === "status") + "LAST" + (sort === "recent" ? "▾" : "");
+    return slice(h + " " + "─".repeat(iw), 0, iw);
+}
+const SORTS = ["recent", "name", "status"];
+
 // ── draw ────────────────────────────────────────────────────────────────
 function drawPick(W, H) {
     const narrow = W < 110;
@@ -624,7 +633,7 @@ function drawPick(W, H) {
         key("^s", "spaces", pick.mode === "ws"), key("^a", "all", pick.mode === "all"),
         key("^t", "agents", pick.mode === "agents"), key("^x", "dirs", pick.mode === "dirs"),
         ...(tog ? [key("^m", pick.expanded ? "collapse" : "expand")] : []),
-        key("^o", "new"),
+        key("^o", "new"), ...(tog ? [key("^r", `sort: ${pick.sort}`)] : []),
     ];
     const more = key("?", "more");
     let hint = "";
@@ -633,7 +642,7 @@ function drawPick(W, H) {
     const head = [
         `${fg(ACCENT, PROMPTS[pick.mode] + " › ")}${pick.query}${sgr(7)} ${sgr(27)}`,
         pick.moving ? `${fg(ACCENT, bold("moving ⠿"))} ${dim("↑/↓ choose a workspace or tab · enter drop · esc cancel")}` : status ?? hint,
-        dim("─".repeat(iw)),
+        tog ? dim(tableHead(pick.sort, iw)) : dim("─".repeat(iw)),
     ];
     const info = dim(`${pick.loading ? "⋯ " : ""}${pick.view.length}/${pick.items.length}`);
     head[0] = slice(head[0], 0, listW - 3 - width(info));
@@ -713,6 +722,7 @@ function pickKey(k) {
         case "ctrl+t": return loadList("agents");
         case "ctrl+x": return loadList("dirs");
         case "ctrl+s": pick.expanded = false; pick.query = ""; pick.help = false; return loadList("ws"); // the start view
+        case "ctrl+r": pick.sort = SORTS[(SORTS.indexOf(pick.sort) + 1) % SORTS.length]; setStatus(`sorted by ${pick.sort}`); return loadList(pick.mode, true);
         case "ctrl+o": return scratch();
         case "ctrl+b": return quit(handOff(SH, ["browser"]).status ?? 0);
         case "ctrl+d": {

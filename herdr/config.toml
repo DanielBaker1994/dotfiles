@@ -36,10 +36,11 @@ previous_agent = "prefix+shift+a"
 split_horizontal = "prefix+-"
 split_vertical = "prefix+|"
 
-resize_pane_left = "alt+h"
-resize_pane_down = "alt+j"
-resize_pane_up = "alt+k"
-resize_pane_right = "alt+l"
+# no Opt+H/J/K/L resize: AeroSpace owns alt-h/j/k/l (focus window); resize = prefix+r
+resize_pane_left = ""
+resize_pane_down = ""
+resize_pane_up = ""
+resize_pane_right = ""
 
 # Built-in workspace picker disabled; sesh picker takes its place via keys.command below
 workspace_picker = ""
