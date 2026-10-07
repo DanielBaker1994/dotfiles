@@ -68,7 +68,7 @@ Deploy with `./workspace_setup.sh` (symlinks everything, installs deps).
 
 ```bash
 # symlinks (workspace_setup.sh does these)
-# installed by ~/.config/kitchen-sink/setup.sh (configs copied to ~/.config)
+# installed by ~/.config/kitchen-sink/INSTALL.sh (configs copied to ~/.config)
 ln -s ~/.config/kitchen-sink/config/aerospace/aerospace.toml ~/.config/aerospace/aerospace.toml
 
 # disable cmd+M minimize globally (maps Minimize menu item to nothing)

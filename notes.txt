@@ -24,11 +24,6 @@ cd ~/.dotfiles && git maintenance run --task=gc && git maintenance start
 # stale [filter "lfs"] block w/o git-lfs caused hangs; removed with:
 git config --global --remove-section filter.lfs
 
-# ---- macOS menu bar hiding (NOT in use since 2026-10-06, menu bar visible) ----
-# Hide native menu bar (macOS 26 GUI equiv: Settings > Control Center >
-# "Automatically hide and show the menu bar"):
-defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
-
 # ===========================================================================
 # AeroSpace + Kitchen Sink (SketchyBar REMOVED 2026-10-06)
 # FULL GUIDE: doc/workspace.md -> "AeroSpace + Kitchen Sink" section

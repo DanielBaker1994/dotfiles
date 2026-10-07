@@ -7,7 +7,7 @@
 #
 # NOTE: the window-manager stack (aerospace, borders,
 # karabiner, kitchen sink) moved out to the standalone app repo:
-#   ~/.config/kitchen-sink/setup.sh   (one command, does its own install)
+#   ~/.config/kitchen-sink/INSTALL.sh   (one command, does its own install)
 #
 # Safe to re-run: existing symlinks are replaced, real files are backed up to
 # /tmp/backup_configs_<timestamp>. Does not uninstall anything.
