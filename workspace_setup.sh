@@ -5,9 +5,9 @@
 # Symlinks every managed config into place, installs font/tooling deps, and
 # applies the macOS system tweaks the setup depends on.
 #
-# NOTE: the window-manager + status-bar stack (aerospace, sketchybar, borders,
-# karabiner, workspace switcher) moved out to the standalone app repo:
-#   ~/workspace-switcher/setup.sh   (one command, does its own install)
+# NOTE: the window-manager stack (aerospace, borders,
+# karabiner, kitchen sink) moved out to the standalone app repo:
+#   ~/.config/kitchen-sink/setup.sh   (one command, does its own install)
 #
 # Safe to re-run: existing symlinks are replaced, real files are backed up to
 # /tmp/backup_configs_<timestamp>. Does not uninstall anything.
@@ -54,11 +54,7 @@ ensure_sym_links
 echo
 echo "==> Ensuring homebrew packages are installed..."
 
-# Icon fonts
-#   font-sketchybar-app-font -> app-icon glyphs for the bar (used by
-#       ~/workspace-switcher/config/sketchybar/sketchybar-app-font/dist/icon_map.json)
-#   font-hack-nerd-font      -> terminal/tmux
-brew install --cask font-sketchybar-app-font
+# Icon font for the terminal/tmux
 brew install --cask font-hack-nerd-font
 
 # Rosetta 2 (Apple silicon): lets Intel-only apps run (oahd is its daemon).
@@ -84,13 +80,14 @@ fi
 echo
 echo "==> Applying macOS system tweaks..."
 
-# Auto-hide the native menu bar so SketchyBar (position=top) takes its place.
-# macOS 26+: System Settings > Control Center > "Automatically hide and show the
-# menu bar" = Always. The legacy _HIHideMenuBar key alone is NOT enough — the
-# newer controlcenter AutoHideMenuBarOption (0=Always … 3=Never) overrides it.
-defaults write NSGlobalDomain _HIHideMenuBar -bool true
-defaults write com.apple.controlcenter AutoHideMenuBarOption -int 0
-osascript -e 'tell application "System Events" to set autohide menu bar of dock preferences to true'
+# Keep the native menu bar visible (SketchyBar, which replaced it, was removed
+# 2026-10-06). macOS 26+: System Settings > Control Center > "Automatically
+# hide and show the menu bar" = Never. The legacy _HIHideMenuBar key alone is
+# NOT enough — the controlcenter AutoHideMenuBarOption (0=Always … 3=Never)
+# overrides it.
+defaults write NSGlobalDomain _HIHideMenuBar -bool false
+defaults write com.apple.controlcenter AutoHideMenuBarOption -int 3
+osascript -e 'tell application "System Events" to set autohide menu bar of dock preferences to false'
 killall ControlCenter Finder 2>/dev/null || true
 
 # "Displays have separate Spaces" off (spans-displays = 1): makes every monitor

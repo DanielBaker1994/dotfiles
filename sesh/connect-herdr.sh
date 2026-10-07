@@ -37,12 +37,19 @@
 set -euo pipefail
 
 SESH_TOML="$HOME/.dotfiles/sesh/sesh.toml"
+# per-invocation cache of `herdr api snapshot` (list all calls state 3x)
+STATE_FILE="${TMPDIR:-/tmp}/herdr-pick-state.$$"
+trap 'rm -f "$STATE_FILE"' EXIT
 # zoxide dirs in "all": frecency score >= MIN (or a git repo root), top MAX
 DIRS_MIN_SCORE="${HERDR_PICK_MIN_SCORE:-1}"
 DIRS_MAX="${HERDR_PICK_MAX_DIRS:-40}"
 # off-screen pad before the SEARCH field (fzf --no-hscroll keeps it hidden)
 SEARCH_PAD="$(printf '%*s' 1000 '')"
-SELF="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/$(basename -- "${BASH_SOURCE[0]}")"
+# SELF without forking dirname/basename (pure parameter expansion + cd/pwd builtins)
+_self_src="${BASH_SOURCE[0]}"
+_self_dir="${_self_src%/*}"
+[ "$_self_dir" = "$_self_src" ] && _self_dir="."
+SELF="$(cd -- "$_self_dir" && pwd)/${_self_src##*/}"
 
 # herdr binary: the pane injects HERDR_BIN_PATH; otherwise fall back to PATH and
 # the default install dir. Prepend its dir to PATH so the Node picker, which
@@ -51,7 +58,7 @@ HERDR_BIN="${HERDR_BIN_PATH:-}"
 [ -x "$HERDR_BIN" ] || HERDR_BIN="$(command -v herdr 2>/dev/null || true)"
 [ -x "$HERDR_BIN" ] || HERDR_BIN="$HOME/.local/bin/herdr"
 if [ -x "$HERDR_BIN" ]; then
-    PATH="$(dirname -- "$HERDR_BIN"):$PATH"
+    PATH="${HERDR_BIN%/*}:$PATH"
     export PATH
 fi
 
@@ -102,14 +109,27 @@ with open(path, "rb") as f:
 PY
 }
 
-# workspace/tab/pane lists → one JSON {ws, tabs, panes}
+# workspace/tab/pane lists → one JSON {ws, tabs, panes}.
+# One `herdr api snapshot` (deep-equal to workspace/tab/pane list, but a single
+# process) replaces three herdr invocations; cached per invocation for list all.
 state() {
-    jq -n \
-        --argjson w "$(herdr workspace list 2>/dev/null || echo '{}')" \
-        --argjson t "$(herdr tab list 2>/dev/null || echo '{}')" \
-        --argjson p "$(herdr pane list 2>/dev/null || echo '{}')" \
-        '{ws: ($w.result.workspaces // []), tabs: ($t.result.tabs // []),
-          panes: ($p.result.panes // [])}'
+    [ -s "$STATE_FILE" ] && { cat "$STATE_FILE"; return; }
+    local snap out
+    if snap="$(herdr api snapshot 2>/dev/null)" && [ -n "$snap" ]; then
+        out="$(printf '%s' "$snap" | jq -c \
+            '{ws: (.result.snapshot.workspaces // []),
+              tabs: (.result.snapshot.tabs // []),
+              panes: (.result.snapshot.panes // [])}')"
+    else
+        out="$(jq -n \
+            --argjson w "$(herdr workspace list 2>/dev/null || echo '{}')" \
+            --argjson t "$(herdr tab list 2>/dev/null || echo '{}')" \
+            --argjson p "$(herdr pane list 2>/dev/null || echo '{}')" \
+            '{ws: ($w.result.workspaces // []), tabs: ($t.result.tabs // []),
+              panes: ($p.result.panes // [])}')"
+    fi
+    printf '%s' "$out" > "$STATE_FILE"
+    printf '%s' "$out"
 }
 
 # jq helpers shared by list_ws / label / preview
@@ -199,21 +219,24 @@ list_agents() {
           end'
 }
 
-# labels / cwds of live workspaces (to hide duplicate cfg / dir entries)
-live_labels() { herdr workspace list 2>/dev/null | jq -r '.result.workspaces[]?.label'; }
+# cwds of live panes (to hide duplicate dir entries in list_dir)
 live_cwds() { herdr pane list 2>/dev/null | jq -r '.result.panes[]?.cwd // empty' | sort -u; }
 
 list_cfg() {
-    local live cwds
-    live="$(live_labels)"
-    cwds="$(live_cwds)"
-    sesh list -c --icons 2>/dev/null | while IFS= read -r line; do
-        name="$(printf '%s' "$line" | perl -pe 's/\e\[[0-9;]*m//g; s/^\S+\s+//')"
-        grep -qxF -- "$name" <<<"$live" && continue
-        grep -qxF -- "$(expand "$(sesh_field "$name" path)")" <<<"$cwds" && continue
-        # keep sesh's icon, the name in yellow
-        printf '%s\e[33m%s\e[39m  \e[90msaved\e[39m\tcfg\t%s\t%s%s\n' "${line%%"$name"*}" "$name" "$name" "$SEARCH_PAD" "$name"
-    done
+    # one snapshot + one `sesh -j` + one jq, instead of a python/perl/grep
+    # spawn per session (the old loop was O(sessions) processes); the row keeps
+    # the sesh config icon, with the name in yellow
+    local st
+    st="$(state)"
+    sesh list -c -j 2>/dev/null | jq -r --arg pad "$SEARCH_PAD" --argjson st "$st" '
+        ($st.ws | map(.label)) as $l
+        | ($st.panes | map(.cwd // empty)) as $c
+        | .[]?
+        | .Name as $n | .Path as $p
+        | select(($l | index($n)) == null)
+        | select(($c | index($p)) == null)
+        | "\u001b[90m\ue615\u001b[39m \u001b[33m\($n)\u001b[39m  \u001b[90msaved\u001b[39m\tcfg\t\($n)\t\($pad)\($n)"
+    '
 }
 
 # zoxide dirs, cleaned up: resolved (/tmp = /private/tmp, scores summed),

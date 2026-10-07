@@ -1,30 +1,30 @@
 ---
 name: swift
-description: Use when working with Swift/AppKit code in this repo — building or debugging the workspace-switcher daemon (workspace_switcher.swift, PopupWindow.swift, main.swift), rebuilding after edits, killing/relaunching the daemon, mic/speech permission issues, or anything about the voice/jira/notes windows. Also for Swift proficiency tips.
+description: Use when working with Swift/AppKit code in this repo — building or debugging the kitchen-sink daemon (kitchen_sink.swift, PopupWindow.swift, main.swift), rebuilding after edits, killing/relaunching the daemon, mic/speech permission issues, or anything about the voice/jira/notes windows. Also for Swift proficiency tips.
 ---
 
-# Swift & workspace-switcher dev workflow
+# Swift & kitchen-sink dev workflow
 
-The workspace switcher is a bare-binary AppKit app compiled with `swiftc`
-(framework `PopupWindow.swift` + host `workspace_switcher.swift` + entry
+The kitchen sink is a bare-binary AppKit app compiled with `swiftc`
+(framework `PopupWindow.swift` + host `kitchen_sink.swift` + entry
 `main.swift`). No Xcode project, no SPM — the binary IS the app.
 
 ## Build + launch (ONE command)
 
-`./build.sh` (in `~/workspace-switcher/`, the standalone app repo) — always rebuilds from source, re-signs
+`./build.sh` (in `~/.config/kitchen-sink/`, the standalone app repo) — always rebuilds from source, re-signs
 the .app bundle, re-grants mic/speech, kills stale daemons, and opens the
 notes+voice window. No options, no other steps. Use it for everything.
 
 For fast iteration WITHOUT a rebuild (config-only edits, quick relaunch):
 ```bash
-pkill -f workspace-switcher; ~/workspace-switcher/bin/workspace_switcher.sh notes
+pkill -f kitchen-sink; ~/.config/kitchen-sink/bin/kitchen_sink.sh notes
 ```
 
 ## Manual rebuild loop (only when build.sh is unavailable)
 
 1. Kill the running daemon:
    ```bash
-   pkill -f workspace-switcher
+   pkill -f kitchen-sink
    ```
 2. Build — the embedded-Info.plist flags are MANDATORY (mic + speech
    permissions read them via TCC). Build straight into the .app bundle — a
@@ -34,11 +34,11 @@ pkill -f workspace-switcher; ~/workspace-switcher/bin/workspace_switcher.sh note
    ```bash
    swiftc -O -swift-version 5 \
      -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist \
-     PopupWindow.swift workspace_switcher.swift main.swift \
-     -o workspace-switcher.app/Contents/MacOS/workspace-switcher
-   codesign --force --sign - --identifier dev.danielbaker.workspace-switcher workspace-switcher.app
+     PopupWindow.swift kitchen_sink.swift main.swift \
+     -o kitchen-sink.app/Contents/MacOS/kitchen-sink
+   codesign --force --sign - --identifier dev.danielbaker.kitchen-sink kitchen-sink.app
    ```
-   (Never write a raw `workspace-switcher` binary next to the sources.)
+   (Never write a raw `kitchen-sink` binary next to the sources.)
 3. Re-grant mic + speech AFTER EVERY manual build: the re-sign changes the
    binary's cdhash, and macOS flips the speech/mic status back to
    "not determined" until `jira/voice-permissions.sh` re-inserts the grants
@@ -51,7 +51,7 @@ pkill -f workspace-switcher; ~/workspace-switcher/bin/workspace_switcher.sh note
    ALWAYS launch the .app bundle binary — the grants (bundle id + path)
    survive rebuilds:
    ```bash
-   ( ./workspace-switcher.app/Contents/MacOS/workspace-switcher notes >/tmp/ws-voice.log 2>&1 & )
+   ( ./kitchen-sink.app/Contents/MacOS/kitchen-sink notes >/tmp/ws-voice.log 2>&1 & )
    ```
    Modes: `show` (switcher popup), `notes`, `jira`, `voice` (aliases to the
    merged notes+voice window), `toggle`.
@@ -59,10 +59,10 @@ pkill -f workspace-switcher; ~/workspace-switcher/bin/workspace_switcher.sh note
 
 Fast type-check without linking (seconds, no binary):
 ```bash
-swiftc -typecheck PopupWindow.swift workspace_switcher.swift main.swift
+swiftc -typecheck PopupWindow.swift kitchen_sink.swift main.swift
 ```
 
-`workspace_switcher.sh` auto-rebuilds when sources are newer, and
+`kitchen_sink.sh` auto-rebuilds when sources are newer, and
 `jira/jira-doctor.sh --fix` rebuilds too — but always preserve the sectcreate
 flags in any manual build.
 
@@ -117,7 +117,7 @@ flags in any manual build.
 
 - `PopupWindow.swift` — reusable framework: window/panel, chrome/header,
   rows, search/filter, editor, meter bar, socket toggle server.
-- `workspace_switcher.swift` — host: commands.toml parsing (`[app]`,
+- `kitchen_sink.swift` — host: commands.toml parsing (`[app]`,
   `[icons]`, per-command sections), aerospace IPC, icons, voice recorder
   (AVAudioRecorder + SFSpeechRecognizer), AppDelegate.
 - `main.swift` — entry: `applyAppConfigFromDisk()` FIRST (socket names come

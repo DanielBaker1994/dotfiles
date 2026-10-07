@@ -24,33 +24,42 @@ cd ~/.dotfiles && git maintenance run --task=gc && git maintenance start
 # stale [filter "lfs"] block w/o git-lfs caused hangs; removed with:
 git config --global --remove-section filter.lfs
 
-# ---- macOS menu bar hiding ----
+# ---- macOS menu bar hiding (NOT in use since 2026-10-06, menu bar visible) ----
 # Hide native menu bar (macOS 26 GUI equiv: Settings > Control Center >
 # "Automatically hide and show the menu bar"):
 defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 
 # ===========================================================================
-# AeroSpace + SketchyBar (installed 2026-09-05, hard-won knowledge)
-# FULL GUIDE + GOTCHAS: doc/workspace.md -> "AeroSpace + SketchyBar Status Bar" section
+# AeroSpace + Kitchen Sink (SketchyBar REMOVED 2026-10-06)
+# FULL GUIDE: doc/workspace.md -> "AeroSpace + Kitchen Sink" section
 # ===========================================================================
 
-# WM: AeroSpace  (~/.config/aerospace/aerospace.toml, from ~/workspace-switcher/config/aerospace)
-# Bar: SketchyBar (~/.config/sketchybar, from ~/workspace-switcher/config/sketchybar)
-#   brew tap felixkratz/formulae && brew install sketchybar
-#   brew install --cask font-sketchybar-app-font   # ligature app glyphs
-# Workspace switcher (AppKit popup, karabiner-bound): ~/workspace-switcher/workspace_switcher.swift
-#   Reusable window framework: ~/workspace-switcher/PopupWindow.swift (config-driven popup:
+# WM: AeroSpace  (~/.config/aerospace/aerospace.toml, from ~/.config/kitchen-sink/config/aerospace)
+# No status bar. Hyper+S = ONE view: a row per occupied workspace (key chip,
+#   accent = focused; app icons; red badge = unread), a command grid
+#   (in-palette commands; Jira/Confluence/Notes/AI/Compare/Files are
+#   in-palette = false, they live in the app), and a status row (unread chips
+#   · CPU · RAM · battery · clock). Typing narrows all of it: an app/window
+#   title hit names itself INSIDE its workspace row (never a 2nd row); a bare
+#   key ("w", "3") puts that workspace first; "/" = commands only.
+#   Keys: Up/Down rows, Left/Right grid cells, Tab workspaces<->commands,
+#   Esc clears query then hides, click runs a row/cell.
+#   [app] switcher-width (380) / switcher-columns (3) in commands.toml.
+#   Unread counts: notify/notify_poll.py --json (Dock / Webex-window badges via
+#   notify/helpers/*.swift) -> NEEDS Accessibility for kitchen-sink.app.
+# Kitchen sink (AppKit popup, karabiner-bound): ~/.config/kitchen-sink/kitchen_sink.swift
+#   Reusable window framework: ~/.config/kitchen-sink/PopupWindow.swift (config-driven popup:
 #   size/colors/fonts via PopupConfig; optional search/navigation/escape/toggle/
 #   click-off handlers; rows via PopupRow protocol). Entry point in main.swift.
-#   Build: swiftc -O -swift-version 5 PopupWindow.swift workspace_switcher.swift main.swift
-#   -o workspace-switcher (multi-file build needs the entry point in main.swift)
+#   Build: swiftc -O -swift-version 5 PopupWindow.swift kitchen_sink.swift main.swift
+#   -o kitchen-sink (multi-file build needs the entry point in main.swift)
 #   Toggle IPC is name-scoped: socket $TMPDIR/<name>.sock, message "toggle <name>".
 #   Native Swift/AppKit port (2026-09-09) of the old Tk/PIL version.
-#   Daemon + Unix socket (no file polling): .sh pings $TMPDIR/workspace-switcher.sock,
+#   Daemon + Unix socket (no file polling): .sh pings $TMPDIR/kitchen-sink.sock,
 #   builds the binary if the .swift source is newer, launches if not running.
 #   Real transparency via NSWindow isOpaque=false + layer cornerRadius (Tk 9
 #   couldn't do this — corners rendered black, see below for the old fix).
-#   Build: swiftc -O -swift-version 5 workspace_switcher.swift -o workspace-switcher
+#   Build: swiftc -O -swift-version 5 kitchen_sink.swift -o kitchen-sink
 #   GOTCHA: flipped NSView (isFlipped=true) mirrors NSImage.draw — use the
 #     CTM-flip helper (drawImage(_:in:)) for icons, not plain draw(in:).
 #   GOTCHA: NSPanel must be .nonactivatingPanel + canBecomeKey=true or the
@@ -61,11 +70,10 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #     Esc/ctrl-n/p/j, pass other events through for text filtering.
 #   GOTCHA: nonactivating panels don't resign key on outside click — dismiss
 #     via NSEvent global monitor (.leftMouseDown outside window.frame).
-#   Command palette: typing "/" in the filter switches to commands from
-#     aerospace/commands.toml ("name = shell script"). Loaded once at start;
-#     missing config is non-fatal. Commands run in a persistent bash child
-#     (CommandRunner, spawned at daemon start) so there's no shell startup
-#     cost. Esc exits command mode back to the workspace view; Esc again hides.
+#   Commands come from commands.toml ("name = shell script"). Loaded once at
+#     start; missing config is non-fatal. Commands run in a persistent bash
+#     child (CommandRunner, spawned at daemon start) so there's no shell
+#     startup cost.
 #   Native Swift/AppKit port (2026-09-09) of the old Tk/PIL version.
 #   Aerospace IPC uses its socket directly (/tmp/bobko.aerospace-<user>.sock,
 #   4-byte LE version handshake + length-prefixed JSON), Process fallback.
@@ -77,21 +85,17 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #   defaults write org.python.python ApplePersistenceIgnoreState -bool YES
 #     (suppresses macOS "reopen windows?" crash-restore modal that otherwise
 #     deadlocks EVERY new python-Tk launch after any python GUI crash)
-# Karabiner (caps_lock -> Hyper; Hyper+S = switcher): ~/workspace-switcher/config/karabiner/karabiner.json
+# Karabiner (caps_lock -> Hyper; Hyper+S = switcher): ~/.config/kitchen-sink/config/karabiner/karabiner.json
 #   brew install --cask karabiner-elements
 #   import via Karabiner GUI (profile dropdown -> Import)
 #   then activate the system extension (System Settings -> Privacy & Security -> Allow)
 # Disabled on purpose:
 #   defaults write com.apple.spaces spans-displays -bool true  # "separate Spaces per display" OFF (needs logout/login)
 #   ghostty: mouse-hide-while-typing + custom-shader soft-trail commented out
-#   sketchybar: icons.sh no longer sourced; Hack Nerd separator item removed (aerospacer.sh)
 #   aerospace: flameshot floating rule; raycast auto-ignored (>= 0.18.3), no rule
-# Borders: JankyBorders (~/.config/borders, from ~/workspace-switcher/config/borders)
+# Borders: JankyBorders (~/.config/borders, from ~/.config/kitchen-sink/config/borders)
 #   brew install borders && brew services start borders
-#   config: borders/bordersrc (focused-window border, matches sketchybar colors)
-# Workspace renderer: xiamaz/sketchybar-aerospace-plugin (Rust binary ->
-#   plugins/aerospace_plugin), reads sketchybar-app-font/dist/icon_map.json
-#   (kvndrsslr/sketchybar-app-font cloned to sketchybar/sketchybar-app-font)
+#   config: borders/bordersrc (focused-window border, Catppuccin colors)
 # keybindings: alt-; = window switcher (fzf), alt-o = workspace switcher (fzf)
 # Toggle focused window floating<->tiling: alt-shift-semicolon (service mode) then f
 #   (e.g. Calendar opens floating -> alt-shift-semicolon f makes it tile like normal apps)
@@ -100,7 +104,7 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # events/events.py -- config-driven osascript queries of Calendar.app (covers Webex
 # meetings synced to Work) + optional Microsoft Outlook adapter. No pip deps.
 #   python3 events/events.py             # text list of upcoming events
-#   python3 events/events.py --json      # machine-readable (for sketchybar/popups)
+#   python3 events/events.py --json      # machine-readable (for popups)
 #   python3 events/events.py --horizon 7 # override lookahead days
 # config: events/events.json -> sources[] {id, app, adapter: calendar|outlook,
 #   calendars: [...], match: <optional regex tag, e.g. "webex">}
@@ -111,78 +115,11 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 #   Calendar.app -> use bulk `property of every event` + index-zip + Python-side filtering.
 #   Events crossing a DST boundary may be off by 1h (rare for upcoming alerts).
 
-# --- Adding an app icon to the app font (e.g. Webex) ---
-# The full source repo is NOT vendored (it's a git repo-in-repo -> mess).
-# ONLY dist/icon_map.json lives in dotfiles (the plugin's sole runtime file);
-# the font is installed system-wide via the brew cask.
-#   Full clone lives at: ~/src/sketchybar-app-font   (mappings/ + svgs/ + build tooling)
-#   To add/edit an icon:
-#     cd ~/src/sketchybar-app-font
-#     # put svg in svgs/:name:.svg and app name in mappings/:name:  (e.g. "Webex")
-#     pnpm install        # deps (first time)
-#     pnpm run build      # regenerates dist/icon_map.json + dist/*.ttf from svgs/+mappings/
-#   Then copy the built artifacts into dotfiles + fonts:
-#     cp dist/icon_map.json ~/.config/sketchybar/sketchybar-app-font/dist/icon_map.json
-#     cp dist/sketchybar-app-font.ttf ~/Library/Fonts/sketchybar-app-font.ttf
-#     brew services restart sketchybar
-# App name must match what AeroSpace reports (process name, e.g. "Webex").
-# DAY-TO-DAY (no repo needed): ~/.config/sketchybar/manage_icons.sh
-#   add <App> <glyph> | lookup <App> | list | count   (edits icon_map.json + restarts)
-
-# Bar position: TOP (2026-09-28), replacing the native menu bar, which is auto-hidden
-#   (_HIHideMenuBar=true; hover at the top edge to reveal it over the bar).
-#   Paired with aerospace gaps outer.bottom=10, outer.top=[{monitor."built-in"=15}, 48].
-#   NOT monitor.main: "main" = whichever display has the menu bar (often the external
-#   when docked) -> external got 15 (windows under bar), laptop got 81 (huge gap).
-#   GOTCHA: on the notch MacBook, visibleFrame still starts 33.5pt down even with
-#   the menu bar hidden, so the gap is measured from there: 33.5+15 ≈ 48 (bar ends at 38).
-#   External (no-notch) monitors start at 0 -> 48.
-#   Notch (~x 762-948pt on 1710pt screen): pills must stay left of it ->
-#   aerospacer.sh SPACE_WIDTH=56 (12 pills ≈ 690pt). Adding workspaces? re-check width.
-#   Bar hides while the native menu bar is revealed: sketchybar/helpers/menubar_watch.swift
-#   (built+launched by sketchybarrc -> ~/.cache/sketchybar/menubar_watch). Detects the
-#   WindowServer "Menubar" window going on-screen; polls only while cursor is near top.
-#   ~/.config/sketchybar/helpers is a symlink into workspace-switcher/config (per-item links!).
-#   Auto-hide needs com.apple.controlcenter AutoHideMenuBarOption=0 too (see workspace_setup.sh).
-#   If the menu bar is ever un-hidden: set sketchybar y_offset ~38 or it collides.
-# Bar layout (top, left side, left-to-right):
-#   space.lead / space.<id> pills / space.tail  (all from aerospacer.sh)
-# Start: brew services start sketchybar
-
-## HARD-WON GOTCHAS (2026-09-06, sketchybar 2.24.0 + macOS 26.6.2)
-
-1. blur_radius=0 ON PURPOSE. 2.24.0 renders blur BEYOND the bar frame ->
-   "melted glass" strip under the bar (#827); bar color is opaque anyway.
-
-2. Gap between bar and windows is AEROSPACE outer.top (=10), NOT sketchybar.
-
-3. BASH BUG: `"$TEMP°"` (unbraced var + multibyte char) -> bash emits a lone
-   0xb0 byte, sketchybar renders literal "Warning: Malformed UTF-8 string".
-   ALWAYS brace: "${TEMP}°".
-
-4. 2.24.0 rendering rework (relevant when editing items/plugins):
-   - item `x_offset` REMOVED (use `background.x_offset`)
-   - `background.width` not a property
-   - `--add group` renamed to `--add bracket`
-
-5. `updates=when_shown` (global default) stops polling on hidden items ->
-   use `updates=on` for anything that hides (notifications items).
-
-6. lsappinfo only sees RUNNING apps (a quit Outlook/Teams/Webex shows no
-   badge). No fallback, deliberate.
-
-7. Logs: /opt/homebrew/var/log/sketchybar/{sketchybar.err.log,sketchybar.out.log}
-   `sh: /x.sh: No such file` = $PLUGIN_DIR was empty when item was created.
-
-8. Concurrent-edit hazard: other sessions edit these files; verify LIVE state
-   with `sketchybar --query item <name>` — disk != loaded sometimes.
-
-9. Fonts: SF Pro (text/SF Symbols), sketchybar-app-font (brand glyphs),
-   SF Symbols Fallback.otf (apple popup glyphs). Nerd Fonts installed for
-   terminal but NOT used by sketchybar (deliberate).
-
-# brew trust --formula felixkratz/formulae/sketchybar
-# brew services start sketchybar
+# Menu bar: native macOS menu bar is VISIBLE again (2026-10-06):
+#   defaults write NSGlobalDomain _HIHideMenuBar -bool false
+#   defaults write com.apple.controlcenter AutoHideMenuBarOption -int 3
+# AeroSpace gaps: outer.top = 10 everywhere ([app] margin-top / -builtin = 10
+#   in commands.toml mirror it for floating windows).
 
 # ---- AeroSpace "workspace 10" on the external (DisplayLink) — FIXED 2026-09-29 ----
 # Source rule (tree/Workspace.swift getStubWorkspace): a newly connected monitor gets
@@ -192,9 +129,9 @@ defaults write NSGlobalDomain _HIHideMenuBar -bool true && killall Finder
 # didn't match or the Dell was main. Fix: 1-8,M,Y,W = ['^(?!built-in)','built-in','main']
 # (any non-built-in screen, name-independent), 9 = ['built-in','main'].
 # No config switch disables the stub, so there's also a GUARD:
-#   workspace-switcher/config/aerospace/no_stray_workspaces.sh
-#   runs on aerospace exec-on-workspace-change + sketchybar display_change/system_woke
-#   (item stray_guard). Any workspace not in M Y W 1-9 -> windows moved to a real one,
+#   kitchen-sink/config/aerospace/no_stray_workspaces.sh
+#   runs on aerospace exec-on-workspace-change + the switcher daemon on display
+#   change / wake (startStrayGuard, SENDER=display_change|system_woke). Any workspace not in M Y W 1-9 -> windows moved to a real one,
 #   monitor switched to its assigned workspace, stray GC'd. Fast path 1 CLI call (~30ms).
 #   Phantom monitor w/ nothing assigned: windows evacuated, stray left empty+invisible.
 #   Log: log show --predicate 'senderImagePath contains "logger"' --last 1h | grep no_stray

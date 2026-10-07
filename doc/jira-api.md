@@ -1,7 +1,7 @@
 # jira-api.sh — Jira Cloud REST API query tool
 
-All jira tooling lives in one place: `~/.config/workspace-switcher/jira/` (scripts +
-aliases, sourced from `.bashrc`), data in `~/.cache/workspace-switcher/jira_json/`
+All jira tooling lives in one place: `~/.config/kitchen-sink/jira/` (scripts +
+aliases, sourced from `.bashrc`), data in `~/.cache/kitchen-sink/jira_json/`
 (what the jira window reads), cache in `~/.cache/jira/`, config in
 `~/.config/jira/config`.
 
@@ -262,7 +262,7 @@ every 10 minutes; each run decides its own window.
    succeeded — no data gap, no manual `--window`
 4. First run / no cache → full sync
 
-**Outputs** (atomic tmp+mv, into `~/.cache/workspace-switcher/jira_json/`):
+**Outputs** (atomic tmp+mv, into `~/.cache/kitchen-sink/jira_json/`):
 
 - `all.json` — the generic "all jiras" category (every cached issue, sorted by
   `updated` DESC)
@@ -276,13 +276,13 @@ every 10 minutes; each run decides its own window.
 |---|---|---|
 | `JIRA_POLL_MARGIN` | `5` | minutes subtracted from `LAST_POLL` for the window |
 | `JIRA_POLL_STATE` | `~/.cache/jira/poll-state` | poll state file |
-| `JIRA_POLL_OUT_DIR` | `~/.cache/workspace-switcher/jira_json` | window JSON output dir |
+| `JIRA_POLL_OUT_DIR` | `~/.cache/kitchen-sink/jira_json` | window JSON output dir |
 | `JIRA_POLL_PROJECTS` | (empty) | comma list → specialized per-project files |
 
 **Launching at start (macOS — launchd, not cron):**
 
 ```bash
-cp ~/.config/workspace-switcher/jira/com.jira.poll.plist ~/Library/LaunchAgents/
+cp ~/.config/kitchen-sink/jira/com.jira.poll.plist ~/Library/LaunchAgents/
 launchctl load ~/Library/LaunchAgents/com.jira.poll.plist
 # verify it ran: launchctl list | grep jira.poll   and   cat ~/.cache/jira/poll-state
 ```
@@ -313,7 +313,7 @@ One command asserts the whole stack, printing PASS/FAIL/WARN per check plus
 ```bash
 jira-doctor            # read-only report; exit 1 if anything fails
 jira-doctor --fix      # also: install/load the launchd agent, rebuild a stale
-                       # workspace-switcher binary, refresh a drifted plist
+                       # kitchen-sink binary, refresh a drifted plist
 ```
 
 Checks, in order:
@@ -326,13 +326,13 @@ Checks, in order:
 | cache & json | `~/.cache/jira/jiras.json` issue count; `aerospace/jira_json/all.json` mtime |
 | poll agent | plist installed at `~/Library/LaunchAgents/com.jira.poll.plist` (matches the repo copy) and **loaded** in launchd |
 | poll schedule | `LAST_POLL`/`STATUS`/`ITEMS` from `~/.cache/jira/poll-state`, then `next run = LAST_POLL + StartInterval` (overdue ⇒ WARN if loaded, FAIL if not) |
-| switcher daemon | binary newer than its Swift sources, daemon process alive, `commands.toml` has `copy-fields`, `aerospace.toml` floats `app-name = workspace-switcher` and wires `focus-bridge.sh` into `on-focus-changed`, karabiner Hyper+S/J/N bindings present |
+| switcher daemon | binary newer than its Swift sources, daemon process alive, `commands.toml` has `copy-fields`, `aerospace.toml` floats `app-name = kitchen-sink` and wires `focus-bridge.sh` into `on-focus-changed`, karabiner Hyper+S/J/N bindings present |
 
 Alias: `jira-doctor` (see the jira aliases in `bash/.bashrc`, sourced from `.bashrc`).
 
 ### The jeera window (jira list popup)
 
-The window that renders `jira_json/*.json` is the `workspace-switcher`
+The window that renders `jira_json/*.json` is the `kitchen-sink`
 daemon's list window (`aerospace/commands.toml` `[jira]` section). Beyond
 search/filter/tabs it supports copying issues:
 
@@ -414,7 +414,7 @@ worklog → attachment → status transition all moved `updated`, and
   `/rest/api/3/search/jql` for searches; the v2 issue/project/status discovery
   endpoints still work and return plain-text descriptions
 
-### End-to-end sync test (`~/.config/workspace-switcher/testbackups/jira-sync-test.sh`)
+### End-to-end sync test (`~/.config/kitchen-sink/testbackups/jira-sync-test.sh`)
 
 One command that proves the cache pipeline works, using fake data:
 
