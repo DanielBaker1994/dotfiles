@@ -89,6 +89,7 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         --resource-path="$ASSET_PICTURES_DIRECTORY_GLOBAL:$DOTDIR/markdown_generator" \
         --syntax-highlighting=tango \
         -V lang=en \
+        --lua-filter="$DOTDIR/markdown_generator/diagrams.lua" \
         --include-in-header="$markdown_css_styling" \
         --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
         --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \

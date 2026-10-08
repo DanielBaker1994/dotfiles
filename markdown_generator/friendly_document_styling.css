@@ -113,6 +113,13 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 .badge.muted  { --a: var(--p-dim, #6b7c90);     --bg: var(--p-s0, #f1f5f9); }
 .badge.accent { --a: var(--p-accent2, #8250df); --bg: var(--p-accent2-tint, rgba(130,80,223,.08)); }
 
+/* diagrams (```dot / ```d2 → inline SVG by diagrams.lua) */
+figure.diagram { margin: .9em 0; text-align: center; break-inside: avoid; }
+figure.diagram svg { max-width: 100%; height: auto; }
+pre.diagram-error { border: 1px solid var(--p-danger, #b00020); border-left-width: 6px; border-radius: 6px;
+  background: var(--p-danger-tint, rgba(176,0,32,.07)); color: var(--p-text, #1a1a1a); white-space: pre-wrap; padding: .7em 1em; }
+pre.diagram-error strong { color: var(--p-danger, #b00020); }
+
 /* ```diff: removed / added / hunk lines (pandoc tags them st / va / dt) */
 code.sourceCode.diff span.st { color: var(--p-danger, #b00020); }
 code.sourceCode.diff span.va { color: var(--p-success, #0a8a3a); }

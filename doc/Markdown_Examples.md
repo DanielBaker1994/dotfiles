@@ -269,3 +269,15 @@ or `:Insert` — fuzzy search over every snippet, grouped by
 `clipboard` to turn copied CSV / TSV into a table. Skeleton snippets:
 `markdown_doc_adr`, `_postmortem`, `_runbook`, `_pr`, `_status`, `_professional`,
 plus `markdown_api_endpoint`, `markdown_changelog_entry`.
+
+## Diagrams (Graphviz + D2)
+
+` ```dot ` / ` ```graphviz ` (Graphviz) and ` ```d2 ` fences become inline diagrams
+in the prose view, Export PDF and `EXTERNAL_BUILD_AND_OPEN_PDF`, coloured from the
+document's style marker (no marker = neutral grays). Filter:
+`markdown_generator/diagrams.lua` (kitchen-sink `[notes] pdf-filter`; default =
+beside `pdf-css`; `none` = off). Needs `brew install graphviz d2`. Don't write
+colors in the diagram — write nodes and edges only. A syntax error renders as a red
+box with the tool's message and your own line number. Snippets (category Diagrams):
+`markdown_dot_flowchart`, `_dot_architecture`, `_d2_flowchart`, `_d2_architecture`,
+`_d2_sequence`, `_d2_erd`. Cached by content in `~/.cache/kitchen-sink/diagrams`.
