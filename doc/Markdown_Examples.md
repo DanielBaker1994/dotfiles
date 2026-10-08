@@ -251,7 +251,7 @@ Templates: `tokyo-night` `paper` `executive` `terminal`, plus researched
 palettes (official hex values) `catppuccin-mocha` `catppuccin-latte` `dracula`
 `nord` `gruvbox-dark` `gruvbox-light` `solarized-dark` `solarized-light`
 `rose-pine` `rose-pine-dawn`. In the app, the ◐ chip on the Prose | nvim switch
-lists them (`[notes] doc-templates`).
+lists them (read from the stylesheet's palette blocks).
 
 ## Developer callouts, badges and the insert picker
 
@@ -281,3 +281,12 @@ colors in the diagram — write nodes and edges only. A syntax error renders as 
 box with the tool's message and your own line number. Snippets (category Diagrams):
 `markdown_dot_flowchart`, `_dot_architecture`, `_d2_flowchart`, `_d2_architecture`,
 `_d2_sequence`, `_d2_erd`. Cached by content in `~/.cache/kitchen-sink/diagrams`.
+
+## One stylesheet (how it is managed)
+
+`markdown_generator/friendly_document_styling.css` is the only place the rules live.
+Every color is a `--p-*` variable: the `:root` block at its top = the plain light
+style; the kitchen-sink app appends its theme's `:root { --p-* }` after it; a
+`<div class="doc NAME">` marker overrides both with `:root:has(.NAME)`. kitchen-sink's
+`prose_theme.css` is now empty of rules. `copy_button.css` is shared the same way.
+New template = one palette block in that file.

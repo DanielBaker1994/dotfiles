@@ -1,33 +1,16 @@
 <style>
-.codeblock {
-  display: flex;
-  align-items: stretch;
-}
-
-.codeblock pre {
-  flex: 1 1 auto;
-  min-width: 0;
-  margin: 0.8em 0;
-}
-
-.copy-btn {
-  flex: 0 0 auto;
-  align-self: stretch;
-  margin: 0.8em 8px 0.8em 0;
-  width: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 8px;
-  background: var(--p-s0, #e8ecf1);
-  color: var(--p-dim, #6b7c90);   /* the icon (currentColor); unset it was the button's default black */
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.copy-btn:hover { background: var(--p-s1, #d6dde6); color: var(--p-text, #1a1a1a); }
-.copy-btn:active { background: var(--p-s1, #c3ccd8); }
-.copy-btn.copied { background: var(--p-success-tint, #d4edda); color: var(--p-success, #1a7f37); }
+/* Copy-to-clipboard button beside each code block (copy_button.js adds the .codeblock
+   wrapper + .copy-btn). Screen only. Shared: the kitchen-sink reading view loads this
+   same file (beside [notes] pdf-css); colors come from the --p-* palette. */
+.codeblock { display: flex; align-items: stretch; }
+.codeblock pre { flex: 1 1 auto; min-width: 0; }
+.copy-btn { flex: 0 0 auto; align-self: stretch; width: 34px; margin: .8em 8px .8em 0;
+  display: flex; align-items: center; justify-content: center; padding: 0;
+  border: none; border-radius: 8px; background: var(--p-s0); color: var(--p-dim);
+  cursor: pointer; transition: background .15s, color .15s; }
+.copy-btn:hover { background: var(--p-s1); color: var(--p-text); }
+.copy-btn:active { background: var(--p-s1); }
+.copy-btn.copied { background: var(--p-success-tint); color: var(--p-success); }
 .copy-btn:focus { outline: none; }
+.copy-btn svg { width: 16px; height: 16px; }
 </style>

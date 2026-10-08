@@ -1,14 +1,34 @@
 <style>
 
+/* ═══ ONE palette, ONE rule set ═══
+   Every color below reads a --p-* variable. This :root block is the plain light
+   style; the kitchen-sink app appends its theme's :root { --p-*: … } AFTER this
+   file (same specificity, later wins) and a document template overrides both via
+   :root:has(.name) (more specific). So one set of rules serves the plain nvim
+   build, the app's reading view / PDF, and every template. */
+:root {
+  --p-bg: #ffffff; --p-text: #1a1a1a; --p-dim: #6b7c90; --p-accent: #2b6cb0; --p-accent2: #1f5190;
+  --p-well: #f5f6f7; --p-s0: #f7fbff; --p-s1: #eaf3fb; --p-rule: #d6e4f0;
+  --p-info: #0b66c3; --p-info-tint: rgba(11,102,195,.05);
+  --p-success: #0a8a3a; --p-success-tint: rgba(10,138,58,.05);
+  --p-warning: #b45309; --p-warning-tint: rgba(224,155,0,.06);
+  --p-danger: #b00020; --p-danger-tint: rgba(176,0,32,.06);
+  --p-accent2-tint: rgba(31,81,144,.06); --p-selection: rgba(43,108,176,.25);
+  --md-accent_pretty: var(--p-accent); --md-accent_pretty-2: var(--p-accent2); --md-muted: var(--p-dim);
+}
+::selection { background: var(--p-selection); }
+div.sourceCode { background-color: transparent; }   /* pandoc paints this near-white */
+
 /* "Hack Nerd Font" is installed in ~/Library/Fonts and resolved by
    weasyprint via fontconfig; no @font-face needed. */
 .glyph { font-family: "Hack Nerd Font" }
 
 
 html {
-    color: #1a1a1a;
-    background-color: #ffffff;
+    color: var(--p-text);
+    background-color: var(--p-bg);
 }
+body { color: var(--p-text); }
 body {
     margin: 0 auto;
     max-width: 50em;
@@ -44,11 +64,11 @@ div.note, div.tip, div.important, div.warning, div.caution {
   color: var(--t);
   box-sizing: border-box;
 }
-div.note      { --a: #0b66c3; --bg: rgba(11,102,195,0.05); --t: #063a63; }
-div.tip       { --a: #0a8a3a; --bg: rgba(10,138,58,0.05); --t: #064e2a; }
-div.important { --a: #8250df; --bg: rgba(130,80,223,0.05); --t: #3d1f78; }
-div.warning   { --a: #e09b00; --bg: rgba(224,155,0,0.06); --t: #5b3b00; }
-div.caution   { --a: #b00020; --bg: rgba(176,0,32,0.06); --t: #5a0b12; }
+div.note { --a: var(--p-info); --bg: var(--p-info-tint); --t: var(--p-text); }
+div.tip { --a: var(--p-success); --bg: var(--p-success-tint); --t: var(--p-text); }
+div.important { --a: var(--p-accent2); --bg: var(--p-accent2-tint); --t: var(--p-text); }
+div.warning { --a: var(--p-warning); --bg: var(--p-warning-tint); --t: var(--p-text); }
+div.caution { --a: var(--p-danger); --bg: var(--p-danger-tint); --t: var(--p-text); }
 
 div.note > div.title, div.tip > div.title, div.important > div.title,
 div.warning > div.title, div.caution > div.title {
@@ -76,23 +96,23 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
    Callout:  <div class="callout risk">  (blank line)  markdown  (blank line)  </div>
    kinds: decision risk breaking deprecated action example question rollback perf
    Badge:    <span class="badge ok">Shipped</span>   (ok warn bad info muted accent)
-   Colors follow the template's --p-* palette; the fallbacks are the plain light style. */
+   Colors follow the --p-* palette (plain defaults at the top of this file). */
 .callout { margin: .8em 0; padding: .7em 1em .5em; border-left: 6px solid var(--a); border-radius: 6px;
            background: var(--bg); box-sizing: border-box; break-inside: avoid;
-           --a: var(--p-accent, #2b6cb0); --bg: var(--p-s0, #f1f5f9); }
+           --a: var(--p-accent); --bg: var(--p-s0); }
 .callout::before { display: block; margin-bottom: .35em; font-size: .78em; font-weight: 700;
                    letter-spacing: .07em; text-transform: uppercase; color: var(--a); }
 .callout > :first-child { margin-top: 0; }
 .callout > :last-child { margin-bottom: .2em; }
-.callout.decision   { --a: var(--p-accent2, #8250df); --bg: var(--p-accent2-tint, rgba(130,80,223,.07)); }
-.callout.risk       { --a: var(--p-warning, #b45309); --bg: var(--p-warning-tint, rgba(224,155,0,.08)); }
-.callout.breaking   { --a: var(--p-danger, #b00020);  --bg: var(--p-danger-tint, rgba(176,0,32,.07)); }
-.callout.deprecated { --a: var(--p-dim, #6b7c90);     --bg: var(--p-s0, #f1f5f9); }
-.callout.action     { --a: var(--p-success, #0a8a3a); --bg: var(--p-success-tint, rgba(10,138,58,.07)); }
-.callout.example    { --a: var(--p-info, #0b66c3);    --bg: var(--p-info-tint, rgba(11,102,195,.07)); }
-.callout.question   { --a: var(--p-accent, #2b6cb0);  --bg: var(--p-s0, #f1f5f9); }
-.callout.rollback   { --a: var(--p-danger, #b00020);  --bg: var(--p-s0, #f1f5f9); }
-.callout.perf       { --a: var(--p-success, #0a8a3a); --bg: var(--p-s0, #f1f5f9); }
+.callout.decision   { --a: var(--p-accent2); --bg: var(--p-accent2-tint); }
+.callout.risk       { --a: var(--p-warning); --bg: var(--p-warning-tint); }
+.callout.breaking   { --a: var(--p-danger);  --bg: var(--p-danger-tint); }
+.callout.deprecated { --a: var(--p-dim);     --bg: var(--p-s0); }
+.callout.action     { --a: var(--p-success); --bg: var(--p-success-tint); }
+.callout.example    { --a: var(--p-info);    --bg: var(--p-info-tint); }
+.callout.question   { --a: var(--p-accent);  --bg: var(--p-s0); }
+.callout.rollback   { --a: var(--p-danger);  --bg: var(--p-s0); }
+.callout.perf       { --a: var(--p-success); --bg: var(--p-s0); }
 .callout.decision::before   { content: "Decision"; }
 .callout.risk::before       { content: "Risk"; }
 .callout.breaking::before   { content: "Breaking change"; }
@@ -105,25 +125,25 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 
 .badge { display: inline-block; padding: 0 .6em; border-radius: 999px; border: 1px solid var(--a); background: var(--bg);
          color: var(--a); font: 600 .78em/1.7 "Helvetica Neue", Helvetica, Arial, sans-serif; white-space: nowrap;
-         vertical-align: .08em; --a: var(--p-accent, #2b6cb0); --bg: var(--p-s0, #eef2f7); }
-.badge.ok     { --a: var(--p-success, #0a8a3a); --bg: var(--p-success-tint, rgba(10,138,58,.08)); }
-.badge.warn   { --a: var(--p-warning, #b45309); --bg: var(--p-warning-tint, rgba(224,155,0,.1)); }
-.badge.bad    { --a: var(--p-danger, #b00020);  --bg: var(--p-danger-tint, rgba(176,0,32,.08)); }
-.badge.info   { --a: var(--p-info, #0b66c3);    --bg: var(--p-info-tint, rgba(11,102,195,.08)); }
-.badge.muted  { --a: var(--p-dim, #6b7c90);     --bg: var(--p-s0, #f1f5f9); }
-.badge.accent { --a: var(--p-accent2, #8250df); --bg: var(--p-accent2-tint, rgba(130,80,223,.08)); }
+         vertical-align: .08em; --a: var(--p-accent); --bg: var(--p-s0); }
+.badge.ok     { --a: var(--p-success); --bg: var(--p-success-tint); }
+.badge.warn   { --a: var(--p-warning); --bg: var(--p-warning-tint); }
+.badge.bad    { --a: var(--p-danger);  --bg: var(--p-danger-tint); }
+.badge.info   { --a: var(--p-info);    --bg: var(--p-info-tint); }
+.badge.muted  { --a: var(--p-dim);     --bg: var(--p-s0); }
+.badge.accent { --a: var(--p-accent2); --bg: var(--p-accent2-tint); }
 
 /* diagrams (```dot / ```d2 → inline SVG by diagrams.lua) */
 figure.diagram { margin: .9em 0; text-align: center; break-inside: avoid; }
 figure.diagram svg { max-width: 100%; height: auto; }
-pre.diagram-error { border: 1px solid var(--p-danger, #b00020); border-left-width: 6px; border-radius: 6px;
-  background: var(--p-danger-tint, rgba(176,0,32,.07)); color: var(--p-text, #1a1a1a); white-space: pre-wrap; padding: .7em 1em; }
-pre.diagram-error strong { color: var(--p-danger, #b00020); }
+pre.diagram-error { border: 1px solid var(--p-danger); border-left-width: 6px; border-radius: 6px;
+  background: var(--p-danger-tint); color: var(--p-text); white-space: pre-wrap; padding: .7em 1em; }
+pre.diagram-error strong { color: var(--p-danger); }
 
 /* ```diff: removed / added / hunk lines (pandoc tags them st / va / dt) */
-code.sourceCode.diff span.st { color: var(--p-danger, #b00020); }
-code.sourceCode.diff span.va { color: var(--p-success, #0a8a3a); }
-code.sourceCode.diff span.dt { color: var(--p-info, #0b66c3); }
+code.sourceCode.diff span.st { color: var(--p-danger); }
+code.sourceCode.diff span.va { color: var(--p-success); }
+code.sourceCode.diff span.dt { color: var(--p-info); }
 
 /* Common pseudo-element style for all language icons (single authoritative block) */
 pre.sourceCode.bash::before,
@@ -153,31 +173,31 @@ pre[class*="log"]::before {
 
 
 pre.sourceCode.vim::before,
-pre[class*="vim"]::before  { content: ""; color: #000000; }
+pre[class*="vim"]::before  { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.bash::before,
-pre[class*="bash"]::before  { content: ""; color: #000000; }
+pre[class*="bash"]::before  { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.cpp::before,
-pre[class*="cpp"]::before   { content: "󰙲"; color: #00599C; }
+pre[class*="cpp"]::before   { content: "󰙲"; color: var(--p-dim); }
 
 pre.sourceCode.lua::before,
-pre[class*="lua"]::before   { content: ""; color: #1e4d93; }
+pre[class*="lua"]::before   { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.python::before,
-pre[class*="python"]::before { content: ""; color: #FFE873; }
+pre[class*="python"]::before { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.shell::before,
-pre[class*="shell"]::before  { content: ""; color: #0f5132; }
+pre[class*="shell"]::before  { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.java::before,
-pre[class*="java"]::before   { content: "󰬷"; color: #b07219; }
+pre[class*="java"]::before   { content: "󰬷"; color: var(--p-dim); }
 
 pre.sourceCode.file::before,
-pre[class*="file"]::before   { content: ""; color: #b07219; }
+pre[class*="file"]::before   { content: ""; color: var(--p-dim); }
 
 pre.sourceCode.log::before,
-pre[class*="log"]::before    { content: "󱂅"; color: #b07219; }
+pre[class*="log"]::before    { content: "󱂅"; color: var(--p-dim); }
 
 /* Fenced code block background and rounded corners */
 .sourceCode > pre,
@@ -191,7 +211,9 @@ pre[class*="shell"],
 pre[class*="java"],
 pre[class*="log"],
 pre[class*="file"] {
-  background-color: #f5f6f7; /* light grey */
+  background-color: var(--p-well);
+  border: 1px solid var(--p-rule);
+  color: var(--p-text);
   border-radius: 8px;
   padding: 0.8em 1em;
   margin: 0.8em 0;
@@ -215,89 +237,23 @@ pre[class*="file"] code {
 }
 
 
-table {
-  width: 100%;
-  border-collapse: separate;    /* changed to allow border-radius */
-  border-spacing: 0;
-  margin: 25px 0;
-  font-size: 0.95em;
-  min-width: 400px;
-  /* box-shadow: 0 6px 20px rgba(43,108,176,0.06); */
-  border-radius: 8px;           /* rounded corners */
-  overflow: hidden;             /* clip corners for inner cells */
-}
-
-/* Header: Confluence-esque blue */
-thead tr {
-  background: linear-gradient(180deg,#2B6CB0,#1F5190);
-  color: #ffffff;
-  text-align: left;
-}
-
-/* round header top corners */
-thead th:first-child { border-top-left-radius: 8px; }
-thead th:last-child  { border-top-right-radius: 8px; }
-
-/* Cells: use separators instead of full borders so rounded corners show through */
-th,
-td {
-  padding: 12px 15px;
-  border: none; /* remove full cell borders so table radius is visible */
-}
-
-/* vertical separators between adjacent cells */
-th + th,
-td + td {
-  border-left: 1px solid #D6EAF8;
-}
-
-/* horizontal separators between adjacent rows */
-tbody tr + tr td {
-  border-top: 1px solid #D6EAF8;
-}
-
-/* Row striping: soft blues */
-tbody tr:nth-of-type(odd) {
-  background-color: #F7FBFF;
-}
-tbody tr:nth-of-type(even) {
-  background-color: #EAF6FF;
-}
-
-/* Hover: gentle lift */
-tbody tr:hover {
-  background-color: #D6EDFF;
-  transition: background-color 150ms ease-in-out;
-}
-
-/* subtle accent for first column cells */
-tbody td:first-child {
-  background-color: rgba(43,108,176,0.03);
-}
-
-/* round bottom corners on last row */
-tbody tr:last-child td:first-child  { border-bottom-left-radius: 8px; }
-tbody tr:last-child td:last-child   { border-bottom-right-radius: 8px; }
-
-/* last-row accent */
-tbody tr:last-of-type td {
-  border-bottom: 2px solid #BFE6FF;
-}
-
-
-
-
-
-
-
-
-
-
-:root{
-  --md-accent_pretty: #2b6cb0;
-  --md-accent_pretty-2: #1f5190;
-  --md-muted: #6b7c90;
-}
+/* Tables: the frame hugs the table, a solid accent header, a raised first column as
+   row labels, hairline grid, and a dim dot in empty cells so blank tables read as
+   intentional. Separate borders keep the rounded frame intact. */
+table { display: table; width: auto; max-width: 100%; border-collapse: separate; border-spacing: 0;
+        margin: .8em 0; font-size: 0.95em; border: 1px solid var(--p-rule); border-radius: 4px;
+        background-color: var(--p-s0); break-inside: avoid; }
+thead tr, thead th { background: var(--p-accent); color: var(--p-bg); font-weight: 600; text-align: left; }
+thead th:first-child { border-top-left-radius: 3px; }
+thead th:last-child { border-top-right-radius: 3px; }
+th, td { padding: 12px 15px; border: none; color: var(--p-text); }
+thead th { color: var(--p-bg); }
+thead th + th { border-left: 1px solid var(--p-bg); }
+tbody td { background-color: var(--p-s0); border-top: 1px solid var(--p-rule); }
+tbody td + td { border-left: 1px solid var(--p-rule); }
+tbody td:first-child { background-color: var(--p-s1); font-weight: 600; }
+tbody td:empty::after { content: "\00B7"; color: var(--p-rule); }
+tbody tr:hover { background-color: transparent; }
 
 /* Section headers */
 h1{ margin:18px 0 10px 0; font-size:22px; color:var(--md-accent_pretty); }
@@ -341,7 +297,7 @@ ol ol li::marker {
 
 hr {
   border: none;
-  border-top: 2px solid var(--md-accent_pretty);
+  border-top: 2px solid var(--p-rule);
   height: 1px;
   margin: 1em 0;
 }
@@ -350,8 +306,8 @@ hr {
 :not(pre) > code {
   font-family: "Hack Nerd Font Mono", Menlo, Consolas, monospace;
   font-size: 0.9em;
-  background: rgba(43,108,176,0.08);
-  color: var(--md-accent_pretty-2);
+  background: var(--p-well);
+  color: var(--p-accent2);
   padding: 2px 6px;
   border-radius: 5px;
 }
@@ -360,7 +316,7 @@ hr {
 a {
   color: var(--md-accent_pretty);
   text-decoration: none;
-  border-bottom: 1px solid rgba(43,108,176,0.35);
+  border-bottom: 1px solid var(--p-accent);
 }
 
 /* Plain blockquotes. GitHub alerts become div.note / div.tip / ... (above),
@@ -368,8 +324,8 @@ a {
 blockquote {
   margin: 0.8em 0;
   padding: 0.3em 1em;
-  border-left: 4px solid rgba(43,108,176,0.35);
-  color: var(--md-muted);
+  border-left: 4px solid var(--p-accent);
+  color: var(--p-dim);
 }
 
 /* Images (weasyprint has no box-shadow; border gives the framing) */
@@ -379,7 +335,7 @@ img {
   display: block;
   margin: 1em auto;
   border-radius: 8px;
-  border: 1px solid rgba(16,40,80,0.15);
+  border: 1px solid var(--p-rule);
 }
 
 /* Monospace font for fenced code */
@@ -389,7 +345,7 @@ pre, pre > code {
 
 /* Optional table of contents: add --toc --toc-depth=2 to the pandoc call */
 nav#TOC {
-  border: 1px solid rgba(43,108,176,0.25);
+  border: 1px solid var(--p-rule);
   border-radius: 8px;
   padding: 12px 20px;
   margin: 1em 0;
@@ -403,10 +359,11 @@ nav#TOC a { border-bottom: none; }
    (below) swaps in its own `@page doc` */
 @page {
   margin: 18mm 16mm;
+  background-color: var(--p-bg);
   @bottom-center {
     content: counter(page) " / " counter(pages);
     font-size: 9px;
-    color: #6b7c90;
+    color: var(--p-dim);
   }
 }
 
@@ -582,7 +539,7 @@ h1:first-of-type + p { string-set: doc-sub content(text); }
 :root:has(.rose-pine-dawn) body { font-family: Georgia, "Times New Roman", serif; }
 
 /* — shared template structure (any .doc template) — */
-:root:has(.doc) body { page: doc; }
+:root:has(.doc) body { page: doc; padding-top: 0; padding-bottom: 0; }
 :root:has(.doc) h1, :root:has(.doc) h2, :root:has(.doc) h3, :root:has(.doc) h4 { font-family: var(--t-head-font); }
 :root:has(.doc) h1:first-of-type {
   background: var(--t-title-bg); color: var(--t-title-color);
@@ -606,37 +563,6 @@ h1:first-of-type + p { string-set: doc-sub content(text); }
 :root:has(.doc) code span.dv, :root:has(.doc) code span.bn, :root:has(.doc) code span.fl,
 :root:has(.doc) code span.cn { color: var(--t-num); }
 :root:has(.doc) code span.op, :root:has(.doc) code span.va, :root:has(.doc) code span.pp { color: var(--p-text); }
-
-/* — consumers of the --p-* palette, gated to templates (so the plain nvim
-   pipeline gets them too; the app's prose_theme.css has ungated copies) — */
-:root:has(.doc) { color: var(--p-text); background-color: var(--p-bg); }
-:root:has(.doc) body { color: var(--p-text); padding-top: 0; padding-bottom: 0; }
-:root:has(.doc) a, :root:has(.doc) a:visited { color: var(--p-accent); border-bottom-color: var(--p-accent); }
-:root:has(.doc) :not(pre) > code, :root:has(.doc) code { background: var(--p-well); color: var(--p-accent2); }
-:root:has(.doc) pre, :root:has(.doc) pre.sourceCode, :root:has(.doc) .sourceCode > pre,
-:root:has(.doc) pre[class*="bash"], :root:has(.doc) pre[class*="cpp"], :root:has(.doc) pre[class*="lua"],
-:root:has(.doc) pre[class*="python"], :root:has(.doc) pre[class*="vim"], :root:has(.doc) pre[class*="shell"],
-:root:has(.doc) pre[class*="java"], :root:has(.doc) pre[class*="log"], :root:has(.doc) pre[class*="file"] {
-  background-color: var(--p-well); border: 1px solid var(--p-rule); color: var(--p-text); }
-:root:has(.doc) pre code { background: transparent; color: var(--p-text); }
-:root:has(.doc) pre::before { color: var(--p-dim) !important; }
-:root:has(.doc) div.sourceCode { background-color: transparent; }
-:root:has(.doc) blockquote { border-left-color: var(--p-accent); color: var(--p-dim); }
-:root:has(.doc) hr { border-top-color: var(--p-rule); }
-:root:has(.doc) img { border-color: var(--p-rule); }
-:root:has(.doc) table { display: table; width: auto; min-width: 0; max-width: 100%; border-collapse: separate; border-spacing: 0;
-  border: 1px solid var(--p-rule); border-radius: 4px; background-color: var(--p-s0); margin: .8em 0; }
-:root:has(.doc) thead tr, :root:has(.doc) thead th { background: var(--p-accent); color: var(--p-bg); font-weight: 600; border: none; }
-:root:has(.doc) thead th + th { border-left: 1px solid var(--p-bg); }
-:root:has(.doc) th, :root:has(.doc) td { color: var(--p-text); border: none; }
-:root:has(.doc) tbody td { background-color: var(--p-s0); border-top: 1px solid var(--p-rule); }
-:root:has(.doc) tbody td + td { border-left: 1px solid var(--p-rule); }
-:root:has(.doc) tbody td:first-child { background-color: var(--p-s1); font-weight: 600; }
-:root:has(.doc) div.note { --a: var(--p-info); --bg: var(--p-info-tint); --t: var(--p-text); }
-:root:has(.doc) div.tip { --a: var(--p-success); --bg: var(--p-success-tint); --t: var(--p-text); }
-:root:has(.doc) div.important { --a: var(--p-accent2); --bg: var(--p-accent2-tint); --t: var(--p-text); }
-:root:has(.doc) div.warning { --a: var(--p-warning); --bg: var(--p-warning-tint); --t: var(--p-text); }
-:root:has(.doc) div.caution { --a: var(--p-danger); --bg: var(--p-danger-tint); --t: var(--p-text); }
 
 /* — page furniture: PDF only (@page is ignored on screen) —
    page 1 has no running header (the title block is the header);
