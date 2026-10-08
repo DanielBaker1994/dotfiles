@@ -3,15 +3,11 @@
 	b = branch
 	st = status
 	cm = commit -m
-	jira = !git rev-parse --abbrev-ref HEAD | grep -o \"[0-9]*\" | xargs -I {} python -mwebbrowser http://jira.company/browse/OTB-{}
 	sl = stash list
-	st = status
-	cm = commit -m
 	rc = rebase --continue
 	ca = commit --amend
 	ra = rebase --abort
 	cc = cherry-pick --continue
-	b = branch
 	squash = !git add -u && git cm "CommitToSquash" && git rebase -i head~2
 	npushed = log @{u}..
 	whenadded = log --diff-filter=A --
@@ -24,11 +20,6 @@
 [status]
 	submoduleSummary = false
 
-[filter "lfs"]
-	clean = git-lfs clean -- %f
-	smudge = git-lfs smudge -- %f
-	process = git-lfs filter-process
-	required = true
 [user]
 	name = Your Name
 	email = you@example.com

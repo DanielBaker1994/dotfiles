@@ -28,11 +28,6 @@ export DEV_WORKSPACE="$DEV_NOTES/Workspace"
 #much nicer man pages from neovim
 export MANPAGER="nvim +Man!"
 
-# external.sh is sourced by ~/.bashrc (below) — once, not twice.
-if [[ -f ~/.dotfiles/bash/tmux_connect.sh ]]; then
-    source "$HOME/.dotfiles/bash/tmux_connect.sh"
-fi
-
 if [[ -f $HOME/.bashrc ]]; then
     source "$HOME/.bashrc"
 fi

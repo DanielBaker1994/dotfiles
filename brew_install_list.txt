@@ -112,7 +112,6 @@ openssl@3
 pandoc
 pango
 pcre2
-pillow
 pixman
 pkgconf
 pngpaste
@@ -162,7 +161,6 @@ brackets
 docker-desktop
 font-hack-nerd-font
 font-libertinus
-kitty
 textsniper
 wezterm
 zoxide

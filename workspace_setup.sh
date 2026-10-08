@@ -5,10 +5,6 @@
 # Symlinks every managed config into place, installs font/tooling deps, and
 # applies the macOS system tweaks the setup depends on.
 #
-# NOTE: the window-manager stack (aerospace, borders,
-# karabiner, kitchen sink) moved out to the standalone app repo:
-#   ~/.config/kitchen-sink/INSTALL.sh   (one command, does its own install)
-#
 # Safe to re-run: existing symlinks are replaced, real files are backed up to
 # /tmp/backup_configs_<timestamp>. Does not uninstall anything.
 #
@@ -80,20 +76,17 @@ fi
 echo
 echo "==> Applying macOS system tweaks..."
 
-# Keep the native menu bar visible (SketchyBar, which replaced it, was removed
-# 2026-10-06). macOS 26+: System Settings > Control Center > "Automatically
-# hide and show the menu bar" = Never. The legacy _HIHideMenuBar key alone is
-# NOT enough — the controlcenter AutoHideMenuBarOption (0=Always … 3=Never)
-# overrides it.
+# Keep the native menu bar visible. macOS 26+: System Settings > Control
+# Center > "Automatically hide and show the menu bar" = Never. The legacy
+# _HIHideMenuBar key alone is NOT enough — the controlcenter
+# AutoHideMenuBarOption (0=Always … 3=Never) overrides it.
 defaults write NSGlobalDomain _HIHideMenuBar -bool false
 defaults write com.apple.controlcenter AutoHideMenuBarOption -int 3
 osascript -e 'tell application "System Events" to set autohide menu bar of dock preferences to false'
 killall ControlCenter Finder 2>/dev/null || true
 
 # "Displays have separate Spaces" off (spans-displays = 1): makes every monitor
-# share one set of workspaces. AeroSpace recommends this for stable focus and to
-# avoid per-display workspace weirdness (e.g. the Raycast launcher shuffle).
-# Requires logout/login to take effect.
+# share one set of workspaces. Requires logout/login to take effect.
 defaults write com.apple.spaces spans-displays -bool true
 
 echo

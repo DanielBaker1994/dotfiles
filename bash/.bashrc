@@ -25,7 +25,6 @@ f() {
     sel=$(fzf --bind 'ctrl-y:execute(printf %s $PWD/{} | command pbcopy)+abort') || return
     nvim "$PWD/$sel"
 }
-#alias mediaconnect='ssh -X daniel@10.0.0.93'
 mediaconnect() {
     ssh daniel@10.0.0.247
 }
@@ -40,7 +39,6 @@ export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOl
 alias bashr='source ~/.bash_profile'
 alias bbopen='nvim ~/.bash_profile'
 alias bopen='nvim ~/.bashrc'
-#alias cdcpp='cd ~/src/CPP_LEARN'
 alias topen='nvim ~/.tmux.conf'
 alias tsource='tmux source ~/.tmux.conf'
 alias vi='nvim'
@@ -53,13 +51,14 @@ alias pbcopy="perl -pe 'chomp if eof' | pbcopy"
 alias cddot="cd ~/.dotfiles"
 [ -f "$HOME/.dotfiles/bash/aliases-backup.sh" ] && source "$HOME/.dotfiles/bash/aliases-backup.sh"
 alias ..="cd .."
-#alias -="cd -"
 
 if [ -f "$HOME/.dotfiles/bash/workflow.sh" ]; then
     source "$HOME/.dotfiles/bash/workflow.sh"
 fi
 
 FILE_LINES=/tmp/files_lines.txt
+alias ga='git add -u'
+alias gs='git status'
 parse_git_branch() {
     local b
     b=$(git symbolic-ref --short HEAD 2>/dev/null) && printf ' (%s)' "$b" || printf ' (detached)'
@@ -141,9 +140,6 @@ win() {
             --bind='esc:abort'
 }
 
-#git worktree add -b testworktreebranch /tmp/worktreetemp/
-# git worktree list
-
 # External commands & config consumed by nvim (EXTERNAL_BUILD_AND_OPEN_PDF,
 # EXTERNAL_PATHS_GLOBAL, NVIM_CD_TARGETS, JIRA_URL). Kept together in one file.
 if [ -f ~/.dotfiles/bash/external.sh ]; then
@@ -154,13 +150,11 @@ fi
 eval "$(zoxide init bash)"
 # fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
 eval "$(fzf --bash)"
-#export PATH=$HOME/.local/bin:$PATH
 
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
 export PATH="/Users/danielbaker/.local/bin:$PATH"
 
-# kitchen-sink shell utilities (prettyprint: format JSON/XML from stdin)
 if [ -f "$HOME/.config/kitchen-sink/bin/utils.sh" ]; then
     source "$HOME/.config/kitchen-sink/bin/utils.sh"
 fi

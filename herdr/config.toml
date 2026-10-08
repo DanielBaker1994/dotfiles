@@ -36,7 +36,7 @@ previous_agent = "prefix+shift+a"
 split_horizontal = "prefix+-"
 split_vertical = "prefix+|"
 
-# no Opt+H/J/K/L resize: AeroSpace owns alt-h/j/k/l (focus window); resize = prefix+r
+# no Opt+H/J/K/L resize; resize = prefix+r
 resize_pane_left = ""
 resize_pane_down = ""
 resize_pane_up = ""

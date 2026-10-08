@@ -25,7 +25,6 @@ _sl_manifest() {
         "$HOME/.bash_profile|$SL_DIR/bash/.bash_profile" \
         "$HOME/.bashrc|$SL_DIR/bash/.bashrc" \
         "$HOME/.inputrc|$SL_DIR/bash/.inputrc" \
-        "$HOME/tmux_connect.sh|$SL_DIR/bash/tmux_connect.sh" \
         "$HOME/.tmux.conf|$SL_DIR/tmux/.tmux.conf" \
         "$HOME/.config/nvim|$SL_DIR/nvim" \
         "$HOME/.config/sesh|$SL_DIR/sesh" \
@@ -40,7 +39,8 @@ _sl_manifest() {
 _sl_stale() {
     printf '%s\n' \
         "$HOME/.kitty" \
-        "$HOME/.config/kitty"
+        "$HOME/.config/kitty" \
+        "$HOME/tmux_connect.sh"
 }
 
 _sl_build_manifest() {

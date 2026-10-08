@@ -3,7 +3,7 @@
 # Keep the Lua side in sync: ~/.dotfiles/nvim/lua/bash_external/
 # (each of these has a matching module there that prefetches/caches the value).
 #
-# Sourced by both ~/.dotfiles/bash/.bash_profile and ~/.dotfiles/bash/.bashrc.
+# Sourced by ~/.dotfiles/bash/.bashrc.
 
 # Used by nvim :Jira (lua/bash_external/jira.lua) to build the ticket link.
 # The ticket prefix (e.g. JT) is prompted for once by nvim and cached in
@@ -67,7 +67,7 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
 
     local markdown_source="$1" pdf_output_path="$2"
     if [ -z "$markdown_source" ] || [ -z "$pdf_output_path" ]; then
-        printf 'usage: build_and_open_pdf markdown_source RESOURCE_PATH OUT_PATH\n' >&2
+        printf 'usage: build_and_open_pdf markdown_source OUT_PATH\n' >&2
         return 1
     fi
     previews=$(ps -ef | pgrep "Preview" 2>/dev/null || true)
@@ -99,7 +99,8 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         return 3
     fi
 
-    weasyprint "$html_tmp" "$pdf_file" || {
+    # --pdf-tags: tagged PDF (reflow / paragraph copy in readers)
+    weasyprint --pdf-tags "$html_tmp" "$pdf_file" || {
         echo "weasyprint failed"
         return 3
     }

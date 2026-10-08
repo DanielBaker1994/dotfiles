@@ -20,12 +20,14 @@
   justify-content: center;
   border: none;
   border-radius: 8px;
-  background: #e8ecf1;
+  background: var(--p-s0, #e8ecf1);
+  color: var(--p-dim, #6b7c90);   /* the icon (currentColor); unset it was the button's default black */
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.copy-btn:hover { background: #d6dde6; }
-.copy-btn:active { background: #c3ccd8; }
-.copy-btn.copied { background: #d4edda; }
+.copy-btn:hover { background: var(--p-s1, #d6dde6); color: var(--p-text, #1a1a1a); }
+.copy-btn:active { background: var(--p-s1, #c3ccd8); }
+.copy-btn.copied { background: var(--p-success-tint, #d4edda); color: var(--p-success, #1a7f37); }
+.copy-btn:focus { outline: none; }
 </style>

@@ -1,3 +1,5 @@
+<div class="doc tokyo-night"></div>
+
 # Markdown Examples
 Paired raw → rendered examples
 
@@ -224,3 +226,46 @@ pandoc -s -f gfm -t html5 \
 > - Firefox gotcha: `open file.html` reuses the existing tab WITHOUT
 >   reloading - after regenerating HTML you must Cmd+R to see changes.
 > - weasyprint runs no JS, so the PDF output is unaffected by all of this.
+
+## Document templates (one marker restyles everything)
+
+Put one line anywhere in the markdown (nvim snippets `markdown_doc_tokyo_night`,
+`_paper`, … one per template; defined in kitchen-sink
+`vim/snippets/markdown.json`):
+
+```html
+<div class="doc tokyo-night" data-foot="Confidential"></div>
+```
+
+- `# Title` = page-1 title and the running header on pages 2+; the paragraph
+  right under it = subtitle (header, right). `data-foot` = footer text; the
+  footer's right side is "Page n of N".
+- No marker = the plain style, unchanged. Templates live ONLY in
+  `markdown_generator/friendly_document_styling.css` (palette vars `--p-*`,
+  `--t-*`, `:root:has(.name)`); the kitchen-sink app loads that same file
+  (`[notes] pdf-css`), so reading view, Export PDF and
+  `EXTERNAL_BUILD_AND_OPEN_PDF` render identically. New template = copy a
+  `:root:has(.name) { … }` palette block.
+
+Templates: `tokyo-night` `paper` `executive` `terminal`, plus researched
+palettes (official hex values) `catppuccin-mocha` `catppuccin-latte` `dracula`
+`nord` `gruvbox-dark` `gruvbox-light` `solarized-dark` `solarized-light`
+`rose-pine` `rose-pine-dawn`. In the app, the ◐ chip on the Prose | nvim switch
+lists them (`[notes] doc-templates`).
+
+## Developer callouts, badges and the insert picker
+
+Callouts (`<div class="callout KIND">`, a blank line, markdown, a blank line,
+`</div>`): `decision` `risk` `breaking` `deprecated` `action` `example`
+`question` `rollback` `perf`. The label is drawn by the CSS — don't repeat it
+in the text. Badges: `<span class="badge ok">Shipped</span>` (`ok warn bad
+info muted accent`). ` ```diff ` colors removed / added / hunk lines.
+Page break: `<div class="pagebreak"></div>`. All CSS is in
+`friendly_document_styling.css` (works with or without a style marker).
+
+nvim insert picker (kitchen-sink `vim/snippets.lua`): `<leader>i` (normal mode)
+or `:Insert` — fuzzy search over every snippet, grouped by
+`category`, with a preview. Type `3x4` for a table (3 body rows x 4 columns),
+`clipboard` to turn copied CSV / TSV into a table. Skeleton snippets:
+`markdown_doc_adr`, `_postmortem`, `_runbook`, `_pr`, `_status`, `_professional`,
+plus `markdown_api_endpoint`, `markdown_changelog_entry`.
