@@ -5,6 +5,7 @@
 scope      = "output"  # "output" = rows between the last two prompts, "screen" = whole pane
 timeout_ms = 5000      # close after this long without a key press
 flash_ms   = 250       # blink of the picked path before the overlay closes
+toast_ms   = 2500      # how long the centered "Copied" box stays up
 
 # --- prompt detection ---------------------------------------------------------
 # A row matching prompt_regex is a prompt's INPUT row; the command is the text
@@ -46,3 +47,6 @@ match_fg  = "#f9e2af"
 dim_fg    = "#6c7086"
 status_fg = "#cdd6f4"
 status_bg = "#313244"
+toast_fg     = "#cdd6f4"
+toast_bg     = "#11151c"
+toast_border = "#4ccf8c"

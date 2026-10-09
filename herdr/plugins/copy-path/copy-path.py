@@ -42,6 +42,7 @@ DEFAULTS = {
     "scope": "output",
     "timeout_ms": 5000,
     "flash_ms": 250,
+    "toast_ms": 2500,
     "prompt_regex": PROMPT_REGEX,
     "prompt_height": 2,
     "use_ps1": False,
@@ -53,7 +54,8 @@ DEFAULTS = {
     "check_exists": False,
     "alphabet": "asdfghjklwertyuiopzxcvbnm",
     "style": {"hint_fg": "#1e1e2e", "hint_bg": "#f9e2af", "match_fg": "#f9e2af",
-              "dim_fg": "#6c7086", "status_fg": "#cdd6f4", "status_bg": "#313244"},
+              "dim_fg": "#6c7086", "status_fg": "#cdd6f4", "status_bg": "#313244",
+              "toast_fg": "#cdd6f4", "toast_bg": "#11151c", "toast_border": "#4ccf8c"},
 }
 
 
@@ -475,8 +477,9 @@ class Overlay:
         sys.stdout.write("".join(out))
         sys.stdout.flush()
 
-    def run(self):
-        """Hint loop → the picked Hit, or None (Esc, Ctrl-C, timeout, resize)."""
+    def run(self, on_pick=None):
+        """Hint loop → the picked Hit, or None (Esc, Ctrl-C, timeout, resize).
+        on_pick(hit) runs after the flash, then the centered "Copied" box holds."""
         fd = sys.stdin.fileno()
         saved = termios.tcgetattr(fd)
         wake_r, wake_w = os.pipe()
@@ -526,6 +529,9 @@ class Overlay:
                     picked = [h for h in self.hits if h.label == self.typed]
                     if picked:
                         self.flash(picked[0])
+                        if on_pick:
+                            on_pick(picked[0])
+                            self.toast(picked[0].copy)
                         return picked[0]
                 self.update_status()
                 self.draw()
@@ -539,6 +545,37 @@ class Overlay:
         for i in range(steps):
             self.draw(flash=hit, flash_on=i % 2 == 0)
             time.sleep(self.cfg["flash_ms"] / 1000 / steps)
+
+    def toast(self, path):
+        """Centered green-bordered box: wide enough for the whole path on one line
+        (middle-ellipsised only when the terminal itself is too narrow)."""
+        cols, lines = os.get_terminal_size()
+        label = "\u2713 Copied  "
+        inner = min(display_width(label) + display_width(path) + 4, cols - 2)
+        room = inner - 4 - display_width(label)
+        if display_width(path) > room:
+            keep = max(1, room - 1)
+            path = path[:keep // 3] + "\u2026" + path[-(keep - keep // 3):]
+        text = label + path
+        pad = inner - 2 - display_width(text)
+        left = pad // 2
+        col = max(1, (cols - inner) // 2 + 1)
+        row = max(1, lines // 2 - 1)
+        st = self.cfg["style"]
+        edge = f"\x1b[{sgr_color(st['toast_border'], 3)};{sgr_color(st['toast_bg'], 4)}m"
+        body = f"\x1b[{sgr_color(st['toast_fg'], 3)};{sgr_color(st['toast_bg'], 4)}m"
+        ok = f"\x1b[1;{sgr_color(st['toast_border'], 3)};{sgr_color(st['toast_bg'], 4)}m"
+        blank = " " * (inner - 2)
+        mid = (" " * left + text + " " * (pad - left))
+        mid = mid.replace("\u2713", f"{ok}\u2713{body}", 1)
+        out = [f"\x1b[{row};{col}H{edge}\u250f" + "\u2501" * (inner - 2) + "\u2513",
+               f"\x1b[{row + 1};{col}H{edge}\u2503{body}{blank}{edge}\u2503",
+               f"\x1b[{row + 2};{col}H{edge}\u2503{body}{mid}{edge}\u2503",
+               f"\x1b[{row + 3};{col}H{edge}\u2503{body}{blank}{edge}\u2503",
+               f"\x1b[{row + 4};{col}H{edge}\u2517" + "\u2501" * (inner - 2) + "\u251b\x1b[0m"]
+        sys.stdout.write("".join(out))
+        sys.stdout.flush()
+        time.sleep(self.cfg["toast_ms"] / 1000)
 
     def update_status(self):
         n = len({h.copy for h in self.live()})
@@ -586,10 +623,7 @@ def overlay():
         return
     ui = Overlay(rows, region, hits, ctx, cfg)
     ui.update_status()
-    picked = ui.run()
-    if picked:
-        copy_text(picked.copy)
-        toast(f"Copied {picked.copy}")
+    ui.run(on_pick=lambda hit: copy_text(hit.copy))
 
 
 def main():

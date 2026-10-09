@@ -32,12 +32,14 @@ if [[ -f $HOME/.bashrc ]]; then
     source "$HOME/.bashrc"
 fi
 
-eval "$(starship init bash)"
+[[ $- == *i* ]] && eval "$(starship init bash)"
 
 # Must go last or usr bin will come before home brew and then path which fild old bash.
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
-if [[ -s $HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh ]]; then
-    . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+if [[ $- == *i* ]]; then
+    if [[ -s $HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh ]]; then
+        . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+    fi
+    complete -F _starship -o nosort -o bashdefault -o default starship
 fi
-complete -F _starship -o nosort -o bashdefault -o default starship

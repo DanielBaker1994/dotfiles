@@ -54,7 +54,14 @@ function M.run(expr)
 end
 
 function M.preload()
-    gen_async()
+    -- Reuse the dumped defs file for a day instead of spawning a login shell
+    -- on every nvim start.
+    local st = vim.uv.fs_stat(DEFS_PATH)
+    if st and (os.time() - st.mtime.sec) < 24 * 3600 then
+        ready = true
+        return
+    end
+    vim.defer_fn(gen_async, 500)
 end
 
 function M.on_ready(cb)

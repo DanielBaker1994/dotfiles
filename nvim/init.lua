@@ -386,7 +386,11 @@ if not vim.g.lazy_did_setup then
             config = function()
                 require('mason').setup()
                 require('mason-tool-installer').setup({
-                    ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', --[[ 'harper-ls' ]] }
+                    ensure_installed = { 'stylua', 'lua_ls', 'shellcheck', 'bash-language-server', 'pyright', 'clangd', 'lua-language-server', --[[ 'harper-ls' ]] },
+                    -- Registry refresh + installs hit the network (slow/hanging on a
+                    -- locked-down work network); keep them off the startup path.
+                    start_delay = 5000,
+                    auto_update = false,
                 })
 
                 local capabilities = vim.lsp.protocol.make_client_capabilities()

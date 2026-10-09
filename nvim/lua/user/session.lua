@@ -148,44 +148,25 @@ end
 function M.setup()
     local grp = vim.api.nvim_create_augroup('user-session', { clear = true })
 
-    -- Auto-restore when starting inside a worktree root (regardless of file
-    -- arguments); any file passed on the command line is focused afterwards.
-    -- Swap files are disabled for the whole block so stale .swp can never
-    -- trigger E325 during restore or when re-opening the argv file.
+    -- Launched with file/dir arguments (`nvim path`): the user asked for that
+    -- target, so neither restore the saved session over it nor overwrite the
+    -- saved session on exit.
+    local launched_with_args = vim.fn.argc() > 0
+
+    -- Auto-restore when starting bare inside a worktree root.
     vim.api.nvim_create_autocmd('VimEnter', {
         group = grp,
         callback = function()
+            if launched_with_args then
+                return
+            end
             local ws = M.get_worktree_root()
             if not ws then
                 return
             end
             local path = M.session_path(ws)
             if vim.fn.filereadable(path) == 1 then
-                -- Resolve argv files to absolute paths BEFORE sourcing the
-                -- session: the session may cd (sessionoptions includes
-                -- 'curdir'), which would otherwise resolve relative argv files
-                -- (e.g. `nvim notes.txt`) against the wrong directory and the
-                -- target file would never open — leaving the session focused.
-                local argv_files = {}
-                for _, f in ipairs(vim.fn.argv()) do
-                    if f ~= '' and f:sub(1, 1) ~= '-' then
-                        local abs = vim.fn.fnamemodify(f, ':p')
-                        if vim.fn.filereadable(abs) == 1 then
-                            table.insert(argv_files, abs)
-                        end
-                    end
-                end
-                local prev_swapfile = vim.o.swapfile
-                vim.o.swapfile = false
-                local ok = pcall(vim.cmd, 'source ' .. vim.fn.fnameescape(path))
-                if ok then
-                    for _, abs in ipairs(argv_files) do
-                        vim.cmd('edit ' .. vim.fn.fnameescape(abs))
-                        break
-                    end
-                end
-                vim.o.swapfile = prev_swapfile
-                vim.schedule(reload_unhighlighted_buffers)
+                source_session(path)
             end
         end,
     })
@@ -194,6 +175,9 @@ function M.setup()
     vim.api.nvim_create_autocmd('VimLeavePre', {
         group = grp,
         callback = function()
+            if launched_with_args then
+                return
+            end
             M.save()
         end,
     })

@@ -147,9 +147,14 @@ if [ -f ~/.dotfiles/bash/external.sh ]; then
 fi
 
 . "$HOME/.cargo/env"
-eval "$(zoxide init bash)"
-# fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
-eval "$(fzf --bash)"
+
+# Each of these forks a process; skip them for non-interactive shells such as
+# nvim's `bash -lc` prefetches (see nvim/lua/bash_external/init.lua).
+if [[ $- == *i* ]]; then
+    eval "$(zoxide init bash)"
+    # fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
+    eval "$(fzf --bash)"
+fi
 
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
