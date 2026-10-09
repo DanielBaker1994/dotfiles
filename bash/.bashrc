@@ -158,7 +158,7 @@ fi
 
 # opencode
 export PATH="$HOME/.opencode/bin:$PATH"
-export PATH="/Users/danielbaker/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH" # herdr, claude, etc.
 
 if [ -f "$HOME/.config/kitchen-sink/bin/utils.sh" ]; then
     source "$HOME/.config/kitchen-sink/bin/utils.sh"

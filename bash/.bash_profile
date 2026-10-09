@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
 # brew paths are added by `brew shellenv` below; keep texbin + mason here.
-export PATH=/Library/TeX/texbin:$HOME/.local/share/nvim/mason/bin:$PATH
+export PATH=$HOME/.local/bin:/Library/TeX/texbin:$HOME/.local/share/nvim/mason/bin:$PATH # ~/.local/bin holds herdr
 export XDG_CONFIG_HOME="$HOME/.config"
+
+# .bashrc (sourced below) and starship call brew-installed tools (zoxide, fzf,
+# starship) before `brew shellenv` runs at the bottom, and a fresh login shell
+# has no /opt/homebrew/bin yet -> "command not found" until herdr inherits it.
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
 
 export PKG_CONFIG_PATH=/opt/homebrew/lib/pkgconfig/:$PKG_CONFIG_PATH
 export FZF_DEFAULT_OPTS="--height=40% --layout=reverse --info=inline --border --margin=1 --padding=1 --bind 'ctrl-n:down,ctrl-p:up'"
