@@ -48,16 +48,19 @@ end
 --          **/*_test*        # files ending in _test
 --      Pros: project-local, no nvim changes; Cons: only where the file exists.
 --
---   3. Type it inline in the prompt (build_rg_args passes extra args to rg):
---      `foo -g !**/test/**`  searches "foo", ignoring test dirs.
+--   3. Type globs inline in the prompt, after TWO spaces (comma-separated;
+--      they're forwarded to rg as -g patterns). Raw rg flags are NOT passed
+--      through — a "-g" token would itself be treated as a glob:
+--      `foo  !**/test/**`   searches "foo", ignoring test dirs
+--      `foo  !**/test/**,!*.tmp`
 local ignored_globs = {
-    '!.pyi',
+    '!*.pyi',
     '!.yarn',
     '!.telescope_history',
-    '!.html',
-    '!.pyc',
-    '!.js',
-    '!.png',
+    '!*.html',
+    '!*.pyc',
+    '!*.js',
+    '!*.png',
     '!.DS_Store',
     '!**/.venv/**',
     '!**/venv/**',

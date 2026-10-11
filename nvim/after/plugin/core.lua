@@ -164,6 +164,12 @@ local external_paths = require('bash_external.external_paths')
 
 local function with_external_paths(callback)
     external_paths.on_load(function(paths)
+        if not paths then
+            -- The bash prefetch can fail (login shell error); don't crash the
+            -- picker — search with an empty list and tell the user why.
+            vim.notify('external paths unavailable (bash_external fetch failed)', vim.log.levels.WARN)
+            paths = {}
+        end
         callback(vim.deepcopy(paths))
     end)
 end
@@ -203,7 +209,13 @@ vim.keymap.set('n', '<leader>sdf', function()
 end, { desc = '[S]earch [D]otfiles [F]iles' })
 
 vim.keymap.set('n', '<leader>ct', function()
-    vim.cmd('LspClangdSwitchSourceHeader')
+    if #vim.lsp.get_clients({ bufnr = 0, name = 'clangd' }) == 0 then
+        vim.notify('Clangd: no clangd client attached to this buffer', vim.log.levels.WARN)
+        return
+    end
+    if not pcall(vim.cmd, 'LspClangdSwitchSourceHeader') then
+        vim.notify('Clangd: LspClangdSwitchSourceHeader failed', vim.log.levels.WARN)
+    end
 end, { desc = 'Clangd: switch source/header' })
 
 vim.keymap.set('n', 'ss', function()
@@ -219,18 +231,37 @@ local qf_group = vim.api.nvim_create_augroup('quickfix-nav-maps', { clear = true
 vim.api.nvim_create_autocmd({ 'FileType' }, {
     group = qf_group,
     pattern = 'qf',
-    desc = 'Quickfix: map Ctrl-n/Ctrl-p to :cnext/:cprev',
+    desc = 'Quickfix/loclist: map Ctrl-n/Ctrl-p to next/prev entry',
     callback = function()
         local opts = { noremap = true, silent = true, buffer = true }
-        -- Move the quickfix cursor but return focus to the quickfix window
-        vim.keymap.set('n', '<C-n>', function()
-            vim.cmd('cnext')
+        -- Move the quickfix / location-list cursor but return focus to the
+        -- list window. Bounds-check first: :cnext/:lnext throw E553 at the
+        -- ends of the list, so stop silently instead of breaking navigation.
+        local function qf_nav(delta)
+            -- Loclist windows also have filetype "qf"; use :lnext/:lprev there
+            -- so <leader>q (diagnostics) navigates its own list, not quickfix.
+            local is_loclist = vim.fn.getwininfo(vim.api.nvim_get_current_win())[1].loclist == 1
+            local info
+            if is_loclist then
+                info = vim.fn.getloclist(0, { idx = 0, size = 0 })
+            else
+                info = vim.fn.getqflist({ idx = 0, size = 0 })
+            end
+            local target = info.idx + delta
+            if target < 1 or target > info.size then
+                return
+            end
+            local cmd
+            if is_loclist then
+                cmd = delta > 0 and 'lnext' or 'lprev'
+            else
+                cmd = delta > 0 and 'cnext' or 'cprev'
+            end
+            vim.cmd(cmd)
             vim.cmd('wincmd p')
-        end, opts)
-        vim.keymap.set('n', '<C-p>', function()
-            vim.cmd('cprev')
-            vim.cmd('wincmd p')
-        end, opts)
+        end
+        vim.keymap.set('n', '<C-n>', function() qf_nav(1) end, opts)
+        vim.keymap.set('n', '<C-p>', function() qf_nav(-1) end, opts)
     end,
 })
 

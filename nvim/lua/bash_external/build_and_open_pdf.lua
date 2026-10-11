@@ -14,4 +14,10 @@ function M.run(src, out)
     return { code = ret.code, stdout = ret.stdout, stderr = ret.stderr }
 end
 
+-- Same as M.run but asynchronous; on_done gets { code, stdout, stderr }.
+function M.run_async(src, out, on_done)
+    local expr = 'EXTERNAL_BUILD_AND_OPEN_PDF ' .. bx.sh(src) .. ' ' .. bx.sh(out)
+    defs.run_async(expr, on_done)
+end
+
 return M

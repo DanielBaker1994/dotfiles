@@ -547,33 +547,22 @@ class Overlay:
             time.sleep(self.cfg["flash_ms"] / 1000 / steps)
 
     def toast(self, path):
-        """Centered green-bordered box: wide enough for the whole path on one line
-        (middle-ellipsised only when the terminal itself is too narrow)."""
+        """Slim single-line toast: the copied path on the toast background,
+        horizontally centred (middle-ellipsised only when the terminal is narrow)."""
         cols, lines = os.get_terminal_size()
         label = "\u2713 Copied  "
-        inner = min(display_width(label) + display_width(path) + 4, cols - 2)
-        room = inner - 4 - display_width(label)
+        room = cols - 4 - display_width(label)
         if display_width(path) > room:
             keep = max(1, room - 1)
             path = path[:keep // 3] + "\u2026" + path[-(keep - keep // 3):]
-        text = label + path
-        pad = inner - 2 - display_width(text)
-        left = pad // 2
-        col = max(1, (cols - inner) // 2 + 1)
-        row = max(1, lines // 2 - 1)
+        text = f" {label}{path} "
+        col = max(1, (cols - display_width(text)) // 2 + 1)
+        row = max(1, lines // 2)
         st = self.cfg["style"]
-        edge = f"\x1b[{sgr_color(st['toast_border'], 3)};{sgr_color(st['toast_bg'], 4)}m"
         body = f"\x1b[{sgr_color(st['toast_fg'], 3)};{sgr_color(st['toast_bg'], 4)}m"
         ok = f"\x1b[1;{sgr_color(st['toast_border'], 3)};{sgr_color(st['toast_bg'], 4)}m"
-        blank = " " * (inner - 2)
-        mid = (" " * left + text + " " * (pad - left))
-        mid = mid.replace("\u2713", f"{ok}\u2713{body}", 1)
-        out = [f"\x1b[{row};{col}H{edge}\u250f" + "\u2501" * (inner - 2) + "\u2513",
-               f"\x1b[{row + 1};{col}H{edge}\u2503{body}{blank}{edge}\u2503",
-               f"\x1b[{row + 2};{col}H{edge}\u2503{body}{mid}{edge}\u2503",
-               f"\x1b[{row + 3};{col}H{edge}\u2503{body}{blank}{edge}\u2503",
-               f"\x1b[{row + 4};{col}H{edge}\u2517" + "\u2501" * (inner - 2) + "\u251b\x1b[0m"]
-        sys.stdout.write("".join(out))
+        text = text.replace("\u2713", f"{ok}\u2713{body}", 1)
+        sys.stdout.write(f"\x1b[{row};{col}H{body}{text}\x1b[0m")
         sys.stdout.flush()
         time.sleep(self.cfg["toast_ms"] / 1000)
 

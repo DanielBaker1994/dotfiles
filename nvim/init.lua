@@ -30,7 +30,18 @@ vim.o.shiftwidth = 4
 
 vim.opt.mouse = 'a'
 vim.opt.showmode = false
-vim.opt.clipboard = "unnamedplus"
+-- System clipboard for y/d/p — only when a clipboard tool is reachable, so a
+-- yank can never raise a blocking "Press ENTER" provider error.
+local clipboard_ok = false
+for _, tool in ipairs({ 'pbcopy', 'wl-copy', 'xclip', 'xsel', 'win32yank.exe' }) do
+    if vim.fn.executable(tool) == 1 then
+        clipboard_ok = true
+        break
+    end
+end
+if clipboard_ok then
+    vim.opt.clipboard = 'unnamedplus'
+end
 
 
 
@@ -127,12 +138,30 @@ local function lualine_folder_icon()
     return icons.get('directory', vim.fn.getcwd(winnr, tabnr))
 end
 
-vim.keymap.set('n', 'p', '"+p', { noremap = true, silent = true })
+-- Normal-mode delete/change goes to the black-hole register so it never
+-- clobbers the system clipboard; a visual-mode cut (d/x) DOES go to the system
+-- clipboard so the selection can be pasted in another app. Visual p replaces
+-- the selection without yanking it. (s/S are left alone here: mini.surround
+-- owns the s-prefixed mappings in this config.)
+if clipboard_ok then
+    vim.keymap.set('n', 'p', '"+p', { noremap = true, silent = true })
+end
+vim.keymap.set('v', 'p', 'P', { noremap = true, silent = true })
+for _, k in ipairs({ 'd', 'D', 'c', 'C', 'x', 'X' }) do
+    vim.keymap.set('n', k, '"_' .. k, { noremap = true, silent = true })
+end
+for _, k in ipairs({ 'c', 'C' }) do
+    vim.keymap.set('v', k, '"_' .. k, { noremap = true, silent = true })
+end
+if clipboard_ok then
+    for _, k in ipairs({ 'd', 'D', 'x', 'X' }) do
+        vim.keymap.set('v', k, '"+' .. k, { noremap = true, silent = true })
+    end
+end
 
-
-vim.keymap.set('v', 'p', '"_dP', { noremap = true, silent = true })
-vim.keymap.set('n', 'd', '"_d', { noremap = true, silent = true })
-vim.keymap.set('v', 'd', '"_d', { noremap = true, silent = true })
+-- Half-page scroll keeps the cursor centred.
+vim.keymap.set('n', '<C-d>', '<C-d>zz', { noremap = true, silent = true })
+vim.keymap.set('n', '<C-u>', '<C-u>zz', { noremap = true, silent = true })
 
 
 local lazypath = fn.stdpath('data') .. '/lazy/lazy.nvim'
@@ -344,11 +373,11 @@ if not vim.g.lazy_did_setup then
                                 },
                             },
                         },
+                        path_display = { "smart" },
                     },
                     pickers = {
                         find_files = { follow = true },
                     },
-                    path_display = { "smart" },
                     extensions = { ['ui-select'] = require('telescope.themes').get_dropdown({ layout_config = { width = 0.92, height = 0.5, anchor = 'W', anchor_padding = 1 } }) }
                 })
                 pcall(telescope.load_extension, 'fzf')
@@ -887,28 +916,50 @@ vim.api.nvim_create_autocmd("ExitPre", {
     end,
 })
 
--- C-h/j/k/l: move between nvim splits; at a split edge, hand control to tmux.
--- Uses a direct `tmux select-pane` call (no key echo) so it can't loop with
--- tmux.conf's `is_vim` forwarding. The list-form vim.fn.system avoids a shell
--- spawn, which keeps the nvim -> pane hop snappy.
+-- C-h/j/k/l: move between nvim splits; at a split edge, hand control to the
+-- surrounding multiplexer (herdr first, then tmux).
+-- In herdr this pairs with the local.vim-nav plugin
+-- (~/.dotfiles/herdr/plugins/vim-nav): herdr forwards ctrl+hjkl back into any
+-- pane whose foreground process is Vim, so the same keys move herdr panes from
+-- shells and agent panes — the analogue of tmux.conf's is_vim bindings. The
+-- direct `pane focus` / `select-pane` calls here (no key echo) are what crosses
+-- the pane boundary, so they can't loop with that forwarding, and the
+-- list-form vim.fn.system avoids a shell spawn to keep the hop snappy.
+local nav_dir = { h = 'left', j = 'down', k = 'up', l = 'right' }
 local tmux_dir = { h = 'L', j = 'D', k = 'U', l = 'R' }
-local function tmux_nav(dir)
+local function pane_nav(dir)
     local winnr = vim.fn.winnr()
     pcall(vim.cmd, 'wincmd ' .. dir)
-    if winnr == vim.fn.winnr() and vim.env.TMUX then
+    if winnr ~= vim.fn.winnr() then
+        return
+    end
+
+    local pane = vim.env.HERDR_PANE_ID
+    if pane and pane ~= '' then
+        local herdr = vim.env.HERDR_BIN_PATH
+        -- `herdr update` can leave HERDR_BIN_PATH on a deleted binary while
+        -- the server keeps running; fall back to PATH, like navigate.sh does.
+        if not herdr or herdr == '' or vim.fn.executable(herdr) == 0 then
+            herdr = 'herdr'
+        end
+        -- --pane targets THIS pane: --current would resolve to the server's
+        -- globally focused pane, which can belong to another herdr client.
+        vim.fn.system({ herdr, 'pane', 'focus', '--direction', nav_dir[dir], '--pane', pane })
+    elseif vim.env.TMUX then
         local socket = vim.fn.split(vim.env.TMUX, ',')[1]
         vim.fn.system({ 'tmux', '-S', socket, 'select-pane', '-' .. tmux_dir[dir] })
     end
 end
 
 for _, dir in ipairs({ 'h', 'j', 'k', 'l' }) do
-    vim.keymap.set('n', '<C-' .. dir .. '>', function() tmux_nav(dir) end)
+    vim.keymap.set('n', '<C-' .. dir .. '>', function() pane_nav(dir) end)
     -- Same navigation from the built-in terminal (<space>to), so you can jump
-    -- to the tmux pane above/below/left/right just like from a normal pane.
+    -- to the pane above/below/left/right just like from a normal pane (under
+    -- herdr the chord arrives here only after being forwarded back into nvim).
     -- Tradeoff (requested): in the terminal shell C-h no longer acts as
     -- readline backspace and C-l no longer clears the screen — backspace still
     -- works, it sends DEL (C-?), not C-h.
-    vim.keymap.set('t', '<C-' .. dir .. '>', function() tmux_nav(dir) end)
+    vim.keymap.set('t', '<C-' .. dir .. '>', function() pane_nav(dir) end)
 end
 
 -- Same zoom (<C-w>z) from inside a terminal so the key is consistent with

@@ -7,3 +7,5 @@ nvim/lazy-lock.json
 *.pyc
 bash/build_deploy.history
 nvim/lua/user/jira_prefix.lua
+sesh/bin/
+sesh/herdr-pick/target/

@@ -53,6 +53,20 @@ function M.run(expr)
     return vim.system({ 'bash', '--noprofile', '--norc', '-c', call }):wait()
 end
 
+-- Async variant of M.run: returns immediately and calls
+-- on_done({ code, stdout, stderr }) on the main loop when the command
+-- finishes (used by the markdown PDF build so the UI never blocks).
+function M.run_async(expr, on_done)
+    local call = 'source ' .. bx.sh(M.path()) .. ' && ' .. expr
+    vim.system({ 'bash', '--noprofile', '--norc', '-c', call }, { text = true }, function(ret)
+        if on_done then
+            vim.schedule(function()
+                on_done({ code = ret.code, stdout = ret.stdout, stderr = ret.stderr })
+            end)
+        end
+    end)
+end
+
 function M.preload()
     -- Reuse the dumped defs file for a day instead of spawning a login shell
     -- on every nvim start.

@@ -16,10 +16,16 @@ function M.markdown_open()
 
     local src = vim.fn.expand('%:p')
 
-    local ret = build_and_open_pdf.run(src, out_path)
-    if ret.code ~= 0 then
-        vim.notify('pandoc failed: ' .. (ret.stderr or ret.stdout or 'unknown'), vim.log.levels.ERROR)
-    end
+    -- Async so the UI doesn't freeze while pandoc + weasyprint run.
+    vim.notify('Building PDF from ' .. vim.fn.fnamemodify(src, ':~') .. ' ...', vim.log.levels.INFO)
+    build_and_open_pdf.run_async(src, out_path, function(ret)
+        if ret.code ~= 0 then
+            local err = (ret.stderr ~= '' and ret.stderr) or ret.stdout or 'unknown'
+            vim.notify('pandoc failed: ' .. err, vim.log.levels.ERROR)
+        else
+            vim.notify('PDF built: ' .. vim.fn.fnamemodify(out_path .. '.pdf', ':~'), vim.log.levels.INFO)
+        end
+    end)
 end
 
 function M.search_parent_from_buffer()
@@ -27,23 +33,17 @@ function M.search_parent_from_buffer()
     abs = tostring(abs)
 
     local function find_special_root(path)
-        local rules = {
-            { pat = '.config/nvim/after/plugin/', root_pat = '.config/nvim/' },
-            { pat = 'cpp_directory' },
-            { pat = 'server_directory' },
-            { pat = 'java_directory' },
-        }
-        for _, rule in ipairs(rules) do
-            local s, e = string.find(path, rule.pat, 1, true)
-            if s then
-                local end_idx = e
-                if rule.root_pat then
-                    local _, root_e = string.find(path, rule.root_pat, 1, true)
-                    if root_e then end_idx = root_e end
-                end
-                local prefix = string.sub(path, 1, end_idx)
-                if not prefix:match('/$') then prefix = prefix .. '/' end
-                return prefix
+        -- nvim config files (resolve() follows the ~/.config/nvim -> dotfiles
+        -- symlink, matching the fully-resolved buffer paths).
+        local config_dir = vim.fn.resolve(vim.fn.stdpath('config'))
+        if vim.startswith(path, config_dir .. '/') then
+            return config_dir .. '/'
+        end
+        local rules = { 'cpp_directory', 'server_directory', 'java_directory' }
+        for _, pat in ipairs(rules) do
+            local _, e = string.find(path, pat, 1, true)
+            if e then
+                return string.sub(path, 1, e) .. '/'
             end
         end
         return nil

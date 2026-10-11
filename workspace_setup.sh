@@ -58,7 +58,7 @@ if [[ "$(uname -m)" == "arm64" ]] && ! pgrep -q oahd; then
     sudo softwareupdate --install-rosetta --agree-to-license
 fi
 
-# herdr plugins: link every plugin under herdr/plugins (last, agent-tabs, copy-path).
+# herdr plugins: link every plugin under herdr/plugins (last, agent-tabs, copy-path, vim-nav).
 # The link lives in herdr's own state (~/.config/herdr/plugins.json), not a
 # symlink; re-linking an already linked plugin is harmless.
 if command -v herdr >/dev/null; then

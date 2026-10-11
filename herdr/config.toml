@@ -14,10 +14,14 @@ default_shell = ""
 new_cwd = "follow"
 
 [keys]
-focus_pane_left = ["prefix+h", "ctrl+h"]
-focus_pane_down = ["prefix+j", "ctrl+j"]
-focus_pane_up = ["prefix+k", "ctrl+k"]
-focus_pane_right = ["ctrl+l"]
+# Pane focus with the prefix; direct ctrl+h/j/k/l live in the keys.command
+# entries below (vim-aware: forwarded back into Vim when Vim owns the pane,
+# else move focus — the herdr analogue of tmux.conf's is_vim bindings).
+focus_pane_left = "prefix+h"
+focus_pane_down = "prefix+j"
+focus_pane_up = "prefix+k"
+# right had no prefix chord (prefix+l is "last tab"); ctrl+l still navigates
+focus_pane_right = ""
 
 navigate_pane_left = "h"
 navigate_pane_down = "j"
@@ -49,6 +53,35 @@ edit_scrollback = "prefix+e"
 
 move_tab_previous = "prefix+<"
 move_tab_next = "prefix+>"
+
+# ctrl+h/j/k/l: vim-aware navigation (plugin: ~/.dotfiles/herdr/plugins/vim-nav).
+# In a Vim/Neovim pane the chord is handed back to Vim — it moves its splits
+# and, at a split edge, hands off to `herdr pane focus` itself (pane_nav in
+# ~/.dotfiles/nvim/init.lua). Everywhere else the chord moves herdr's pane
+# focus directly, so the keys work across shells, agent panes and Vim alike.
+[[keys.command]]
+key = "ctrl+h"
+type = "plugin_action"
+command = "local.vim-nav.left"
+description = "navigate left (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+j"
+type = "plugin_action"
+command = "local.vim-nav.down"
+description = "navigate down (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+k"
+type = "plugin_action"
+command = "local.vim-nav.up"
+description = "navigate up (vim/herdr)"
+
+[[keys.command]]
+key = "ctrl+l"
+type = "plugin_action"
+command = "local.vim-nav.right"
+description = "navigate right (vim/herdr)"
 
 [ui]
 prompt_new_tab_name = false

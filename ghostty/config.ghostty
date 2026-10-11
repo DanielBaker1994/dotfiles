@@ -24,6 +24,15 @@ confirm-close-surface = true
 # Ensure ctrl+s is never consumed by ghostty and always reaches the shell/tmux.
 keybind = ctrl+s=unbind
 
+# Disable Cmd+N (new window) so it doesn't spawn a separate Ghostty window.
+keybind = cmd+n=unbind
+
+# Disable Cmd+Enter (default: toggle_fullscreen), which is easy to hit by accident.
+keybind = cmd+enter=unbind
+
+# Disable Ctrl+Cmd+F (the other default toggle_fullscreen shortcut).
+keybind = ctrl+cmd+f=unbind
+
 
 keybind = cmd+shift+j=write_scrollback_file:paste,plain
 font-family = "Hack Nerd Font"

@@ -21,30 +21,43 @@ M.launch_cwd = vim.fn.resolve(vim.uv.cwd())
 local prefix_file = vim.fn.stdpath('config') .. '/lua/user/jira_prefix.lua'
 local jira_prefix = nil
 
--- Cached Jira prefix, or nil if never set. Never prompts.
+-- A valid prefix is the bare Jira project key (e.g. "JT"): no ticket numbers,
+-- no dashes (worktrees are named <prefix>-<seg>), no whitespace.
+local function valid_prefix(val)
+    return type(val) == 'string' and val ~= '' and not val:match('[%s%-]')
+end
+
+-- Cached Jira prefix, or nil if never set (or set to an invalid value, e.g. a
+-- full ticket like "JT-1234"). Never prompts.
 function M.jira_prefix()
     if jira_prefix == nil then
         local ok, val = pcall(dofile, prefix_file)
-        if ok and type(val) == 'string' and val ~= '' then
+        if ok and valid_prefix(val) then
             jira_prefix = val
         end
     end
     return jira_prefix
 end
 
--- Cached Jira prefix, prompting once (and caching to disk) if unset.
+-- Cached Jira prefix, prompting (and caching to disk) if unset/invalid.
 -- Returns nil if unset and no UI to prompt in (headless) or input is empty.
 function M.ensure_jira_prefix()
     if M.jira_prefix() or #vim.api.nvim_list_uis() == 0 then
         return jira_prefix
     end
-    local val = vim.trim(vim.fn.input('Jira ticket prefix (e.g. JT): '))
-    if val == '' then
-        return nil
+    while true do
+        local val = vim.trim(vim.fn.input('Jira ticket prefix (e.g. JT): '))
+        if val == '' then
+            return nil
+        end
+        if valid_prefix(val) then
+            vim.fn.writefile({ 'return ' .. string.format('%q', val) }, prefix_file)
+            jira_prefix = val
+            return val
+        end
+        vim.notify('Jira prefix must be the project key only, e.g. "JT" (not a ticket like "' .. val .. '")',
+            vim.log.levels.WARN)
     end
-    vim.fn.writefile({ 'return ' .. string.format('%q', val) }, prefix_file)
-    jira_prefix = val
-    return val
 end
 
 -- Returns (workspace_dir, entry) for `dir` (default: launch dir). entry is
