@@ -33,8 +33,10 @@ previous_tab = "prefix+p"
 
 new_tab = "prefix+c"
 
-# jump by attention: next / previous agent (sidebar order; see agent_panel_sort)
-next_agent = "prefix+a"
+# jump to the last agent: prefix+a toggles to the previously focused agent
+# pane, exactly like prefix+l does for tabs (plugin: ~/.dotfiles/herdr/plugins/last).
+# sidebar cycling stays on prefix+shift+a.
+next_agent = ""
 previous_agent = "prefix+shift+a"
 
 split_horizontal = "prefix+-"
@@ -136,6 +138,14 @@ key = "prefix+l"
 type = "plugin_action"
 command = "local.last.tab"
 description = "last tab"
+
+# prefix+a: toggle to the previously focused agent pane (same shape as the
+# last-tab jump above; the pane.focused event in the plugin keeps the pair)
+[[keys.command]]
+key = "prefix+a"
+type = "plugin_action"
+command = "local.last.agent"
+description = "last agent"
 
 [ui.toast]
 delivery = "herdr"

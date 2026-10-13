@@ -1,11 +1,12 @@
 # tmux-style "last" jumps: records focus history from herdr events.
 #   prefix+L → last workspace (tmux: last session)
 #   prefix+l → last tab in this workspace (tmux: last window)
+#   prefix+a → last agent pane (toggle like prefix+l, not sidebar order)
 id = "local.last"
-name = "Last workspace / tab"
+name = "Last workspace / tab / agent"
 version = "0.1.0"
 min_herdr_version = "0.9.0"
-description = "Jump to the previously focused workspace or tab"
+description = "Jump to the previously focused workspace, tab, or agent pane"
 platforms = ["linux", "macos"]
 
 [[startup]]
@@ -16,6 +17,12 @@ command = ["./last.sh", "record"]
 on = "tab.focused"
 command = ["./last.sh", "record"]
 
+# pane.focused fires when the focused pane changes (even inside a tab);
+# the handler stores the pane when it hosts an agent, for prefix+a.
+[[events]]
+on = "pane.focused"
+command = ["./last.sh", "agent-record"]
+
 [[actions]]
 id = "workspace"
 title = "Last workspace"
@@ -25,3 +32,8 @@ command = ["./last.sh", "workspace"]
 id = "tab"
 title = "Last tab"
 command = ["./last.sh", "tab"]
+
+[[actions]]
+id = "agent"
+title = "Last agent"
+command = ["./last.sh", "agent"]

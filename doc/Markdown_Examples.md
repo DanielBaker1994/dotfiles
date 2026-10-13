@@ -1,4 +1,4 @@
-<div class="doc tokyo-night"></div>
+<div class="doc executive"></div>
 
 # Markdown Examples
 Paired raw → rendered examples
