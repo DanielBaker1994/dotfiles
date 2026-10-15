@@ -626,7 +626,7 @@ fn list_dir(cfg: &Config, st: &Style, model: &Model, full: bool) -> Vec<Item> {
         rows
     } else {
         let min = cfg.num("min_score", 1) as f64;
-        let max = cfg.num("max_dirs", 40).max(0) as usize;
+        let max = cfg.num("max_dirs", 400).max(0) as usize;
         let mut top: Vec<(f64, String, String)> = rows
             .iter()
             .filter(|(score, _, real)| *score >= min || Path::new(real).join(".git").exists())
