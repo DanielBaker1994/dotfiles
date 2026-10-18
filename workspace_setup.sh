@@ -65,8 +65,29 @@ if command -v herdr >/dev/null; then
     echo
     echo "==> Linking herdr plugins..."
     for plugin in "$SCRIPT_DIR"/herdr/plugins/*/; do
-        herdr plugin link "${plugin%/}" >/dev/null && echo "Linked herdr plugin: ${plugin%/}"
+        if herdr plugin link "${plugin%/}" >/dev/null; then
+            echo "Linked herdr plugin: ${plugin%/}"
+        fi
     done
+    # drop registered plugins whose folder is gone (their link lives in
+    # plugins.json; stale entries warn in `herdr plugin list`)
+    while read -r id path; do
+        if [ -n "$id" ] && [ ! -d "$path" ] && herdr plugin unlink "$id" >/dev/null; then
+            echo "Unlinked stale herdr plugin: $id"
+        fi
+    done < <(herdr plugin list 2>/dev/null |
+             sed -n 's/^- \([^ ]*\).*\[local:\([^];]*\).*/\1 \2/p')
+
+    # prefix+w picker: the popup execs the prebuilt Rust binary (see
+    # sesh/connect-herdr.sh — no fallback), so build it here.
+    echo
+    echo "==> Building the herdr prefix+w picker (herdr-pick)..."
+    if ! "$SCRIPT_DIR/sesh/build-herdr-pick.sh"; then
+        echo "WARNING: herdr-pick did not build (needs cargo — brew install rust)." >&2
+        echo "         prefix+w will show an error until it builds:" >&2
+        echo "         $SCRIPT_DIR/sesh/build-herdr-pick.sh" >&2
+    fi
+
     herdr server reload-config >/dev/null || true
 fi
 

@@ -294,8 +294,18 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
             .map(|i| i as f64)
             .unwrap_or(1000.0)
     };
+    // prefix+w is for going back: the most recently accessed *other* session
+    // pins to the top (tmux last-session style), the current one follows it
+    // marked "here", the rest keep mru order.
+    let focused_id = model.workspaces.iter().find(|w| w.focused).map(|w| &w.id);
+    let prev_id = mru
+        .iter()
+        .find(|(id, _)| Some(id) != focused_id && model.workspaces.iter().any(|w| &w.id == id))
+        .map(|(id, _)| id);
     let recent = |w: &crate::model::Workspace| -> f64 {
-        if w.focused {
+        if Some(&w.id) == prev_id {
+            -1.0
+        } else if w.focused {
             0.5
         } else {
             rank(&w.id)

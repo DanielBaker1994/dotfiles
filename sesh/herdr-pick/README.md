@@ -3,15 +3,18 @@
 The herdr `prefix+w` picker, ported from `connect-herdr.sh` +
 `herdr-picker.mjs` into one prebuilt Rust binary.
 
-- **Binary:** `sesh/bin/herdr-pick` (build: `sesh/build-herdr-pick.sh`)
-- **Entry point:** `sesh/connect-herdr.sh` — a shim that `exec`s the binary
+- **Binary:** `sesh/bin/herdr-pick` (build: `sesh/build-herdr-pick.sh`, run
+  automatically by `workspace_setup.sh`)
+- **Entry point:** `sesh/connect-herdr.sh` — a launcher that `exec`s the binary
   (`HERDR_PICK_BIN` overrides the path). herdr's config binds prefix+w to it.
+  If the binary is missing it builds it once; when it can't (no cargo, broken
+  build) it draws an error box instead of going dead.
 - **Config:** `sesh/herdr-pick.json` — *everything* the picker runs, says and
   draws: command argv templates, prompts, hints, table headers, row templates,
   help text, keymaps, sizes, timings, status glyphs, palette + style tokens.
   The code contains no commands or user-facing strings.
-- **Fallback:** if the binary is missing, the shim drops back to
-  `connect-herdr-fzf.sh` (the old shell backend) / `herdr-picker.mjs`.
+- **No fallback:** the old node picker (`herdr-picker.mjs`) and fzf backend
+  (`connect-herdr-fzf.sh`) are gone; the Rust binary is the picker.
 
 ## Build
 
@@ -25,7 +28,8 @@ deps cached), online retry. Output is copied to `sesh/bin/herdr-pick`
 
 - Modes: spaces (`^s`), all (`^a`), agents (`^t`), dirs (`^x`).
 - Fuzzy query with highlight; expand/collapse tabs + splits (`^m`/`^e`);
-  sort recent/name/status (`^r`).
+  sort recent/name/status (`^r`). "recent" pins the most previously accessed
+  session at the very top (tmux last-session style), current ("here") second.
 - Preview pane (live `herdr pane read` / `sesh preview`), border labels.
 - **Multi-tab preview grid**: a space with several tabs previews one pane per
   tab in a `ceil(sqrt(k))` grid (capped by `ui.preview_grid.max`, default 4,
