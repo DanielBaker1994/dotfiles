@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+
+# Machine-local overrides kept outside this repo. Sourced first so it can seed
+# PATH and exports before the rest of this file runs. It is expected to be
+# machine-specific and may not exist at all, so guard the source.
+if [ -f "$HOME/external/.bashrc" ]; then
+    source "$HOME/external/.bashrc"
+fi
+
 # Guard against a stale `f` alias from a previous .bashrc: bash expands aliases
 # at parse time, so an existing alias would corrupt this function definition.
 

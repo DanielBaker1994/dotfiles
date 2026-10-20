@@ -1,5 +1,12 @@
 #!/usr/bin/env bash
 
+# Machine-local overrides kept outside this repo. Sourced first so it can seed
+# PATH and exports before the rest of this file runs. It is expected to be
+# machine-specific and may not exist at all, so guard the source.
+if [ -f "$HOME/external/.bash_profile" ]; then
+    source "$HOME/external/.bash_profile"
+fi
+
 # brew paths are added by `brew shellenv` below; keep texbin + mason here.
 export PATH=$HOME/.local/bin:/Library/TeX/texbin:$HOME/.local/share/nvim/mason/bin:$PATH # ~/.local/bin holds herdr
 export XDG_CONFIG_HOME="$HOME/.config"
