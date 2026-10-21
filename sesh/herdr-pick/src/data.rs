@@ -22,6 +22,10 @@ pub enum ItemKind {
     Agent,
     Cfg,
     Dir,
+    /// The link group's header (kitchen-sink's places, collapsed).
+    Group,
+    /// One kitchen-sink place under the header (`target` = its links id).
+    Link,
     None,
 }
 
@@ -34,6 +38,8 @@ impl ItemKind {
             ItemKind::Agent => "agent",
             ItemKind::Cfg => "cfg",
             ItemKind::Dir => "dir",
+            ItemKind::Group => "group",
+            ItemKind::Link => "link",
             ItemKind::None => "none",
         }
     }
@@ -45,6 +51,8 @@ impl ItemKind {
             "agent" => ItemKind::Agent,
             "cfg" => ItemKind::Cfg,
             "dir" => ItemKind::Dir,
+            "group" => ItemKind::Group,
+            "link" => ItemKind::Link,
             _ => ItemKind::None,
         }
     }
@@ -718,7 +726,7 @@ pub fn preview_for(cfg: &Config, _st: &Style, model: &Model, item: &Item) -> Str
                 }
             }
         }
-        ItemKind::None => cfg.text("no_preview"),
+        ItemKind::Group | ItemKind::Link | ItemKind::None => cfg.text("no_preview"),
     }
 }
 
@@ -825,7 +833,7 @@ pub fn label_for(cfg: &Config, _st: &Style, model: &Model, item: &Item) -> Strin
             }
         }
         ItemKind::Cfg | ItemKind::Dir => item.target.clone(),
-        ItemKind::None => String::new(),
+        ItemKind::Group | ItemKind::Link | ItemKind::None => String::new(),
     };
     if cfg.ui.preview_label_fmt.is_empty() {
         format!(" {inner} ")
@@ -994,7 +1002,7 @@ pub fn act(cfg: &Config, text: &str) -> Result<(), String> {
             let path = cfg.expand_path(&item.target);
             connect(cfg, &base_name(&path), &path, "")
         }
-        ItemKind::None => Ok(()),
+        ItemKind::Group | ItemKind::Link | ItemKind::None => Ok(()),
     }
 }
 

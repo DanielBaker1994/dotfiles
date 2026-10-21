@@ -7,6 +7,7 @@ use crate::ansi;
 use crate::config::Config;
 use crate::data::{self, Item, ItemKind, PreviewPart};
 use crate::fuzzy;
+use crate::links::{self, Group, GroupStatus, LinkErr, LinkRow};
 use crate::model::{Dest, Model, Pane};
 use crate::proc;
 use crate::style::Style;
@@ -50,6 +51,8 @@ enum Msg {
         key: String,
         text: String,
     },
+    /// kitchen-sink's places arrived (or didn't) for the link group.
+    Links(Result<Vec<LinkRow>, LinkErr>),
 }
 
 #[derive(Clone, Debug)]
@@ -194,6 +197,12 @@ pub struct App {
     dirty: bool,
     dry_run: bool,
     quit_code: Option<i32>,
+    /// The link group (kitchen-sink's places) under the local rows.
+    group: Group,
+    /// The last refilter had a query (clearing it re-collapses the group).
+    group_had_query: bool,
+    /// Rows in `view` before the group (header + links follow).
+    local_len: usize,
 }
 
 pub fn run(cfg: Config) -> i32 {
@@ -251,8 +260,13 @@ pub fn run(cfg: Config) -> i32 {
         dirty: true,
         dry_run: dry,
         quit_code: None,
+        group: Group::new(None),
+        group_had_query: false,
+        local_len: 0,
     };
+    app.group = Group::new(links::load_cache(&app.cfg));
     app.load_list("ws", false);
+    app.fetch_links();
     loop {
         let sig = SIGNAL.load(Ordering::SeqCst);
         if sig != 0 {
@@ -325,6 +339,13 @@ impl App {
                         self.dirty = true;
                     }
                 }
+                Msg::Links(result) => {
+                    if let Ok(rows) = &result {
+                        links::save_cache(&self.cfg, rows);
+                    }
+                    self.group.apply(result);
+                    self.refilter_keep_current();
+                }
             }
         }
     }
@@ -393,7 +414,10 @@ impl App {
                 if idx < 0 || idx as usize >= self.view.len() {
                     continue;
                 }
-                candidates.push(self.view[idx as usize].it.clone());
+                let it = &self.view[idx as usize].it;
+                if !matches!(it.kind, ItemKind::Group | ItemKind::Link) {
+                    candidates.push(it.clone());
+                }
             }
         }
         for it in candidates {
@@ -576,7 +600,12 @@ impl App {
             self.dirty = true;
             return;
         }
-        if let Some(action) = self.cfg.keys.keymap.get(&id).cloned() {
+        let local = match self.current().map(|i| i.kind) {
+            Some(ItemKind::Group) => self.cfg.keys.group_keymap.get(&id).cloned(),
+            Some(ItemKind::Link) => self.cfg.keys.link_keymap.get(&id).cloned(),
+            _ => None,
+        };
+        if let Some(action) = local.or_else(|| self.cfg.keys.keymap.get(&id).cloned()) {
             self.do_action(&action);
             return;
         }
@@ -648,6 +677,10 @@ impl App {
             "help" => self.show_help(),
             "undo" => self.undo_move(),
             "start-move" => self.start_move(),
+            "links-jump" => self.links_jump(),
+            "group-open" => self.group_set(true),
+            "group-close" => self.group_set(false),
+            "group-toggle" => self.choose(),
             a if a.starts_with("mode:") => {
                 let m = a[5..].to_string();
                 if m == "ws" {
@@ -667,7 +700,12 @@ impl App {
         }
         self.help = false;
         let max = self.view.len() as i64 - 1;
-        self.sel = (self.sel as i64 + d).clamp(0, max) as usize;
+        self.sel = if d.abs() == 1 && self.local_len < self.view.len() {
+            // ↓ walks into the link group; the wrap skips it (§3)
+            links::step(self.view.len(), self.local_len, self.sel, d)
+        } else {
+            (self.sel as i64 + d).clamp(0, max) as usize
+        };
         self.schedule_preview();
         self.dirty = true;
     }
@@ -751,6 +789,8 @@ impl App {
             self.view
                 .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         }
+        self.local_len = self.view.len();
+        self.append_group(&query);
         let max = self.view.len().saturating_sub(1);
         self.sel = keep_sel.min(max);
         self.schedule_preview();
@@ -810,6 +850,12 @@ impl App {
         };
         let key = it.key();
         if self.preview.key == key {
+            return;
+        }
+        if matches!(it.kind, ItemKind::Group | ItemKind::Link) {
+            self.preview = self.group_preview(&it);
+            self.pending_preview = None;
+            self.dirty = true;
             return;
         }
         self.sel_settled = Instant::now();
@@ -1483,12 +1529,206 @@ impl App {
     }
 
     fn choose(&mut self) {
+        match self.current().map(|i| (i.kind, i.target.clone())) {
+            Some((ItemKind::Group, _)) => return self.choose_header(),
+            Some((ItemKind::Link, id)) => return self.choose_link(&id),
+            _ => {}
+        }
         if let Some(it) = self.current() {
             let line = it.line.clone();
             self.term.restore();
             let _ = data::act(&self.cfg, &line);
         }
         self.quit_code = Some(0);
+    }
+
+    // ── link group (kitchen-sink's places) ──────────────────────────────
+
+    /// Fetch kitchen-sink's rows in the background; never blocks the list.
+    fn fetch_links(&mut self) {
+        let cfg = self.cfg.clone();
+        let tx = self.tx.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(Msg::Links(links::fetch_ks(&cfg)));
+        });
+    }
+
+    /// The group shows in the modes `links.modes` names (spaces / all).
+    fn links_on(&self) -> bool {
+        self.cfg
+            .links
+            .get("modes")
+            .and_then(|m| m.as_array())
+            .map(|a| a.iter().any(|m| m.as_str() == Some(self.mode.as_str())))
+            .unwrap_or(false)
+    }
+
+    /// Header + visible link rows after the local ones. Clearing the query
+    /// re-collapses the group.
+    fn append_group(&mut self, query: &str) {
+        if !self.links_on() {
+            return;
+        }
+        if query.is_empty() && self.group_had_query {
+            self.group.expanded = false;
+        }
+        self.group_had_query = !query.is_empty();
+        if !self.group.header_shown(query) {
+            return;
+        }
+        let header = self.header_item(query);
+        self.view.push(ViewRow { it: header, pos: Vec::new(), score: 0.0 });
+        for (i, score) in self.group.visible(query) {
+            let it = self.link_item(i);
+            let pos = if query.is_empty() {
+                Vec::new()
+            } else {
+                fuzzy::fuzzy_match(&it.plain, query).map(|(p, _)| p).unwrap_or_default()
+            };
+            self.view.push(ViewRow { it, pos, score });
+        }
+    }
+
+    fn header_item(&self, query: &str) -> Item {
+        let cfg = &self.cfg;
+        let arrow = if self.group.open(query) { &cfg.icons.group_open } else { &cfg.icons.group_closed };
+        let text = ui::fill_tmpl(
+            &cfg.row("group"),
+            &[
+                ("arrow", arrow.clone()),
+                ("label", cfg.text("group_label")),
+                ("tail", self.group.header_tail(cfg)),
+            ],
+        );
+        let display = if self.group.dim() { self.st.dim(&text) } else { self.st.fg("group", &text) };
+        data::mk_item(display, ItemKind::Group, "group", "", false)
+    }
+
+    fn link_item(&self, i: usize) -> Item {
+        let cfg = &self.cfg;
+        let r = &self.group.rows[i];
+        let icon = cfg.icons.link_kinds.get(&r.kind).cloned().unwrap_or_default();
+        let display = ui::fill_tmpl(
+            &cfg.row("link"),
+            &[
+                ("icon", self.st.fg("link_icon", &icon)),
+                ("title", self.st.fg("link_title", &r.title)),
+                ("subtitle", self.st.fg("link_meta", &r.subtitle)),
+            ],
+        );
+        data::mk_item(display, ItemKind::Link, &r.id, &r.search_text(), false)
+    }
+
+    /// Refilter, keeping the cursor on the same item when it is still there.
+    fn refilter_keep_current(&mut self) {
+        let key = self.current().map(|i| i.key());
+        self.refilter(self.sel);
+        if let Some(i) = key.and_then(|k| self.view.iter().position(|v| v.it.key() == k)) {
+            self.sel = i;
+            self.schedule_preview();
+        }
+    }
+
+    fn header_index(&self) -> Option<usize> {
+        self.view.iter().position(|v| v.it.kind == ItemKind::Group)
+    }
+
+    /// `^k`: jump to the header and open the group.
+    fn links_jump(&mut self) {
+        if !self.links_on() {
+            return;
+        }
+        self.group.expanded = true;
+        self.refilter(self.sel);
+        if let Some(i) = self.header_index() {
+            self.sel = i;
+            self.help = false;
+            self.schedule_preview();
+        }
+    }
+
+    /// → / l open the group from its header; ← / h close it from the header
+    /// or a link row (the cursor lands on the header).
+    fn group_set(&mut self, open: bool) {
+        let kind = self.current().map(|i| i.kind);
+        let on_header = kind == Some(ItemKind::Group);
+        if !(on_header || (!open && kind == Some(ItemKind::Link))) {
+            return;
+        }
+        self.group.expanded = open;
+        self.refilter(self.sel);
+        if let Some(i) = self.header_index() {
+            self.sel = i;
+            self.schedule_preview();
+        }
+    }
+
+    /// Return on the header: toggle; offline starts kitchen-sink; an
+    /// unavailable provider is asked again.
+    fn choose_header(&mut self) {
+        match self.group.status {
+            GroupStatus::Offline => {
+                links::launch_ks(&self.cfg);
+                self.quit_code = Some(0);
+            }
+            GroupStatus::Unavailable => {
+                self.group.status = GroupStatus::Loading;
+                self.fetch_links();
+                self.refilter_keep_current();
+            }
+            _ => {
+                let open = !self.group.expanded;
+                self.group.expanded = open;
+                self.refilter(self.sel);
+                if let Some(i) = self.header_index() {
+                    self.sel = i;
+                    self.schedule_preview();
+                }
+            }
+        }
+    }
+
+    /// Return on a link row: kitchen-sink presents it (and activates; AeroSpace
+    /// follows), the popup closes.
+    fn choose_link(&mut self, id: &str) {
+        match links::go_ks(&self.cfg, id) {
+            Ok(()) => {
+                self.term.restore();
+                self.quit_code = Some(0);
+            }
+            Err(LinkErr::Offline) => {
+                links::launch_ks(&self.cfg);
+                self.quit_code = Some(0);
+            }
+            Err(LinkErr::Unavailable(e)) => {
+                let msg = proc::subst_str(&self.cfg.text("link_failed"), &[("err", &e)]);
+                let msg = self.st.fg("error_text", &msg);
+                self.set_status(&msg);
+            }
+        }
+    }
+
+    fn group_preview(&self, it: &Item) -> Preview {
+        let cfg = &self.cfg;
+        let (text, label) = if it.kind == ItemKind::Group {
+            let text = if self.group.status == GroupStatus::Offline {
+                cfg.text("group_offline_preview")
+            } else {
+                cfg.text("group_header_preview")
+            };
+            (text, format!(" {} ", cfg.text("group_label")))
+        } else {
+            match self.group.rows.iter().find(|r| r.id == it.target) {
+                Some(r) => {
+                    let text = r.preview.clone().unwrap_or_else(|| {
+                        proc::subst_str(&cfg.text("group_preview"), &[("title", &r.title), ("subtitle", &r.subtitle)])
+                    });
+                    (text, proc::subst_str(&cfg.text("link_label"), &[("kind", &r.kind)]))
+                }
+                None => (cfg.text("no_preview"), String::new()),
+            }
+        };
+        Preview { key: it.key(), label, scroll: 0, parts: vec![PreviewPart { title: String::new(), text }] }
     }
 
     // ── mouse ───────────────────────────────────────────────────────────
@@ -1695,7 +1935,7 @@ impl App {
                 proc::subst_str(
                     &cfg.ui.info_fmt,
                     &[
-                        ("shown", &self.view.len().to_string()),
+                        ("shown", &self.local_len.to_string()),
                         ("total", &self.items.len().to_string())
                     ]
                 )

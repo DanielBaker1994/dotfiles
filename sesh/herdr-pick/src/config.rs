@@ -27,6 +27,10 @@ pub struct Config {
     #[serde(default)]
     pub texts: HashMap<String, String>,
     pub keys: Keys,
+    /// The link bank: kitchen-sink's socket + verbs, Ghostty/AeroSpace reach,
+    /// the herdr → contract status map and timeouts (`links.rs`).
+    #[serde(default)]
+    pub links: HashMap<String, serde_json::Value>,
     pub style: StyleCfg,
     pub help: String,
 }
@@ -162,6 +166,13 @@ pub struct Icons {
     pub sep: String,
     pub active_dot: String,
     pub landing_add: String,
+    #[serde(default)]
+    pub group_closed: String,
+    #[serde(default)]
+    pub group_open: String,
+    /// Link row icon per contract `kind` (view / note / folder / workspace).
+    #[serde(default)]
+    pub link_kinds: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -170,6 +181,12 @@ pub struct Keys {
     pub keymap: HashMap<String, String>,
     #[serde(default)]
     pub move_keymap: HashMap<String, String>,
+    /// Keys taken first while the cursor is on the link group's header.
+    #[serde(default)]
+    pub group_keymap: HashMap<String, String>,
+    /// Keys taken first while the cursor is on a link row.
+    #[serde(default)]
+    pub link_keymap: HashMap<String, String>,
 }
 
 #[derive(Deserialize, Clone, Debug)]

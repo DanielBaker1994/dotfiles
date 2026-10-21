@@ -42,8 +42,29 @@ deps cached), online retry. Output is copied to `sesh/bin/herdr-pick`
   preview, edge auto-scroll, result flash, and `^z` undo (single split).
 - Keyboard move (`^g`), kill (`^d`), scratch (`^o`), browser (`^b`), help (`?`).
 - CLI grammar kept: `list [MODE] | state | preview LINE | label LINE | kill LINE
-  | go LINE|PATH | browser | help` — the node TUI still works against it.
+  | go LINE|PATH | browser | help` — the node TUI still works against it —
+  plus `list --json` and `go-id ID` for the link bank (below).
 - `HERDR_PICKER_DRY_RUN=1` logs the herdr move command instead of running it.
+
+## Link bank (kitchen-sink)
+
+kitchen-sink's places (its views, open notes, folder-compare sessions) sit
+collapsed at the bottom of the spaces / all list as `▸ kitchen-sink · N
+places` (kitchen-sink `PLAN-link-bank.md`). Return / → on the header expands
+it, ← / h collapses, `^k` jumps there opened, typing searches it too (it
+auto-expands to the matches). Return on a place sends `do:go:<id>` over
+kitchen-sink's socket (`links.ks_socket`) — kitchen-sink comes forward and
+AeroSpace follows. The rows are fetched in the background with a 300 ms
+budget (`links.timeout_ms`) and cached in `links.ks_cache`; the header reads
+`· not running` (Return starts it) or `· unavailable`.
+
+The other direction: kitchen-sink's Ctrl+B W lists herdr's workspaces from
+
+    herdr-pick list --json      # links.v1 envelope ({"error","offline"} when herdr is down)
+    herdr-pick go-id <ws_id>    # raise Ghostty via AeroSpace, then herdr workspace focus
+
+Ghostty rule: one window is assumed; with several, `go-id` raises the first
+whose title contains a `links.ghostty_title_match` entry, else the first.
 
 ## Style
 

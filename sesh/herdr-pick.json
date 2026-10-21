@@ -38,7 +38,10 @@
     "zoxide_remove": ["remove", "{path}"],
     "zoxide_add": ["add", "{path}"],
     "fd_dirs": ["-H", "-d", "2", "-t", "d", "-E", ".Trash", "-E", ".git", "-E", "node_modules", ".", "{dir}"],
-    "ls_dir": ["-la", "{path}"]
+    "ls_dir": ["-la", "{path}"],
+    "aerospace_windows": ["list-windows", "--monitor", "all", "--app-bundle-id", "{bundle}", "--json"],
+    "aerospace_focus": ["focus", "--window-id", "{id}"],
+    "ks_launch": ["$HOME/.config/kitchen-sink/bin/kitchen_sink.sh", "window"]
   },
 
   "paths": {
@@ -125,7 +128,10 @@
     "dir": "\uf114",
     "sep": "›",
     "active_dot": "•",
-    "landing_add": "[+]"
+    "landing_add": "[+]",
+    "group_closed": "▸",
+    "group_open": "▾",
+    "link_kinds": { "view": "\uf2d0", "note": "\uf15c", "folder": "\uf114", "workspace": "\uf120" }
   },
 
   "rows": {
@@ -134,7 +140,9 @@
     "pane": "  {pipe}   {branch} {grip} {icon} {text}  {id}",
     "agent": "{icon} {ws} {sep} {number}  {agent}  {title}",
     "cfg": "{icon} {name}  {saved}",
-    "dir": "{icon} {path}  {tag}"
+    "dir": "{icon} {path}  {tag}",
+    "group": "{arrow} {label} · {tail}",
+    "link": "    {icon} {title}  {subtitle}"
   },
 
   "texts": {
@@ -142,7 +150,7 @@
     "herdr_no_server": "herdr: no server running at {socket}",
     "herdr_start": "herdr: start it first — `herdr` to attach, or `herdr server` headless.",
     "needs_terminal": "herdr-pick: needs a terminal",
-    "usage": "usage: herdr-pick [list [MODE] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | browser | help]",
+    "usage": "usage: herdr-pick [list [MODE|--json] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | go-id WORKSPACE_ID | browser | help]",
     "config_missing": "herdr-pick: config not found (looked at {paths})",
     "config_bad": "herdr-pick: bad config {path}: {err}",
     "drag_status": "drag a split or tab onto a workspace or tab  {key}",
@@ -182,7 +190,21 @@
     "scratch_prompt": "Scratch name or path: ",
     "shell": "shell",
     "here": "here",
-    "none": "-"
+    "none": "-",
+    "group_label": "kitchen-sink",
+    "group_count": "{n} places",
+    "group_loading": "…",
+    "group_offline": "not running",
+    "group_unavailable": "unavailable",
+    "group_preview": "{title}\n{subtitle}",
+    "group_header_preview": "kitchen-sink's places\n\nenter / → expands, ← collapses, ^k jumps here,\ntyping searches them too",
+    "group_offline_preview": "kitchen-sink is not running — enter starts it",
+    "link_label": " kitchen-sink · {kind} ",
+    "link_tab": "1 tab",
+    "link_tabs": "{n} tabs",
+    "link_subtitle": "{tabs} · {status}",
+    "link_herdr_offline": "herdr: no server running",
+    "link_failed": "✗ kitchen-sink: {err}"
   },
 
   "keys": {
@@ -214,7 +236,10 @@
       "backspace": "backspace",
       "?": "help",
       "ctrl+z": "undo",
-      "ctrl+g": "start-move"
+      "ctrl+g": "start-move",
+      "ctrl+k": "links-jump",
+      "right": "group-open",
+      "left": "group-close"
     },
     "move_keymap": {
       "escape": "cancel",
@@ -228,7 +253,35 @@
       "shift+tab": "prev",
       "ctrl+p": "prev",
       "k": "prev"
+    },
+    "group_keymap": {
+      "enter": "group-toggle",
+      "ctrl+e": "group-toggle",
+      "ctrl+m": "group-toggle",
+      "right": "group-open",
+      "l": "group-open",
+      "left": "group-close",
+      "h": "group-close"
+    },
+    "link_keymap": {
+      "left": "group-close"
     }
+  },
+
+  "links": {
+    "readme": "The link bank (kitchen-sink PLAN-link-bank.md): kitchen-sink's places as a collapsed group at the bottom of the list, and herdr's workspaces for kitchen-sink's Ctrl+B W (list --json / go-id). One Ghostty window is assumed; with several, go-id raises the first whose title contains a ghostty_title_match entry, else the first one AeroSpace lists.",
+    "ks_socket": "$TMPDIR/ws-notes.sock",
+    "ks_list": "links",
+    "ks_go": "do:go:{id}",
+    "ks_cache": "$HOME/.cache/herdr-pick/ks-links.json",
+    "timeout_ms": 300,
+    "go_timeout_ms": 3000,
+    "aerospace": ["aerospace", "/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"],
+    "aerospace_timeout_ms": 2000,
+    "ghostty_bundle": "com.mitchellh.ghostty",
+    "ghostty_title_match": [],
+    "modes": ["ws", "all"],
+    "status_map": { "working": "working", "blocked": "waiting", "done": "idle", "idle": "idle", "unknown": "unknown" }
   },
 
   "style": {
@@ -306,7 +359,11 @@
       "landing": "dim",
       "error_text": "danger",
       "ok_text": "success",
-      "warn_text": "warning"
+      "warn_text": "warning",
+      "group": "dim",
+      "link_title": "text",
+      "link_meta": "dim",
+      "link_icon": "info"
     },
     "selection_edge_glyph": "▌",
     "ws_bold": true,
@@ -315,5 +372,5 @@
     "pulse_steps": 4
   },
 
-  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^t        agents     only agents, the ones that need you first\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^o        new        scratch workspace (a name → /tmp/name, or a path)\n  ^b        web        ask for a URL, open it in a browser workspace\n  ^d        close      close workspace / tab, forget a directory\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
+  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^t        agents     only agents, the ones that need you first\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^o        new        scratch workspace (a name → /tmp/name, or a path)\n  ^b        web        ask for a URL, open it in a browser workspace\n  ^d        close      close workspace / tab, forget a directory\n  ^k        ks         jump to kitchen-sink's places (the ▸ group at the bottom):\n                       enter opens one there, → / ← expand / collapse\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
 }
