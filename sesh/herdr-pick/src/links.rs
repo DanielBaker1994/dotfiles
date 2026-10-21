@@ -185,8 +185,11 @@ pub fn pick_window(windows: &Value, matches: &[String]) -> Option<i64> {
         .and_then(id)
 }
 
-/// Raise Ghostty through AeroSpace, then focus the herdr workspace.
+/// Raise Ghostty through AeroSpace, then focus the herdr workspace. With
+/// no AeroSpace or no Ghostty window, `ghostty_open` (LaunchServices) brings
+/// it up instead — never an error for a missing piece.
 pub fn go_id(cfg: &Config, ws_id: &str) -> Result<(), String> {
+    let mut raised = false;
     if let Some(aero) = first_bin(cfg, "aerospace") {
         let timeout = lk_ms(cfg, "aerospace_timeout_ms", 2000);
         let args = proc::subst(&cfg.cmd("aerospace_windows"), &[("bundle", &lk(cfg, "ghostty_bundle"))]);
@@ -202,10 +205,16 @@ pub fn go_id(cfg: &Config, ws_id: &str) -> Result<(), String> {
             .unwrap_or_default();
         if let Some(wid) = pick_window(&windows, &matches) {
             let args = proc::subst(&cfg.cmd("aerospace_focus"), &[("id", &wid.to_string())]);
-            let _ = proc::run(&aero, &args, timeout);
+            raised = proc::run(&aero, &args, timeout).map(|o| o.status == 0).unwrap_or(false);
         }
     }
-    if ws_id.is_empty() {
+    if !raised {
+        let argv = proc::subst(&cfg.cmd("ghostty_open"), &[("bundle", &lk(cfg, "ghostty_bundle"))]);
+        if let Some((prog, args)) = argv.split_first() {
+            let _ = proc::run(prog, args, lk_ms(cfg, "aerospace_timeout_ms", 2000));
+        }
+    }
+    if ws_id.is_empty() || data::ensure_herdr(cfg).is_err() {
         return Ok(());
     }
     data::herdr_json(cfg, "workspace_focus", &[("id", ws_id)]).map(|_| ())
@@ -248,6 +257,17 @@ pub fn go_ks(cfg: &Config, id: &str) -> Result<(), LinkErr> {
         }
         _ => Ok(()),
     }
+}
+
+/// kitchen-sink is on this machine: its socket is up, or the `ks_launch`
+/// program exists. Without either the group is not shown at all.
+pub fn ks_installed(cfg: &Config) -> bool {
+    std::path::Path::new(&ks_socket(cfg)).exists()
+        || cfg
+            .cmd("ks_launch")
+            .first()
+            .map(|p| std::path::Path::new(&cfg.expand_path(p)).is_file())
+            .unwrap_or(false)
 }
 
 /// Start kitchen-sink (the offline header's Return).
@@ -358,27 +378,12 @@ impl Group {
     }
 }
 
-/// §3 navigation over a list whose group entries start at `group_start`:
-/// ↓ walks on into the group, ↓ from the very bottom wraps to the top, ↑
-/// from the top wraps to the last local row (the wrap skips the group).
-pub fn step(len: usize, group_start: usize, pos: usize, delta: i64) -> usize {
+/// ↑ / ↓ through the whole list (the group pinned on top), wrapping.
+pub fn step(len: usize, pos: usize, delta: i64) -> usize {
     if len == 0 {
         return 0;
     }
-    let pos = pos.min(len - 1);
-    if delta > 0 {
-        if pos + 1 < len { pos + 1 } else { 0 }
-    } else if delta < 0 {
-        if pos > 0 {
-            pos - 1
-        } else if group_start > 0 {
-            group_start - 1
-        } else {
-            len - 1
-        }
-    } else {
-        pos
-    }
+    (pos.min(len - 1) as i64 + delta.signum()).rem_euclid(len as i64) as usize
 }
 
 #[cfg(test)]
@@ -451,13 +456,11 @@ mod tests {
     }
 
     #[test]
-    fn step_wrap_skips_group() {
-        // 3 local rows, header at 3, links at 4..5.
-        assert_eq!(step(6, 3, 2, 1), 3);
-        assert_eq!(step(6, 3, 5, 1), 0);
-        assert_eq!(step(6, 3, 0, -1), 2);
-        assert_eq!(step(4, 3, 3, 1), 0);
-        assert_eq!(step(2, 0, 0, -1), 1);
+    fn step_wraps() {
+        assert_eq!(step(6, 0, 1), 1);
+        assert_eq!(step(6, 5, 1), 0);
+        assert_eq!(step(6, 0, -1), 5);
+        assert_eq!(step(0, 0, 1), 0);
     }
 
     #[test]

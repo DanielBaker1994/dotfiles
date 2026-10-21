@@ -201,8 +201,10 @@ pub struct App {
     group: Group,
     /// The last refilter had a query (clearing it re-collapses the group).
     group_had_query: bool,
-    /// Rows in `view` before the group (header + links follow).
-    local_len: usize,
+    /// Rows of the pinned link group at the top of `view` (header + links).
+    group_len: usize,
+    /// kitchen-sink exists here (else no group, no fetch).
+    ks_installed: bool,
 }
 
 pub fn run(cfg: Config) -> i32 {
@@ -262,8 +264,10 @@ pub fn run(cfg: Config) -> i32 {
         quit_code: None,
         group: Group::new(None),
         group_had_query: false,
-        local_len: 0,
+        group_len: 0,
+        ks_installed: false,
     };
+    app.ks_installed = links::ks_installed(&app.cfg);
     app.group = Group::new(links::load_cache(&app.cfg));
     app.load_list("ws", false);
     app.fetch_links();
@@ -680,7 +684,7 @@ impl App {
             "links-jump" => self.links_jump(),
             "group-open" => self.group_set(true),
             "group-close" => self.group_set(false),
-            "group-toggle" => self.choose(),
+            "group-toggle" => self.group_toggle(),
             a if a.starts_with("mode:") => {
                 let m = a[5..].to_string();
                 if m == "ws" {
@@ -700,9 +704,9 @@ impl App {
         }
         self.help = false;
         let max = self.view.len() as i64 - 1;
-        self.sel = if d.abs() == 1 && self.local_len < self.view.len() {
-            // ↓ walks into the link group; the wrap skips it (§3)
-            links::step(self.view.len(), self.local_len, self.sel, d)
+        self.sel = if d.abs() == 1 && self.group_len > 0 {
+            // with the pinned group, ↑ / ↓ wrap through the whole list
+            links::step(self.view.len(), self.sel, d)
         } else {
             (self.sel as i64 + d).clamp(0, max) as usize
         };
@@ -789,10 +793,13 @@ impl App {
             self.view
                 .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         }
-        self.local_len = self.view.len();
-        self.append_group(&query);
+        let mut rows = self.group_rows(&query);
+        self.group_len = rows.len();
+        rows.append(&mut self.view);
+        self.view = rows;
         let max = self.view.len().saturating_sub(1);
-        self.sel = keep_sel.min(max);
+        // 0 = "from the top": the cursor's start for this query
+        self.sel = if keep_sel == 0 { self.start_sel(&query) } else { keep_sel.min(max) };
         self.schedule_preview();
         self.place_flash_cursor();
         self.dirty = true;
@@ -1546,6 +1553,9 @@ impl App {
 
     /// Fetch kitchen-sink's rows in the background; never blocks the list.
     fn fetch_links(&mut self) {
+        if !self.ks_installed {
+            return;
+        }
         let cfg = self.cfg.clone();
         let tx = self.tx.clone();
         std::thread::spawn(move || {
@@ -1555,7 +1565,8 @@ impl App {
 
     /// The group shows in the modes `links.modes` names (spaces / all).
     fn links_on(&self) -> bool {
-        self.cfg
+        self.ks_installed
+            && self.cfg
             .links
             .get("modes")
             .and_then(|m| m.as_array())
@@ -1563,21 +1574,21 @@ impl App {
             .unwrap_or(false)
     }
 
-    /// Header + visible link rows after the local ones. Clearing the query
-    /// re-collapses the group.
-    fn append_group(&mut self, query: &str) {
+    /// The pinned group: header + visible link rows, above the local ones.
+    /// Clearing the query re-collapses it.
+    fn group_rows(&mut self, query: &str) -> Vec<ViewRow> {
+        let mut out = Vec::new();
         if !self.links_on() {
-            return;
+            return out;
         }
         if query.is_empty() && self.group_had_query {
             self.group.expanded = false;
         }
         self.group_had_query = !query.is_empty();
         if !self.group.header_shown(query) {
-            return;
+            return out;
         }
-        let header = self.header_item(query);
-        self.view.push(ViewRow { it: header, pos: Vec::new(), score: 0.0 });
+        out.push(ViewRow { it: self.header_item(query), pos: Vec::new(), score: 0.0 });
         for (i, score) in self.group.visible(query) {
             let it = self.link_item(i);
             let pos = if query.is_empty() {
@@ -1585,8 +1596,38 @@ impl App {
             } else {
                 fuzzy::fuzzy_match(&it.plain, query).map(|(p, _)| p).unwrap_or_default()
             };
-            self.view.push(ViewRow { it, pos, score });
+            out.push(ViewRow { it, pos, score });
         }
+        out
+    }
+
+    /// Where the cursor starts: no query → the header (`links.start_on_group`)
+    /// so Return switches to kitchen-sink; a query → the best local match,
+    /// else the best kitchen-sink match (never the header).
+    fn start_sel(&self, query: &str) -> usize {
+        let g = self.group_len;
+        let start_on_group = self.cfg.links.get("start_on_group").and_then(|v| v.as_bool()).unwrap_or(true);
+        if query.is_empty() {
+            if g > 0 && start_on_group {
+                0
+            } else if self.view.len() > g {
+                g
+            } else {
+                0
+            }
+        } else if self.view.len() > g {
+            g
+        } else if g > 1 {
+            1
+        } else {
+            0
+        }
+    }
+
+    /// ^e / ^m on the header: open / close the group in place.
+    fn group_toggle(&mut self) {
+        let open = !self.group.expanded;
+        self.group_set(open);
     }
 
     fn header_item(&self, query: &str) -> Item {
@@ -1663,29 +1704,16 @@ impl App {
         }
     }
 
-    /// Return on the header: toggle; offline starts kitchen-sink; an
-    /// unavailable provider is asked again.
+    /// Return on the header: just bring kitchen-sink forward (`do:go:app`,
+    /// its last view); when it is down or too old to answer, start / raise
+    /// it with `ks_launch`.
     fn choose_header(&mut self) {
-        match self.group.status {
-            GroupStatus::Offline => {
-                links::launch_ks(&self.cfg);
-                self.quit_code = Some(0);
-            }
-            GroupStatus::Unavailable => {
-                self.group.status = GroupStatus::Loading;
-                self.fetch_links();
-                self.refilter_keep_current();
-            }
-            _ => {
-                let open = !self.group.expanded;
-                self.group.expanded = open;
-                self.refilter(self.sel);
-                if let Some(i) = self.header_index() {
-                    self.sel = i;
-                    self.schedule_preview();
-                }
-            }
+        self.term.restore();
+        let up = self.group.status != GroupStatus::Offline && links::go_ks(&self.cfg, "app").is_ok();
+        if !up {
+            links::launch_ks(&self.cfg);
         }
+        self.quit_code = Some(0);
     }
 
     /// Return on a link row: kitchen-sink presents it (and activates; AeroSpace
@@ -1935,7 +1963,7 @@ impl App {
                 proc::subst_str(
                     &cfg.ui.info_fmt,
                     &[
-                        ("shown", &self.local_len.to_string()),
+                        ("shown", &(self.view.len() - self.group_len).to_string()),
                         ("total", &self.items.len().to_string())
                     ]
                 )

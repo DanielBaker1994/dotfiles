@@ -41,7 +41,8 @@
     "ls_dir": ["-la", "{path}"],
     "aerospace_windows": ["list-windows", "--monitor", "all", "--app-bundle-id", "{bundle}", "--json"],
     "aerospace_focus": ["focus", "--window-id", "{id}"],
-    "ks_launch": ["$HOME/.config/kitchen-sink/bin/kitchen_sink.sh", "window"]
+    "ks_launch": ["$HOME/.config/kitchen-sink/bin/kitchen_sink.sh", "window"],
+    "ghostty_open": ["/usr/bin/open", "-b", "{bundle}"]
   },
 
   "paths": {
@@ -197,7 +198,7 @@
     "group_offline": "not running",
     "group_unavailable": "unavailable",
     "group_preview": "{title}\n{subtitle}",
-    "group_header_preview": "kitchen-sink's places\n\nenter / → expands, ← collapses, ^k jumps here,\ntyping searches them too",
+    "group_header_preview": "kitchen-sink\n\nenter switches to it (its last view)\n→ / l lists its places, ← / h hides them,\n^k jumps here, typing searches them too",
     "group_offline_preview": "kitchen-sink is not running — enter starts it",
     "link_label": " kitchen-sink · {kind} ",
     "link_tab": "1 tab",
@@ -255,7 +256,6 @@
       "k": "prev"
     },
     "group_keymap": {
-      "enter": "group-toggle",
       "ctrl+e": "group-toggle",
       "ctrl+m": "group-toggle",
       "right": "group-open",
@@ -269,7 +269,7 @@
   },
 
   "links": {
-    "readme": "The link bank (kitchen-sink PLAN-link-bank.md): kitchen-sink's places as a collapsed group at the bottom of the list, and herdr's workspaces for kitchen-sink's Ctrl+B W (list --json / go-id). One Ghostty window is assumed; with several, go-id raises the first whose title contains a ghostty_title_match entry, else the first one AeroSpace lists.",
+    "readme": "The link bank (kitchen-sink PLAN-link-bank.md): kitchen-sink's places as a collapsed group pinned on top of the list (the cursor starts on it when start_on_group: enter = switch to kitchen-sink), and herdr's workspaces for kitchen-sink's Ctrl+B W (list --json / go-id). One Ghostty window is assumed; with several, go-id raises the first whose title contains a ghostty_title_match entry, else the first one AeroSpace lists.",
     "ks_socket": "$TMPDIR/ws-notes.sock",
     "ks_list": "links",
     "ks_go": "do:go:{id}",
@@ -281,6 +281,7 @@
     "ghostty_bundle": "com.mitchellh.ghostty",
     "ghostty_title_match": [],
     "modes": ["ws", "all"],
+    "start_on_group": true,
     "status_map": { "working": "working", "blocked": "waiting", "done": "idle", "idle": "idle", "unknown": "unknown" }
   },
 
@@ -372,5 +373,5 @@
     "pulse_steps": 4
   },
 
-  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^t        agents     only agents, the ones that need you first\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^o        new        scratch workspace (a name → /tmp/name, or a path)\n  ^b        web        ask for a URL, open it in a browser workspace\n  ^d        close      close workspace / tab, forget a directory\n  ^k        ks         jump to kitchen-sink's places (the ▸ group at the bottom):\n                       enter opens one there, → / ← expand / collapse\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
+  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^t        agents     only agents, the ones that need you first\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^o        new        scratch workspace (a name → /tmp/name, or a path)\n  ^b        web        ask for a URL, open it in a browser workspace\n  ^d        close      close workspace / tab, forget a directory\n  ^k        ks         jump to kitchen-sink (the ▸ row on top; the cursor starts there):\n                       enter switches to it, → / ← list / hide its places\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
 }

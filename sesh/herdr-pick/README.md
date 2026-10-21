@@ -48,13 +48,15 @@ deps cached), online retry. Output is copied to `sesh/bin/herdr-pick`
 
 ## Link bank (kitchen-sink)
 
-kitchen-sink's places (its views, open notes, folder-compare sessions) sit
-collapsed at the bottom of the spaces / all list as `▸ kitchen-sink · N
-places` (kitchen-sink `PLAN-link-bank.md`). Return / → on the header expands
-it, ← / h collapses, `^k` jumps there opened, typing searches it too (it
-auto-expands to the matches). Return on a place sends `do:go:<id>` over
-kitchen-sink's socket (`links.ks_socket`) — kitchen-sink comes forward and
-AeroSpace follows. The rows are fetched in the background with a 300 ms
+kitchen-sink sits pinned on top of the spaces / all list as `▸ kitchen-sink
+· N places` (kitchen-sink `PLAN-link-bank.md`), and the cursor starts there
+(`links.start_on_group`): prefix+w, Return switches to kitchen-sink on its
+last view (`do:go:app`). → / l lists its places (views, open notes,
+folder-compare sessions), ← / h hides them, `^k` jumps there opened, typing
+searches them too (auto-expanding to the matches; the cursor goes to the best
+local match first). Return on a place sends `do:go:<id>` over kitchen-sink's
+socket (`links.ks_socket`) — kitchen-sink comes forward and AeroSpace
+follows. The rows are fetched in the background with a 300 ms
 budget (`links.timeout_ms`) and cached in `links.ks_cache`; the header reads
 `· not running` (Return starts it) or `· unavailable`.
 
