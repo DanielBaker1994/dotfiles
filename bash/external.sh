@@ -105,13 +105,24 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         echo "weasyprint failed"
         return 3
     }
-    # PNG per page at 200 dpi, rasterised from the finished PDF so the pixel size
+    # PNG at 200 dpi, rasterised from the finished PDF so the pixel size
     # always follows the PDF page size (nothing cut off) and matches the PDF.
-    # Writes <out>-<n>.png (pdftoppm zero-pads n to the page-count width).
+    # Writes ONE <out>.png named like the markdown: pages stacked top to bottom
+    # (magick), or page 1 alone if ImageMagick is missing.
     # Backgrounded + disowned so it never adds latency to the build.
     if command -v pdftoppm &>/dev/null; then
-        rm -f "${base_noext}"-[0-9]*.png
-        (pdftoppm -r 200 -png "$pdf_file" "$base_noext" &>/dev/null &)
+        rm -f "${base_noext}"-[0-9]*.png "${base_noext}.png"
+        (
+            tmp_png_dir=$(mktemp -d) &&
+                pdftoppm -r 200 -png "$pdf_file" "$tmp_png_dir/p" &>/dev/null &&
+                if command -v magick &>/dev/null; then
+                    magick "$tmp_png_dir"/p-*.png -append "${base_noext}.png"
+                else
+                    mv "$(ls "$tmp_png_dir"/p-*.png | head -1)" "${base_noext}.png"
+                fi
+            rm -rf "$tmp_png_dir"
+        ) &>/dev/null &
+        disown 2>/dev/null || true
     else
         echo "pdftoppm not found (brew install poppler); skipping PNG" >&2
     fi

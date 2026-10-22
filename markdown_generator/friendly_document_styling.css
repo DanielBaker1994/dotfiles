@@ -604,4 +604,18 @@ h2 + pre, h3 + pre, h2 + table, h3 + table, p:has(+ pre), p:has(+ table) { break
 thead { display: table-header-group; }
 a { overflow-wrap: anywhere; }
 
+/* — tables never run off the page (PDF) — cells wrap anywhere (URLs, code),
+   and wide tables (6+ / 10+ columns) shrink their text and padding so they
+   still read. Mirrored in kitchen-sink pylib/prose_pdf.json "fit_css", which
+   the app appends to every export whatever CSS is configured. */
+@media print {
+  table { max-width: 100% !important; }
+  th, td { overflow-wrap: anywhere !important; hyphens: manual !important; }
+  th code, td code { white-space: normal !important; overflow-wrap: anywhere !important; }
+  table:has(tr > :nth-child(6)) { font-size: .82em !important; }
+  table:has(tr > :nth-child(6)) th, table:has(tr > :nth-child(6)) td { padding: 5px 7px !important; }
+  table:has(tr > :nth-child(10)) { font-size: .66em !important; }
+  table:has(tr > :nth-child(10)) th, table:has(tr > :nth-child(10)) td { padding: 3px 4px !important; }
+}
+
 </style>
