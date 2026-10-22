@@ -53,6 +53,9 @@ echo "==> Ensuring homebrew packages are installed..."
 # Icon font for the terminal/tmux
 brew install --cask font-hack-nerd-font
 
+# poppler: pdftoppm rasterises the markdown PDF to PNG (EXTERNAL_BUILD_AND_OPEN_PDF)
+brew list poppler &>/dev/null || brew install poppler
+
 # Rosetta 2 (Apple silicon): lets Intel-only apps run (oahd is its daemon).
 if [[ "$(uname -m)" == "arm64" ]] && ! pgrep -q oahd; then
     sudo softwareupdate --install-rosetta --agree-to-license

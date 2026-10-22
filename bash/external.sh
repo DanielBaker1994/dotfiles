@@ -105,6 +105,16 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         echo "weasyprint failed"
         return 3
     }
+    # PNG per page at 200 dpi, rasterised from the finished PDF so the pixel size
+    # always follows the PDF page size (nothing cut off) and matches the PDF.
+    # Writes <out>-<n>.png (pdftoppm zero-pads n to the page-count width).
+    # Backgrounded + disowned so it never adds latency to the build.
+    if command -v pdftoppm &>/dev/null; then
+        rm -f "${base_noext}"-[0-9]*.png
+        (pdftoppm -r 200 -png "$pdf_file" "$base_noext" &>/dev/null &)
+    else
+        echo "pdftoppm not found (brew install poppler); skipping PNG" >&2
+    fi
     killshellcheck
 
     return 0

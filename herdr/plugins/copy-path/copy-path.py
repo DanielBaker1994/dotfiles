@@ -23,39 +23,57 @@ import termios
 import time
 import tty
 import unicodedata
-from dataclasses import dataclass, field
 
 HERE = os.path.dirname(os.path.realpath(__file__))
 PLUGIN_ID = os.environ.get("HERDR_PLUGIN_ID", "local.copy-path")
 CTX_ENV = "COPY_PATH_CTX"
 
-# ❯ (starship/pure), user@host:dir$ / user@host dir % / [user@host dir]$, or a
-# dir-first "~/x $" / "/x>"; an optional "(venv) " prefix on the last two.
+# ❯ (starship/pure/p10k), user@host:dir$ / user@host dir % / [user@host dir]$ /
+# fish user@host ~/x>, a dir-first "~/x $" / "/x>" (optional "(venv) "),
+# Kali/Parrot "└─$" / "└──╼ $", macOS bash "host:dir user$", robbyrussell
+# "➜  dir git:(main) ✗", and dir-less "bash-5.2$".
+MODE = r"(?:\(\S+\) ?)*"   # vi-mode "(INS) " (readline show-mode-in-prompt), "(venv) "
+END = r"(?: |$)"          # pane.read drops the space after an empty prompt
 PROMPT_REGEX = (r"❯ ?"
-                r"|^(?:\(\S+\) ?)?\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%]\]? ?"
-                r"|^(?:\(\S+\) ?)?[~/]\S*\s?[$#%>] ")
-DIR_REGEX = [r"(?:^|\sin\s)(?P<dir>~[^\s$#%>]*|/[^\s$#%>]*)",
-             r":(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]",
-             r"(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>]*|/[^\s\])$#%>]*)"]
+                rf"|^{MODE}\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%>]\]? ?"
+                rf"|^{MODE}[~/]\S*\s?[$#%>]{END}"
+                rf"|^{MODE}└─+(?:╼ )?[$#] ?"
+                rf"|^{MODE}[\w.-]+:\S+ [\w.-]+[$#]{END}"
+                rf"|^{MODE}➜\s+\S+(?: git:\(\S+\))?(?: ✗)?{END}"
+                rf"|^{MODE}(?:ba|z|k|da)?sh-[\d.]+[$#]{END}")
+# Git Bash's "$" alone on the row under its user@HOST header: only a prompt under one.
+BARE_PROMPT_REGEX = rf"^{MODE}[$#]{END}"
+# dir in the input row's prompt text; the first (?P<dir>…) match wins
+DIR_REGEX = [rf"^{MODE}[\w.-]+:(?P<dir>\S+) [\w.-]+[$#]",            # macOS bash: host:dir user$
+             r":(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]",           # bash: user@host:~/dir$
+             r"[\w.-]+@[\w.-]+ (?P<dir>[^\s\]$#%>]+)\]?\s?[$#%>]",  # zsh/fish/fedora: user@host dir %
+             rf"^{MODE}➜\s+(?P<dir>\S+)",                              # oh-my-zsh robbyrussell
+             r"(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>❯]*|/[^\s\])$#%>❯]*)"]   # any ~/ or / word: "~/x ❯"
+# dir in the rows above an input row that has none (multi-line prompts)
+HEADER_REGEX = [r"[-─]\[(?P<dir>[^\]]+)\]\s*$",                 # Kali/Parrot: ┌──(u㉿h)-[~/x]
+                r"^\S+@\S+ (?:MINGW|MSYS|UCRT|CLANG)\S* (?P<dir>\S+)",   # Git Bash
+                r"^(?:.* in )?(?P<dir>[~/]\S*)",                # starship/pure: "~/x via …", "root in host in ~"
+                r"^(?P<dir>[^\s/~]\S*)(?: (?:on|via|is|took)\s|$)"]  # starship truncated: "a/proj on  main"
+# A pane running one of these is on another machine: its prompt's ~ isn't ours.
+REMOTE_COMMANDS = ["ssh", "mosh", "mosh-client", "autossh", "et", "telnet", "docker",
+                   "podman", "kubectl", "lxc", "multipass", "vagrant", "tsh", "gcloud", "aws"]
 
 DEFAULTS = {
     "scope": "output",
     "timeout_ms": 5000,
-    "flash_ms": 250,
-    "toast_ms": 2500,
     "prompt_regex": PROMPT_REGEX,
+    "bare_prompt_regex": BARE_PROMPT_REGEX,
     "prompt_height": 2,
     "use_ps1": False,
     "ps1_dir_regex": DIR_REGEX,
-    "expand_home": False,
+    "ps1_header_regex": HEADER_REGEX,
+    "remote_commands": REMOTE_COMMANDS,
     "list_commands": ["ls", "ll", "la", "l", "eza", "exa", "lsd", "fd", "find"],
     "ignore_regex": r"^(\w+://|-|[\d.,:_/-]+$|[0-9a-f]{7,40}$)",
-    "cwd_fallback": False,
     "check_exists": False,
     "alphabet": "asdfghjklwertyuiopzxcvbnm",
     "style": {"hint_fg": "#1e1e2e", "hint_bg": "#f9e2af", "match_fg": "#f9e2af",
-              "dim_fg": "#6c7086", "status_fg": "#cdd6f4", "status_bg": "#313244",
-              "toast_fg": "#cdd6f4", "toast_bg": "#11151c", "toast_border": "#4ccf8c"},
+              "dim_fg": "#6c7086", "status_fg": "#cdd6f4", "status_bg": "#313244"},
 }
 
 
@@ -72,8 +90,9 @@ def load_config(path=os.path.join(HERE, "config.toml")):
             cfg["style"].update(value)
         else:
             cfg[key] = value
-    if isinstance(cfg["ps1_dir_regex"], str):
-        cfg["ps1_dir_regex"] = [cfg["ps1_dir_regex"]]
+    for key in ("ps1_dir_regex", "ps1_header_regex"):
+        if isinstance(cfg[key], str):
+            cfg[key] = [cfg[key]]
     return cfg
 
 
@@ -109,9 +128,22 @@ def focused_pane_id():
     return json.loads(os.environ.get("HERDR_PLUGIN_CONTEXT_JSON", "{}")).get("focused_pane_id")
 
 
+def is_remote(pane_id, cfg):
+    """True when the pane's foreground is ssh/mosh/docker exec… (herdr only
+    ever runs locally, so anything else is a local shell)."""
+    try:
+        procs = call("pane.process_info", {"pane_id": pane_id})["process_info"]["foreground_processes"]
+    except Exception as e:
+        log(f"process_info: {e}")
+        return True   # unknown: don't trust the local cwd / $HOME
+    return any(os.path.basename(p.get("argv0") or p.get("name") or "") in cfg["remote_commands"]
+               for p in procs)
+
+
 def open_overlay():
     """Plugin action: remember the source pane's rect (the overlay covers the
-    whole tab) + cwd, then open the overlay pane."""
+    whole tab), cwd and whether it is local, then open the overlay pane."""
+    cfg = load_config()
     pane_id = focused_pane_id()
     layout = call("pane.layout", {"pane_id": pane_id})["layout"]
     area = layout["area"]
@@ -122,8 +154,8 @@ def open_overlay():
     rect["x"] -= area["x"]
     rect["y"] -= area["y"]
     pane = call("pane.get", {"pane_id": pane_id})["pane"]
-    ctx = {"pane_id": pane_id, "area": area, "rect": rect,
-           "cwd": pane.get("cwd"), "agent": pane.get("agent")}
+    ctx = {"pane_id": pane_id, "area": area, "rect": rect, "cwd": pane.get("cwd"),
+           "agent": pane.get("agent"), "local": not is_remote(pane_id, cfg)}
     opened = call("plugin.pane.open", {"plugin_id": PLUGIN_ID, "entrypoint": "overlay",
                                        "env": {CTX_ENV: json.dumps(ctx)}})
     # herdr can keep the split-sized PTY until an explicit zoom
@@ -134,50 +166,86 @@ def open_overlay():
 # finding paths (pure: rows of text in, hits out)
 
 
-@dataclass
+# plain classes, not dataclasses: importing dataclasses costs ~10ms per prefix+f
 class Region:
-    start: int          # first row of the output
-    end: int            # one past the last row
-    command: str = ""   # command that produced it ("" = unknown)
-    dir: str | None = None   # dir shown in the prompt it ran under
+    def __init__(self, start, end, command="", dir=None, user=None):
+        self.start = start      # first row of the output
+        self.end = end          # one past the last row
+        self.command = command  # command that produced it ("" = unknown)
+        self.dir = dir          # dir shown in the prompt it ran under
+        self.user = user        # user shown in that prompt (remote ~ of root is /root)
 
 
-@dataclass
 class Hit:
-    text: str                                   # as seen on screen
-    copy: str                                   # what gets copied
-    spans: list = field(default_factory=list)   # [(row, start, end)] char indices
-    label: str = ""
+    def __init__(self, text, copy, spans=None, label=""):
+        self.text = text            # as seen on screen
+        self.copy = copy            # what gets copied
+        self.spans = spans or []    # [(row, start, end)] char indices
+        self.label = label
 
 
 def prompt_text(rows, row, cfg):
     """The input row minus the command typed after the prompt (a path in the
     command is not the prompt's dir)."""
-    m = re.search(cfg["prompt_regex"], rows[row])
+    m = re.search(cfg["prompt_regex"], rows[row]) or re.match(cfg["bare_prompt_regex"], rows[row])
     return rows[row][:m.end()] if m else rows[row]
+
+
+def second_line(text):
+    """A prompt's input row that is only a symbol ("❯", "(INS) ❌ 130 ❯", "└─$",
+    "$"): the rest of the prompt (its dir) is on the rows above."""
+    return not re.search(r"\w", re.sub(r"\(\S*\)|\d+", "", text))
+
+
+def first_dir(patterns, text):
+    for pattern in patterns:
+        m = re.search(pattern, text)
+        if m and m.group("dir"):
+            return m.group("dir")
+    return None
+
+
+def header_dir(rows, row, cfg):
+    """(row, dir) of the nearest prompt header above input row `row`, or None."""
+    for r in range(row - 1, row - int(cfg["prompt_height"]), -1):
+        if r >= 0:
+            d = first_dir(cfg["ps1_header_regex"], rows[r])
+            if d:
+                return r, d
+    return None
 
 
 def prompt_dir(rows, row, cfg):
     """Dir printed by the prompt whose input row is `row`: the input row
-    itself, else the rows above it (a multi-line prompt)."""
-    block = [row] + [r for r in range(row - 1, row - int(cfg["prompt_height"]), -1) if r >= 0]
-    for r in block:
-        text = prompt_text(rows, r, cfg) if r == row else rows[r]
-        for pattern in cfg["ps1_dir_regex"]:
-            m = re.search(pattern, text)
-            if m and m.group("dir").startswith(("~", "/")):
-                return m.group("dir")
+    itself, else a header row above it (a multi-line prompt). It can be a
+    full path (/x, ~/x) or only what the prompt shows ("proj", "~/.d/h")."""
+    text = prompt_text(rows, row, cfg)
+    d = first_dir(cfg["ps1_dir_regex"], text)
+    if d or not second_line(text):
+        return d
+    header = header_dir(rows, row, cfg)
+    return header[1] if header else None
+
+
+USER_REGEX = re.compile(r"(?:^|[\s(\[])([\w.-]+)(?:@|㉿)[\w.-]+|^(\w[\w.-]*) in ")
+
+
+def prompt_user(rows, row, cfg):
+    for r in range(row, row - int(cfg["prompt_height"]), -1):
+        m = r >= 0 and USER_REGEX.search(rows[r])
+        if m:
+            return m.group(1) or m.group(2)
     return None
 
 
 def prompt_start(rows, row, cfg):
     """First row of the prompt block ending at input row `row`."""
-    for pattern in cfg["ps1_dir_regex"]:
-        if re.search(pattern, prompt_text(rows, row, cfg)):
-            return row
-    m = re.search(cfg["prompt_regex"], rows[row])
-    if m and "❯" not in m.group():
-        return row   # a self-contained "user@host dir $" prompt is one row
+    text = prompt_text(rows, row, cfg)
+    if first_dir(cfg["ps1_dir_regex"], text) or not second_line(text):
+        return row   # a self-contained "user@host dir $" / "bash-5.2$" prompt is one row
+    header = header_dir(rows, row, cfg)
+    if header:
+        return header[0]
     return max(0, row - int(cfg["prompt_height"]) + 1)
 
 
@@ -189,23 +257,32 @@ def find_region(rows, cfg, whole_screen=False):
         return Region(0, 0)
     last_content = content[-1]
     prompt_re = re.compile(cfg["prompt_regex"])
-    inputs = [i for i, r in enumerate(rows) if prompt_re.search(r)]
+    bare_re = re.compile(cfg["bare_prompt_regex"])
+
+    def match(i):
+        m = prompt_re.search(rows[i])
+        if not m and bare_re.match(rows[i]) and "@" in rows[i - 1] and header_dir(rows, i, cfg):
+            m = bare_re.match(rows[i])   # Git Bash: "user@HOST MINGW64 ~/x" above
+        return m
+
+    inputs = [i for i in range(len(rows)) if match(i)]
     if whole_screen or cfg["scope"] == "screen" or not inputs:
         return Region(0, last_content + 1)
 
-    def command(row):
-        return rows[row][prompt_re.search(rows[row]).end():].strip()
+    def region(start, end, row, cmd=True):
+        return Region(start, end, rows[row][match(row).end():].strip() if cmd else "",
+                      prompt_dir(rows, row, cfg), prompt_user(rows, row, cfg))
 
     last = inputs[-1]
     if last < last_content:
         # output after the last prompt: a command still running (tail -f, ssh login…)
-        return Region(last + 1, last_content + 1, command(last), prompt_dir(rows, last, cfg))
+        return region(last + 1, last_content + 1, last)
     end = prompt_start(rows, last, cfg)
     if len(inputs) < 2:
         # the previous prompt scrolled away: output from the top, current prompt's dir
-        return Region(0, end, "", prompt_dir(rows, last, cfg))
+        return region(0, end, last, cmd=False)
     prev = inputs[-2]
-    return Region(prev + 1, end, command(prev), prompt_dir(rows, prev, cfg))
+    return region(prev + 1, end, prev)
 
 
 LONG_LS = re.compile(r"^[-bcdlpsDl][rwxsStT-]{9}[@+.]?\s")
@@ -292,29 +369,70 @@ def is_path(tok, bare_ok, cfg, exists_base=None):
     return bool(exists_base) and os.path.exists(os.path.join(exists_base, tok))
 
 
-def resolve(tok, base, cfg):
+def expand_home(path, home):
+    if home and (path == "~" or path.startswith("~/")):
+        return home + path[1:]
+    return path
+
+
+def absolute_dir(shown, local_cwd, home):
+    """The dir the prompt showed, as a full path when it can be known.
+    local_cwd is the shell's cwd for a local pane, None over ssh (where only
+    the prompt's own text counts and an unknown ~ stays ~)."""
+    if local_cwd is None:
+        return expand_home(shown, home) if shown and shown.startswith(("/", "~")) else None
+    if not shown:
+        return local_cwd   # a prompt without a dir ("bash-5.2$"): the shell's cwd
+    full = expand_home(shown, home)
+    if full.startswith("/") and os.path.isdir(full):
+        return posixpath.normpath(full)
+    # only part of the path: starship's truncated "a/b/proj", fish's
+    # "~/.d/herdr", "…/x", "[bob@box proj]$". The shell may have cd'd since
+    # (`cd ..`, `cd sub`), so place it against the cwd and its parents.
+    parts = [p for p in full.split("/") if p and p != "…"]
+    if parts and parts[0].startswith("…"):
+        parts[0] = parts[0][1:]
+    cwd = local_cwd.rstrip("/").split("/")
+    if not parts:
+        return full if full.startswith("/") else None
+
+    def fits(real):
+        # every shown part is (fish: abbreviates) its real part, the last one whole
+        if full.startswith("/") and len(real) != len(parts) + 1:
+            return False
+        tail = real[-len(parts):]
+        return (len(real) > len(parts) and tail[-1] == parts[-1]
+                and all(r.startswith(p) for r, p in zip(tail, parts)))
+
+    for n in range(len(cwd), 1, -1):   # the cwd, then each parent
+        if fits(cwd[:n]):
+            return "/".join(cwd[:n])
+    for i in range(len(cwd) - 1, 0, -1):   # a dir beside/below: anchor its first part
+        if cwd[i] == parts[0]:
+            candidate = "/".join(cwd[:i] + parts)
+            if os.path.isdir(candidate):
+                return candidate
+    return full if full.startswith("/") else None
+
+
+def resolve(tok, base, home, cfg):
     """What to copy: as seen, or (use_ps1) the full path under the prompt's dir."""
-    if cfg["use_ps1"] and base and not tok.startswith(("/", "~")):
+    if not cfg["use_ps1"]:
+        return tok
+    tok = expand_home(tok, home)
+    if base and not tok.startswith(("/", "~")):
         slash = tok.endswith("/")
         tok = posixpath.normpath(posixpath.join(base, tok))
         if slash and not tok.endswith("/"):
             tok += "/"
-    if cfg["expand_home"] and (tok == "~" or tok.startswith("~/")):
-        tok = os.path.expanduser(tok)
     return tok
 
 
-def local_base(base, pane_cwd):
-    """`base` as a local dir when it IS the pane's local cwd (never over ssh)."""
-    if not base or not pane_cwd:
-        return None
-    local = os.path.expanduser(base)
-    return local if os.path.realpath(local) == os.path.realpath(pane_cwd) else None
-
-
-def find_paths(rows, region, cfg, pane_cwd=None, wrap_width=None):
-    base = region.dir or (pane_cwd if cfg["cwd_fallback"] else None)
-    exists_base = local_base(base, pane_cwd) if cfg["check_exists"] else None
+def find_paths(rows, region, cfg, local_cwd=None, wrap_width=None):
+    """local_cwd: the pane's cwd when it is a local shell (not ssh…)."""
+    home = os.path.expanduser("~") if local_cwd else ("/root" if region.user == "root" else None)
+    base = absolute_dir(region.dir, local_cwd, home)
+    exists_base = base if cfg["check_exists"] and local_cwd and base and os.path.isdir(base) else None
     words = region.command.split()
     ls_context = bool(words) and os.path.basename(words[0]) in cfg["list_commands"]
     row_dir = listed_dirs(rows, region, words) if ls_context else {}
@@ -341,7 +459,7 @@ def find_paths(rows, region, cfg, pane_cwd=None, wrap_width=None):
             path, listed = tok, row_dir.get(row)
             if listed and "/" not in tok.rstrip("/") and tok != posixpath.basename(listed.rstrip("/")):
                 path = posixpath.join(listed, tok)
-            hits.append(Hit(tok, resolve(path, base, cfg), slice_spans(spans, lo, hi)))
+            hits.append(Hit(tok, resolve(path, base, home, cfg), slice_spans(spans, lo, hi)))
     return hits
 
 
@@ -421,7 +539,7 @@ class Overlay:
     def live(self):
         return [h for h in self.hits if h.label.startswith(self.typed)]
 
-    def styled_row(self, r, flash=None, flash_on=False):
+    def styled_row(self, r):
         row = self.rows[r]
         base = "" if self.region.start <= r < self.region.end else self.s_dim
         styles = [base] * len(row)
@@ -430,12 +548,9 @@ class Overlay:
             for i, (hr, a, b) in enumerate(hit.spans):
                 if hr != r:
                     continue
-                style = self.s_match
-                if hit is flash or (flash and hit.copy == flash.copy):
-                    style = "\x1b[7m" + self.s_match if flash_on else self.s_match
                 for c in range(a, b):
-                    styles[c] = style
-                if i == 0 and flash is None:
+                    styles[c] = self.s_match
+                if i == 0:
                     for k, ch in enumerate(hit.label[:b - a]):
                         chars[a + k] = ch
                         styles[a + k] = self.s_hint
@@ -464,11 +579,11 @@ class Overlay:
         col = display_width(last) + 3
         return (rect["height"], col, rect["width"] - col) if rect["width"] - col >= 20 else None
 
-    def draw(self, flash=None, flash_on=False):
+    def draw(self):
         out = ["\x1b[H\x1b[2J"]
         for r in range(min(len(self.rows), self.rect["height"])):
             out.append(f"\x1b[{self.rect['y'] + r + 1};{self.rect['x'] + 1}H")
-            out.append(self.styled_row(r, flash, flash_on))
+            out.append(self.styled_row(r))
         pos = self.status_pos()
         if pos and self.status_text:
             row, col, width = pos
@@ -478,20 +593,14 @@ class Overlay:
         sys.stdout.flush()
 
     def run(self, on_pick=None):
-        """Hint loop → the picked Hit, or None (Esc, Ctrl-C, timeout, resize).
-        on_pick(hit) runs after the flash, then the centered "Copied" box holds."""
+        """Hint loop → the picked Hit, or None (Esc, Ctrl-C, timeout).
+        on_pick(hit) runs the moment a label completes; the overlay then exits."""
         fd = sys.stdin.fileno()
         saved = termios.tcgetattr(fd)
         wake_r, wake_w = os.pipe()
-        expected = (self.area["width"], self.area["height"])
-        state = {"fit": os.get_terminal_size() == expected, "cancel": False}
 
         def on_resize(*_):
-            size = tuple(os.get_terminal_size())
-            if size == expected:
-                state["fit"] = True
-            elif state["fit"]:
-                state["cancel"] = True   # snapshot no longer matches the pane
+            # herdr sizes the overlay a few times while opening it: just redraw
             os.write(wake_w, b"x")
 
         signal.signal(signal.SIGWINCH, on_resize)
@@ -504,18 +613,18 @@ class Overlay:
             while True:
                 left = deadline - time.monotonic()
                 if left <= 0:
+                    log("closed: timeout")
                     return None
                 ready, _, _ = select.select([fd, wake_r], [], [], left)
                 if wake_r in ready:
                     os.read(wake_r, 64)
-                    if state["cancel"]:
-                        return None
                     self.draw()
                 if fd not in ready:
                     continue
                 data = os.read(fd, 64).decode(errors="ignore")
                 deadline = time.monotonic() + timeout
                 if data in ("\x1b", "\x03") or data == "\x1b\x1b":
+                    log(f"closed: key {data!r}")
                     return None
                 if data.startswith("\x1b"):
                     continue   # arrow keys etc.
@@ -528,10 +637,8 @@ class Overlay:
                         self.typed += ch
                     picked = [h for h in self.hits if h.label == self.typed]
                     if picked:
-                        self.flash(picked[0])
                         if on_pick:
                             on_pick(picked[0])
-                            self.toast(picked[0].copy)
                         return picked[0]
                 self.update_status()
                 self.draw()
@@ -539,32 +646,6 @@ class Overlay:
             sys.stdout.write("\x1b[0m\x1b[?25h\x1b[?1049l")
             sys.stdout.flush()
             termios.tcsetattr(fd, termios.TCSADRAIN, saved)
-
-    def flash(self, hit):
-        steps = 6
-        for i in range(steps):
-            self.draw(flash=hit, flash_on=i % 2 == 0)
-            time.sleep(self.cfg["flash_ms"] / 1000 / steps)
-
-    def toast(self, path):
-        """Slim single-line toast: the copied path on the toast background,
-        horizontally centred (middle-ellipsised only when the terminal is narrow)."""
-        cols, lines = os.get_terminal_size()
-        label = "\u2713 Copied  "
-        room = cols - 4 - display_width(label)
-        if display_width(path) > room:
-            keep = max(1, room - 1)
-            path = path[:keep // 3] + "\u2026" + path[-(keep - keep // 3):]
-        text = f" {label}{path} "
-        col = max(1, (cols - display_width(text)) // 2 + 1)
-        row = max(1, lines // 2)
-        st = self.cfg["style"]
-        body = f"\x1b[{sgr_color(st['toast_fg'], 3)};{sgr_color(st['toast_bg'], 4)}m"
-        ok = f"\x1b[1;{sgr_color(st['toast_border'], 3)};{sgr_color(st['toast_bg'], 4)}m"
-        text = text.replace("\u2713", f"{ok}\u2713{body}", 1)
-        sys.stdout.write(f"\x1b[{row};{col}H{body}{text}\x1b[0m")
-        sys.stdout.flush()
-        time.sleep(self.cfg["toast_ms"] / 1000)
 
     def update_status(self):
         n = len({h.copy for h in self.live()})
@@ -596,7 +677,7 @@ def overlay():
         # opened without the action: whole terminal, focused pane
         cols, lines = os.get_terminal_size()
         full = {"x": 0, "y": 0, "width": cols, "height": lines}
-        ctx = {"pane_id": focused_pane_id(), "area": full, "rect": full, "cwd": None, "agent": None}
+        ctx = {"pane_id": focused_pane_id(), "area": full, "rect": full, "cwd": None, "agent": None, "local": False}
     read = call("pane.read", {"pane_id": ctx["pane_id"], "source": "visible",
                               "format": "text", "strip_ansi": True})["read"]["text"]
     rows = read.split("\n")[:ctx["rect"]["height"]]
@@ -604,9 +685,10 @@ def overlay():
     region = find_region(rows, cfg, whole_screen=bool(ctx.get("agent")))
     # pane.read moves the wrap-pending last column to the next row
     wrap_width = max(1, ctx["rect"]["width"] - 1)
-    hits = assign_labels(find_paths(rows, region, cfg, ctx.get("cwd"), wrap_width), cfg["alphabet"])
+    local_cwd = ctx.get("cwd") if ctx.get("local") else None
+    hits = assign_labels(find_paths(rows, region, cfg, local_cwd, wrap_width), cfg["alphabet"])
     log(f"pane={ctx['pane_id']} region={region.start}-{region.end} cmd={region.command!r} "
-        f"dir={region.dir!r} hits={len(hits)}")
+        f"dir={region.dir!r} local={bool(local_cwd)} hits={len(hits)}")
     if not hits:
         toast("copy-path: no paths in the last output")
         return

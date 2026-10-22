@@ -4,39 +4,55 @@
 
 scope      = "output"  # "output" = rows between the last two prompts, "screen" = whole pane
 timeout_ms = 5000      # close after this long without a key press
-flash_ms   = 250       # blink of the picked path before the overlay closes
-toast_ms   = 1200      # how long the slim centered "Copied" toast stays up
+# Picking a hint copies and closes at once: no flash, no toast.
 
 # --- prompt detection ---------------------------------------------------------
 # A row matching prompt_regex is a prompt's INPUT row; the command is the text
-# after the match. starship: "(INS) ❯ ls"; plain bash: "root@box:/var/log# ls".
-prompt_regex  = '❯ ?|^(?:\(\S+\) ?)?\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%]\]? ?|^(?:\(\S+\) ?)?[~/]\S*\s?[$#%>] '
-# ^ ❯ · user@host:dir$ · user@host dir % · [user@host dir]$ · dir-first "~/x $" ("(venv) " ok)
-# Rows a prompt spans (starship here = dir row + input row). Rows above the
-# input row are only part of the prompt when the input row has no dir itself.
+# after the match. Covers: starship/pure/p10k "(INS) ❯ ls", bash "user@host:~/x$",
+# zsh "user@host x %", fedora "[user@host x]$", fish "user@host ~/x>", dir-first
+# "~/x $", Kali "└─$", Parrot "└──╼ $", macOS bash "host:x user$", robbyrussell
+# "➜  x git:(main) ✗", "bash-5.2$"; any of them after a vi-mode "(INS) " / "(venv) ".
+prompt_regex  = '❯ ?|^(?:\(\S+\) ?)*\[?[\w.-]+@[\w.-]+[: ] ?\S*\s?[$#%>]\]? ?|^(?:\(\S+\) ?)*[~/]\S*\s?[$#%>](?: |$)|^(?:\(\S+\) ?)*└─+(?:╼ )?[$#] ?|^(?:\(\S+\) ?)*[\w.-]+:\S+ [\w.-]+[$#](?: |$)|^(?:\(\S+\) ?)*➜\s+\S+(?: git:\(\S+\))?(?: ✗)?(?: |$)|^(?:\(\S+\) ?)*(?:ba|z|k|da)?sh-[\d.]+[$#](?: |$)'
+# A bare "$" row (Git Bash's 2nd line) is a prompt only under a user@HOST header row.
+bare_prompt_regex = '^(?:\(\S+\) ?)*[$#](?: |$)'
+# Rows a multi-line prompt spans (starship = dir row + input row). Rows above
+# are only read when the input row is just a symbol ("❯", "└─$", "$").
 prompt_height = 2
 
 # --- PS1 path building ----------------------------------------------------------
 # true: copy full paths built from the dir shown in the prompt the command ran
-# under ("./a" and "a" → "<dir>/a", "../a" normalised; /abs and ~/x unchanged).
+# under ("./a" and "a" → "<dir>/a", "../a" normalised, /abs unchanged).
+# Local pane (herdr checks the foreground process is not one of remote_commands):
+#   ~ → $HOME; a prompt showing only part of the dir ("proj", starship's
+#   repo-relative "proj/src", fish's "~/.d/x") or none ("bash-5.2$") → the
+#   shell's cwd. Over ssh only the prompt's text counts: ~ stays ~ (root's → /root).
 use_ps1 = true
-# Where the dir sits in the prompt; the first pattern with a (?P<dir>…) match wins.
-# Only dirs starting with ~ or / are used (starship's truncated display is not).
+# Dir in the input row's prompt; the first pattern with a (?P<dir>…) match wins.
 ps1_dir_regex = [
-    '(?:^|\sin\s)(?P<dir>~[^\s$#%>]*|/[^\s$#%>]*)',   # starship: "~/x via …", "root in host in ~"
-    ':(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]',   # bash: user@host:~/dir$
-    '(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>]*|/[^\s\])$#%>]*)',   # any ~/ or / word: "(venv) ~/x %", "bob@box ~/x $"
+    '^(?:\(\S+\) ?)*[\w.-]+:(?P<dir>\S+) [\w.-]+[$#]',             # macOS bash: host:dir user$
+    ':(?P<dir>~[^\s$#%]*|/[^\s$#%]*)[$#%]',          # bash: user@host:~/dir$
+    '[\w.-]+@[\w.-]+ (?P<dir>[^\s\]$#%>]+)\]?\s?[$#%>]',   # zsh/fish/fedora: user@host dir %
+    '^(?:\(\S+\) ?)*➜\s+(?P<dir>\S+)',                       # oh-my-zsh robbyrussell
+    '(?:^|[\s\[(])(?P<dir>~[^\s\])$#%>❯]*|/[^\s\])$#%>❯]*)',   # any ~/ or / word: "~/x ❯"
 ]
-expand_home = false   # true: ~/x → $HOME/x (a remote ~ is not your ~)
+# Dir in the header row(s) above a symbol-only input row.
+ps1_header_regex = [
+    '[-─]\[(?P<dir>[^\]]+)\]\s*$',                   # Kali/Parrot: ┌──(u㉿h)-[~/x]
+    '^\S+@\S+ (?:MINGW|MSYS|UCRT|CLANG)\S* (?P<dir>\S+)',   # Git Bash
+    '^(?:.* in )?(?P<dir>[~/]\S*)',                  # starship/pure: "~/x via …", "root in host in ~"
+    '^(?P<dir>[^\s/~]\S*)(?: (?:on|via|is|took)\s|$)',  # starship truncated: "a/proj on  main"
+]
+# Foreground commands that mean the pane is on another machine.
+remote_commands = ["ssh", "mosh", "mosh-client", "autossh", "et", "telnet", "docker",
+                   "podman", "kubectl", "lxc", "multipass", "vagrant", "tsh", "gcloud", "aws"]
 
 # --- detection ------------------------------------------------------------------
 # After these commands, every bare word in the output is a name (ls -l: the
 # last column). Otherwise a word needs a "/" or an extension to count.
 list_commands = ["ls", "ll", "la", "l", "eza", "exa", "lsd", "fd", "find"]
 ignore_regex  = '^(\w+://|-|[\d.,:_/-]+$|[0-9a-f]{7,40}$)'  # URLs, flags, numbers, dates, SHAs
-# Local-only helpers (off: they need the local disk, meaningless over ssh):
-cwd_fallback = false  # no dir in the prompt → use the pane's working dir
-check_exists = false  # a bare word that exists under the dir counts (local panes only)
+# Local panes only: a bare word that exists under the prompt's dir counts.
+check_exists = false
 
 alphabet = "asdfghjklwertyuiopzxcvbnm"   # hint letters, easiest first
 
@@ -47,6 +63,3 @@ match_fg  = "#f9e2af"
 dim_fg    = "#6c7086"
 status_fg = "#cdd6f4"
 status_bg = "#313244"
-toast_fg     = "#cdd6f4"
-toast_bg     = "#11151c"
-toast_border = "#4ccf8c"

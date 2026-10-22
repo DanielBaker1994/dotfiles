@@ -13,15 +13,19 @@
 # are Nerd Font glyphs (a full cell, bigger than plain Unicode symbols),
 # except opencode: ⬓ is its logo (a frame, bottom half filled).
 #
-# Each agent pane also gets the pane token $tab_name = the tab's plain label,
-# so the sidebar's agent rows show it without the prefix (config.toml
-# [ui.sidebar.agents] rows use "$tab_name" instead of "tab").
+# Each agent pane also gets the pane tokens $tab_name = the tab's plain label
+# and $agent_icon = its agent's glyph, so the sidebar's agent rows show the
+# label without the prefix and an icon in place of the agent's name
+# (config.toml [ui.sidebar.agents] rows; colors per agent there), plus $ws =
+# the workspace name padded to the longest agent workspace name (capped at
+# WS_WIDTH, longer names end in …) so the tab column lines up. herdr trims
+# token whitespace, so the padding is U+2800 (braille blank), not spaces.
 #
 # Glyph overrides: $HERDR_PLUGIN_CONFIG_DIR/icons.conf, lines like
 #   claude = ✻
 #   status.working = ●
 # State ($HERDR_PLUGIN_STATE_DIR): off = indicators turned off;
-# meta/PANE_ID = the $tab_name last reported for that pane.
+# meta/PANE_ID = the $tab_name, $agent_icon, $ws last reported for that pane.
 
 set -euo pipefail
 
@@ -29,6 +33,9 @@ herdr="${HERDR_BIN_PATH:-herdr}"
 state="${HERDR_PLUGIN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-agent-tabs}"
 config="${HERDR_PLUGIN_CONFIG_DIR:-$HOME/.config/herdr/plugins/config/local.agent-tabs}"
 mkdir -p "$state/meta"
+
+# widest $ws: sidebar_width 26 minus "○ 󰛄 · " and " · N"
+WS_WIDTH=13
 
 DEFAULT_ICONS='{
   "status.blocked": "×", "status.working": "◐", "status.done": "✓",
@@ -85,14 +92,17 @@ procs() {
 }
 
 # "tab<TAB>TAB_ID<TAB>NEW_LABEL" for every tab whose label must change,
-# "meta<TAB>PANE_ID<TAB>PLAIN_LABEL" for every agent pane
+# "meta<TAB>PANE_ID<TAB>PLAIN_LABEL<TAB>AGENT_ICON<TAB>PADDED_WS" for every agent pane
 plan() {
     jq -rn \
         --argjson icons "$(icons)" \
         --argjson t "$("$herdr" tab list 2>/dev/null || echo '{}')" \
         --argjson p "$("$herdr" pane list 2>/dev/null || echo '{}')" \
         --argjson procs "$(procs)" \
+        --argjson w "$("$herdr" workspace list 2>/dev/null || echo '{}')" \
+        --argjson wsw "$WS_WIDTH" \
         --arg off "$1" '
+        def ws($n): if length > $n then .[:$n - 1] + "…" else . + ("⠀" * ($n - length)) end;
         def esc: gsub("(?<c>[\\\\^$.|?*+()\\[\\]{}])"; "\\\(.c)");
         # + the glyphs of earlier versions, so old prefixes get cleaned up
         ("⚡▲✓○✻⌬◈❂◉▸◎◆π✦◐◑☿◇󰅩" | split("")) as $old
@@ -100,6 +110,9 @@ plan() {
         | {blocked: 0, done: 1, working: 2, idle: 3} as $rank
         | ($p.result.panes // []) as $panes
         | ($t.result.tabs // []) as $tabs
+        | ($w.result.workspaces // [] | map({(.workspace_id): .label}) | add // {}) as $wsname
+        | ([$panes[] | select(.agent) | $wsname[.workspace_id] // "" | length] | max // 0
+           | [., $wsw] | min) as $width
         # position within its workspace (list order = cmd+N order); herdr'"'"'s
         # own .number is a creation counter that keeps gaps after moves/closes
         | (reduce $tabs[] as $x ({n: {}, pos: {}};
@@ -121,21 +134,22 @@ plan() {
            end) as $prefix
         | (if $prefix == "" then $base else $prefix + " " + $base end) as $label
         | (if $label != $tab.label then "tab\t\($tab.tab_id)\t\($label)" else empty end),
-          ($agents[] | "meta\t\(.pane_id)\t\($base)")'
+          ($agents[] | "meta\t\(.pane_id)\t\($base)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
 }
 
 sync() {
-    local off=0 kind id label seen=" "
+    local off=0 kind id label icon ws seen=" "
     [ -e "$state/off" ] && off=1
-    while IFS=$'\t' read -r kind id label; do
+    while IFS=$'\t' read -r kind id label icon ws; do
         case "$kind" in
             tab) "$herdr" tab rename "$id" "$label" >/dev/null 2>&1 || true ;;
             meta)
                 seen+="$id "
-                [ "$(cat "$state/meta/$id" 2>/dev/null)" = "$label" ] && continue
+                [ "$(cat "$state/meta/$id" 2>/dev/null)" = "$label $icon $ws" ] && continue
                 # pane id first: herdr 0.9 rejects options before it
-                "$herdr" pane report-metadata "$id" --source agent-tabs --token "tab_name=$label" \
-                    >/dev/null 2>&1 && printf '%s' "$label" >"$state/meta/$id"
+                "$herdr" pane report-metadata "$id" --source agent-tabs \
+                    --token "tab_name=$label" --token "agent_icon=$icon" --token "ws=$ws" \
+                    >/dev/null 2>&1 && printf '%s' "$label $icon $ws" >"$state/meta/$id"
                 ;;
         esac
     done < <(plan "$off")

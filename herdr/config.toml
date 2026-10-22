@@ -153,14 +153,17 @@ delivery = "herdr"
 [ui.sound]
 enabled = false
 
-# agent rows: $tab_name = the tab's label without the agent-tabs glyph prefix
-# (plugin: ~/.dotfiles/herdr/plugins/agent-tabs); herdr's state_icon already
-# shows the status
-
-
-
+# agent rows: $tab_name = the tab's label without the agent-tabs glyph prefix,
+# $agent_icon = the agent's glyph in place of its name (plugin:
+# ~/.dotfiles/herdr/plugins/agent-tabs); herdr's state_icon already shows the
+# status in the theme's state colors. One line per agent, icon colored per agent.
+# $ws = workspace name padded to a fixed width so the tab numbers line up.
 [ui.sidebar.agents]
-rows = [["state_icon", "machine", "workspace", "$tab_name"], ["agent"]]
+rows = [["state_icon", { token = "$agent_icon", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+
+[ui.sidebar.agents.rows_by_agent]
+claude = [["state_icon", { token = "$agent_icon", fg = "#d97757", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
 
 # spaces: drop the git branch/status row, show just the space name
 [ui.sidebar.spaces]
