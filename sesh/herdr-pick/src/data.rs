@@ -9,7 +9,6 @@ use crate::proc::{self, Out};
 use crate::style::Style;
 use crate::ui;
 use serde_json::{json, Value};
-use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -552,27 +551,6 @@ fn list_cfg(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
     items
 }
 
-fn sesh_toml_paths(cfg: &Config) -> Vec<String> {
-    let raw = std::fs::read_to_string(cfg.path("sesh_toml")).unwrap_or_default();
-    let mut out = Vec::new();
-    for line in raw.lines() {
-        let line = line.trim();
-        if line.starts_with('#') {
-            continue;
-        }
-        if let Some(rest) = line.strip_prefix("path") {
-            let rest = rest.trim_start();
-            if let Some(rest) = rest.strip_prefix('=') {
-                let val = rest.trim().trim_matches('"').trim_matches('\'');
-                if !val.is_empty() {
-                    out.push(cfg.expand_path(val));
-                }
-            }
-        }
-    }
-    out
-}
-
 fn score_tag(score: f64) -> String {
     if (score.fract()).abs() < f64::EPSILON {
         format!("{}", score as i64)
@@ -582,13 +560,16 @@ fn score_tag(score: f64) -> String {
     }
 }
 
-fn list_dir(cfg: &Config, st: &Style, model: &Model, full: bool) -> Vec<Item> {
+fn list_dir(cfg: &Config, st: &Style, _model: &Model, full: bool) -> Vec<Item> {
     let args = cfg.cmd("zoxide_query");
     let out = match proc::run(&cfg.bins.zoxide, &args, timeout_ms(cfg, "list_timeout_ms", 15000)) {
         Ok(o) if o.status == 0 => o,
         _ => return Vec::new(),
     };
-    let mut agg: HashMap<String, (f64, String)> = HashMap::new();
+    // every zoxide directory that still exists, as zoxide spells it: no merging
+    // of symlinked aliases and no hiding of dirs already open in a pane or
+    // listed in sesh.toml, so ^a / ^x always show what `z` can reach
+    let mut rows: Vec<(f64, String, String)> = Vec::new();
     for line in out.stdout.lines() {
         let line = line.trim();
         if line.is_empty() {
@@ -600,40 +581,11 @@ fn list_dir(cfg: &Config, st: &Style, model: &Model, full: bool) -> Vec<Item> {
         };
         let score: f64 = score_s.parse().unwrap_or(0.0);
         let path = path.trim();
-        if path.is_empty() {
+        if path.is_empty() || !Path::new(path).is_dir() {
             continue;
         }
-        let canon = match std::fs::canonicalize(path) {
-            Ok(c) => c.to_string_lossy().into_owned(),
-            Err(_) => continue,
-        };
-        if !Path::new(&canon).is_dir() {
-            continue;
-        }
-        let e = agg.entry(canon).or_insert((0.0, path.to_string()));
-        e.0 += score;
-        if path.len() < e.1.len() {
-            e.1 = path.to_string();
-        }
+        rows.push((score, path.to_string(), path.to_string()));
     }
-
-    let mut skip: HashSet<String> = HashSet::new();
-    for p in &model.panes {
-        if let Ok(c) = std::fs::canonicalize(&p.cwd) {
-            skip.insert(c.to_string_lossy().into_owned());
-        }
-    }
-    for p in sesh_toml_paths(cfg) {
-        if let Ok(c) = std::fs::canonicalize(&p) {
-            skip.insert(c.to_string_lossy().into_owned());
-        }
-    }
-
-    let mut rows: Vec<(f64, String, String)> = agg
-        .into_iter()
-        .filter(|(real, _)| !skip.contains(real))
-        .map(|(real, (score, p))| (score, p, real))
-        .collect();
     rows.sort_by(|a, b| {
         b.0.partial_cmp(&a.0)
             .unwrap_or(std::cmp::Ordering::Equal)
