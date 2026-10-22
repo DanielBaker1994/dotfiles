@@ -48,13 +48,18 @@ deps cached), online retry. Output is copied to `sesh/bin/herdr-pick`
 
 ## Link bank (kitchen-sink)
 
-kitchen-sink sits pinned on top of the spaces / all list as `▸ kitchen-sink
-· N places` (kitchen-sink `PLAN-link-bank.md`), and the cursor starts there
+kitchen-sink sits pinned on top of the spaces / all list as `▾ kitchen-sink
+· N places` (kitchen-sink `PLAN-link-bank.md`), open with its places listed
+(`links.start_expanded`), and the cursor starts on the header
 (`links.start_on_group`): prefix+w, Return switches to kitchen-sink on its
-last view (`do:go:app`). → / l lists its places (views, open notes,
-folder-compare sessions), ← / h hides them, `^k` jumps there opened, typing
-searches them too (auto-expanding to the matches; the cursor goes to the best
-local match first). Return on a place sends `do:go:<id>` over kitchen-sink's
+last view (`do:go:app`). ← / h hides the places, → / l lists them again, `^k`
+jumps there opened. `^m` / `^e` always expand herdr's tabs and splits, even
+on the header; move / drag / kill skip kitchen-sink rows. Typing searches the
+places too (the cursor goes to the best local match first); a query whose
+first word is a `links.group_names` entry (`kitchen-sink`, `ks`, or a 3+
+letter prefix) keeps the header and every place with the cursor on the
+header, and the words after it narrow the places (`ks notes`).
+Return on a place sends `do:go:<id>` over kitchen-sink's
 socket (`links.ks_socket`) — kitchen-sink comes forward and AeroSpace
 follows. The rows are fetched in the background with a 300 ms
 budget (`links.timeout_ms`) and cached in `links.ks_cache`; the header reads

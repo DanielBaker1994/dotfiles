@@ -314,11 +314,15 @@ pub struct Group {
     pub rows: Vec<LinkRow>,
     pub status: GroupStatus,
     pub expanded: bool,
+    /// Names that search the group itself (`links.group_names`): a query whose
+    /// first word is one of them keeps the header and every row, and the rest
+    /// of the query narrows the rows (`ks notes`).
+    pub names: Vec<String>,
 }
 
 impl Group {
-    pub fn new(cached: Option<Vec<LinkRow>>) -> Group {
-        Group { rows: cached.unwrap_or_default(), status: GroupStatus::Loading, expanded: false }
+    pub fn new(cached: Option<Vec<LinkRow>>, expanded: bool, names: Vec<String>) -> Group {
+        Group { rows: cached.unwrap_or_default(), status: GroupStatus::Loading, expanded, names }
     }
 
     pub fn apply(&mut self, r: Result<Vec<LinkRow>, LinkErr>) {
@@ -342,25 +346,49 @@ impl Group {
         matches!(self.status, GroupStatus::Offline | GroupStatus::Unavailable)
     }
 
-    /// `(row index, fuzzy positions in the title, score)` to draw under the
-    /// header: a query shows its matches (auto-expanded, ranked), no query
-    /// shows everything when expanded and nothing when collapsed.
+    /// `Some(rest)` when the query's first word names the group (exactly, or
+    /// a 3+ letter prefix of a name): `ks notes` → `notes`, `kitchen` → ``.
+    pub fn scope<'a>(&self, query: &'a str) -> Option<&'a str> {
+        let q = query.trim_start();
+        let (first, rest) = q.split_once(char::is_whitespace).unwrap_or((q, ""));
+        let first = first.to_lowercase();
+        let hit = !first.is_empty()
+            && self.names.iter().any(|n| {
+                let n = n.to_lowercase();
+                n == first || (first.chars().count() >= 3 && n.starts_with(&first))
+            });
+        hit.then(|| rest.trim())
+    }
+
+    /// The part of the query that filters the rows (the name word dropped).
+    pub fn row_query<'a>(&self, query: &'a str) -> &'a str {
+        self.scope(query).unwrap_or(query)
+    }
+
+    /// `(row index, score)` to draw under the header: a query shows its
+    /// matches (auto-expanded, ranked), a query naming the group shows every
+    /// row (or the matches of the words after the name), no query shows
+    /// everything when expanded and nothing when collapsed.
     pub fn visible(&self, query: &str) -> Vec<(usize, f64)> {
         if query.is_empty() {
             return if self.expanded { (0..self.rows.len()).map(|i| (i, 0.0)).collect() } else { Vec::new() };
+        }
+        let q = self.row_query(query);
+        if q.is_empty() {
+            return (0..self.rows.len()).map(|i| (i, 0.0)).collect();
         }
         let mut v: Vec<(usize, f64)> = self
             .rows
             .iter()
             .enumerate()
-            .filter_map(|(i, r)| crate::fuzzy::fuzzy_match(&r.search_text(), query).map(|(_, s)| (i, s)))
+            .filter_map(|(i, r)| crate::fuzzy::fuzzy_match(&r.search_text(), q).map(|(_, s)| (i, s)))
             .collect();
         v.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         v
     }
 
     pub fn header_shown(&self, query: &str) -> bool {
-        query.is_empty() || !self.visible(query).is_empty()
+        query.is_empty() || self.scope(query).is_some() || !self.visible(query).is_empty()
     }
 
     pub fn open(&self, query: &str) -> bool {
@@ -442,7 +470,7 @@ mod tests {
 
     #[test]
     fn group_collapsed_then_query_expands_to_matches() {
-        let mut g = Group::new(None);
+        let mut g = Group::new(None, false, vec![]);
         g.apply(Ok(vec![row("notes", 0, None), row("files", 1, None)]));
         assert!(g.visible("").is_empty());
         assert!(g.header_shown(""));
@@ -453,6 +481,22 @@ mod tests {
         assert_eq!(g.visible("").len(), 2);
         g.apply(Err(LinkErr::Offline));
         assert!(g.dim() && g.rows.is_empty());
+    }
+
+    #[test]
+    fn group_name_keeps_header_and_scopes_rows() {
+        let mut g = Group::new(None, true, vec!["kitchen-sink".into(), "ks".into()]);
+        g.apply(Ok(vec![row("notes", 0, None), row("files", 1, None)]));
+        assert_eq!(g.visible("").len(), 2, "expanded by default");
+        assert!(g.header_shown("kitchen-sink"));
+        assert_eq!(g.visible("kitchen-sink").len(), 2);
+        assert_eq!(g.scope("kitch"), Some(""));
+        assert_eq!(g.scope("ks  fil"), Some("fil"));
+        assert_eq!(g.visible("ks fil").iter().map(|x| x.0).collect::<Vec<_>>(), vec![1]);
+        assert_eq!(g.scope("ki"), None, "two letters is not a prefix hit");
+        assert_eq!(g.scope("notes"), None);
+        assert!(g.header_shown("ks zzz"), "the name alone keeps the header");
+        assert!(g.visible("ks zzz").is_empty());
     }
 
     #[test]

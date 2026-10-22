@@ -1,5 +1,5 @@
 # tmux-style "last" jumps: records focus history from herdr events.
-#   prefix+L → last workspace (tmux: last session)
+#   prefix+L → last workspace, or kitchen-sink when you came from there (tmux: last session)
 #   prefix+l → last tab in this workspace (tmux: last window)
 #   prefix+a → last agent pane (toggle like prefix+l, not sidebar order)
 id = "local.last"

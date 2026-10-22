@@ -199,7 +199,7 @@ pub struct App {
     quit_code: Option<i32>,
     /// The link group (kitchen-sink's places) under the local rows.
     group: Group,
-    /// The last refilter had a query (clearing it re-collapses the group).
+    /// The last refilter had a query (clearing it restores the group's default).
     group_had_query: bool,
     /// Rows of the pinned link group at the top of `view` (header + links).
     group_len: usize,
@@ -262,13 +262,21 @@ pub fn run(cfg: Config) -> i32 {
         dirty: true,
         dry_run: dry,
         quit_code: None,
-        group: Group::new(None),
+        group: Group::new(None, false, Vec::new()),
         group_had_query: false,
         group_len: 0,
         ks_installed: false,
     };
     app.ks_installed = links::ks_installed(&app.cfg);
-    app.group = Group::new(links::load_cache(&app.cfg));
+    let expanded = app.group_default_expanded();
+    let names = app
+        .cfg
+        .links
+        .get("group_names")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().filter_map(|n| n.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+    app.group = Group::new(links::load_cache(&app.cfg), expanded, names);
     app.load_list("ws", false);
     app.fetch_links();
     loop {
@@ -604,7 +612,11 @@ impl App {
             self.dirty = true;
             return;
         }
+        // h / l on the group are vim moves only with no query: while typing
+        // (`kitchen-sink`, `ks fil`) a letter is a letter.
+        let typing = ch.is_some() && !ctrl && !alt && !self.query.is_empty();
         let local = match self.current().map(|i| i.kind) {
+            _ if typing => None,
             Some(ItemKind::Group) => self.cfg.keys.group_keymap.get(&id).cloned(),
             Some(ItemKind::Link) => self.cfg.keys.link_keymap.get(&id).cloned(),
             _ => None,
@@ -1517,8 +1529,8 @@ impl App {
 
     fn do_kill(&mut self) {
         let it = match self.current() {
-            Some(i) => i.clone(),
-            None => return,
+            Some(i) if !matches!(i.kind, ItemKind::Group | ItemKind::Link) => i.clone(),
+            _ => return,
         };
         let _ = data::kill_item(&self.cfg, &it);
         self.prev_cache.clear();
@@ -1575,38 +1587,50 @@ impl App {
     }
 
     /// The pinned group: header + visible link rows, above the local ones.
-    /// Clearing the query re-collapses it.
+    /// Clearing the query restores its default (`links.start_expanded`).
     fn group_rows(&mut self, query: &str) -> Vec<ViewRow> {
         let mut out = Vec::new();
         if !self.links_on() {
             return out;
         }
         if query.is_empty() && self.group_had_query {
-            self.group.expanded = false;
+            self.group.expanded = self.group_default_expanded();
         }
         self.group_had_query = !query.is_empty();
         if !self.group.header_shown(query) {
             return out;
         }
         out.push(ViewRow { it: self.header_item(query), pos: Vec::new(), score: 0.0 });
+        let row_query = self.group.row_query(query).to_string();
         for (i, score) in self.group.visible(query) {
             let it = self.link_item(i);
-            let pos = if query.is_empty() {
+            let pos = if row_query.is_empty() {
                 Vec::new()
             } else {
-                fuzzy::fuzzy_match(&it.plain, query).map(|(p, _)| p).unwrap_or_default()
+                fuzzy::fuzzy_match(&it.plain, &row_query).map(|(p, _)| p).unwrap_or_default()
             };
             out.push(ViewRow { it, pos, score });
         }
         out
     }
 
+    /// The group opens expanded unless `links.start_expanded` is false.
+    fn group_default_expanded(&self) -> bool {
+        self.cfg.links.get("start_expanded").and_then(|v| v.as_bool()).unwrap_or(true)
+    }
+
     /// Where the cursor starts: no query → the header (`links.start_on_group`)
-    /// so Return switches to kitchen-sink; a query → the best local match,
-    /// else the best kitchen-sink match (never the header).
+    /// so Return switches to kitchen-sink; a query naming the group → the
+    /// header (`kitchen-sink`) or its best row (`ks notes`); any other query →
+    /// the best local match, else the best kitchen-sink match.
     fn start_sel(&self, query: &str) -> usize {
         let g = self.group_len;
         let start_on_group = self.cfg.links.get("start_on_group").and_then(|v| v.as_bool()).unwrap_or(true);
+        if g > 0 && self.links_on() {
+            if let Some(rest) = self.group.scope(query) {
+                return if rest.is_empty() || g < 2 { 0 } else { 1 };
+            }
+        }
         if query.is_empty() {
             if g > 0 && start_on_group {
                 0

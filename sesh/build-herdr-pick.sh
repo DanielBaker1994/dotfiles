@@ -20,5 +20,8 @@ if ! cargo build --release --offline; then
     cargo build --release
 fi
 mkdir -p "$dir/bin"
-cp target/release/herdr-pick "$dir/bin/herdr-pick"
+# copy then rename: overwriting the binary in place keeps its inode, and
+# macOS then kills the new build on launch (stale code-signature cache)
+cp target/release/herdr-pick "$dir/bin/herdr-pick.new"
+mv -f "$dir/bin/herdr-pick.new" "$dir/bin/herdr-pick"
 echo "installed $dir/bin/herdr-pick"
