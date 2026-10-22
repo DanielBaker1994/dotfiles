@@ -24,35 +24,60 @@
 # actual jump shells out, once.
 
 set -euo pipefail
+# handler timing -> herdr/herdr-prof.sh (no-op if missing)
+# shellcheck source=../prof.sh
+source "$HOME/.dotfiles/herdr/plugins/prof.sh" 2>/dev/null || true
 
 herdr="${HERDR_BIN_PATH:-herdr}"
 state="${HERDR_PLUGIN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-last}"
-mkdir -p "$state"
+[ -d "$state" ] || mkdir -p "$state"
 places="${HERDR_LINK_PLACES:-${XDG_STATE_HOME:-$HOME/.local/state}/link-bank/places}"
 herdr_pick="${HERDR_PICK_BIN:-$HOME/.dotfiles/sesh/bin/herdr-pick}"
 
-read_pair() { cat "$state/$1" 2>/dev/null || true; }
+# Recording runs on every focus event, so it sticks to builtins: one mv per
+# file it changes, nothing for a file that already has the entry on top.
+read_pair() { local l=""; read -r l 2>/dev/null <"$state/$1" || true; printf '%s' "$l"; }
 
 # push NEW onto the "CURRENT PREVIOUS" pair in FILE (atomic replace)
 push() {
-    local file="$1" new="$2" cur prev
-    read -r cur prev <<<"$(read_pair "$file")" || true
-    [ "$new" = "${cur:-}" ] && return
+    local file="$1" new="$2" cur="" prev=""
+    read -r cur prev 2>/dev/null <"$state/$file" || true
+    [ "$new" = "$cur" ] && return
     printf '%s %s\n' "$new" "${cur:-}" >"$state/$file.tmp.$$"
     mv -f "$state/$file.tmp.$$" "$state/$file"
 }
 
-# move WS to the top of the mru list (kept to 100 entries)
+# move LINE to the top of FILE, dropping other lines KEEP says match it
+# (prefix match for "ws epoch" lines, exact for places); keep MAX lines
+to_top() {
+    local file="$1" line="$2" key="$3" max="$4" l n=1
+    {
+        printf '%s\n' "$line"
+        while IFS= read -r l && ((n < max)); do
+            [[ $l == "$key" || $l == "$key "* ]] && continue
+            printf '%s\n' "$l"
+            ((n++)) || true
+        done 2>/dev/null <"$file" || true
+    } >"$file.tmp.$$"
+    mv -f "$file.tmp.$$" "$file"
+}
+
+# move WS to the top of the mru list (kept to 100 entries), with the time
+# it was focused; within the same second it is already right
 push_mru() {
-    { printf '%s %s\n' "$1" "$(date +%s)"; grep -v -- "^$1 " "$state/mru" 2>/dev/null || true; } | head -100 >"$state/mru.tmp.$$"
-    mv -f "$state/mru.tmp.$$" "$state/mru"
+    local now="${EPOCHSECONDS:-$(date +%s)}" top=""
+    read -r top 2>/dev/null <"$state/mru" || true
+    [ "$top" = "$1 $now" ] && return
+    to_top "$state/mru" "$1 $now" "$1" 100
 }
 
 # move ENTRY to the top of the shared places history (kept to 50 entries)
 push_place() {
-    mkdir -p "${places%/*}"
-    { printf '%s\n' "$1"; grep -vxF -- "$1" "$places" 2>/dev/null || true; } | head -50 >"$places.tmp.$$"
-    mv -f "$places.tmp.$$" "$places"
+    local top=""
+    read -r top 2>/dev/null <"$places" || true
+    [ "$top" = "$1" ] && return
+    [ -d "${places%/*}" ] || mkdir -p "${places%/*}"
+    to_top "$places" "$1" "$1" 50
 }
 
 record() {
@@ -67,11 +92,11 @@ record() {
 # leave the pair alone, so "last agent" stays the most recent agent even when
 # you detour through a shell.
 record_agent() {
-    local ctx="${HERDR_PLUGIN_CONTEXT_JSON:-}" kind="" pane=""
-    [ -n "$ctx" ] && kind="$(jq -r '.focused_pane_agent // empty' <<<"$ctx" 2>/dev/null || true)"
-    [ -n "$kind" ] || return 0
+    # plain string fields of the context JSON: a regex instead of two jq runs
+    local ctx="${HERDR_PLUGIN_CONTEXT_JSON:-}" pane=""
+    [[ $ctx =~ \"focused_pane_agent\":\"[^\"]+\" ]] || return 0
     pane="${HERDR_PANE_ID:-}"
-    [ -n "$pane" ] || pane="$(jq -r '.focused_pane_id // empty' <<<"$ctx" 2>/dev/null || true)"
+    if [ -z "$pane" ] && [[ $ctx =~ \"focused_pane_id\":\"([^\"]+)\" ]]; then pane="${BASH_REMATCH[1]}"; fi
     [ -n "$pane" ] && push agent "$pane"
 }
 

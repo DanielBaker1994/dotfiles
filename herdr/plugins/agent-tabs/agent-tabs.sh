@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# agent-tabs.sh sync | startup | toggle
+# agent-tabs.sh sync | focus | startup | toggle
 #
 # Every tab with an agent gets "<status> <agent> " in front of its label; the
 # prefix is stripped and re-applied on each sync, so a manual rename keeps
@@ -28,11 +28,14 @@
 # meta/PANE_ID = the $tab_name, $agent_icon, $ws last reported for that pane.
 
 set -euo pipefail
+# handler timing -> herdr/herdr-prof.sh (no-op if missing)
+# shellcheck source=../prof.sh
+source "$HOME/.dotfiles/herdr/plugins/prof.sh" 2>/dev/null || prof_end() { :; }
 
 herdr="${HERDR_BIN_PATH:-herdr}"
 state="${HERDR_PLUGIN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-agent-tabs}"
 config="${HERDR_PLUGIN_CONFIG_DIR:-$HOME/.config/herdr/plugins/config/local.agent-tabs}"
-mkdir -p "$state/meta"
+[ -d "$state/meta" ] || mkdir -p "$state/meta"
 
 # widest $ws: sidebar_width 26 minus "○ 󰛄 · " and " · N"
 WS_WIDTH=13
@@ -64,48 +67,78 @@ DEFAULT_ICONS='{
   "proc.default": ""
 }'
 
-# status events arrive in bursts; serialize (no flock on macOS)
-lock="$state/.lock"
-for _ in $(seq 100); do mkdir "$lock" 2>/dev/null && break; sleep 0.02; done
-trap 'rmdir "$lock" 2>/dev/null || true' EXIT
-
-icons() {
-    local user='{}'
-    [ -f "$config/icons.conf" ] && user="$(jq -R -s '
-        split("\n") | map(select(test("^\\s*[^#\\s]")) | capture("^\\s*(?<k>[^=\\s]+)\\s*=\\s*(?<v>.*?)\\s*$"))
-        | map({(.k): .v}) | add // {}' "$config/icons.conf")"
-    jq -n --argjson d "$DEFAULT_ICONS" --argjson u "$user" '$d + $u'
+# A tab switch sends several events at once. Only one run works at a time;
+# an event that finds one running leaves a pending mark and exits, and the
+# running one goes round again for all of them, so a burst costs two runs at
+# most instead of a queue of one per event. The lock is a symlink to the
+# holder's pid: a run that was killed holding it (pid gone) gets taken over.
+lock="$state/.lock-pid"
+take_lock() {
+    local pid
+    ln -s "$$" "$lock" 2>/dev/null && return 0
+    pid="$(readlink "$lock" 2>/dev/null)" || return 1
+    kill -0 "$pid" 2>/dev/null && return 1
+    rm -f "$lock"
+    ln -s "$$" "$lock" 2>/dev/null
 }
 
-# {"PANE_ID": "process"} for every non-agent pane: the foreground process
-# group leader (process-info also lists children, e.g. nvim's language servers)
+icons_user() {
+    if [ -f "$config/icons.conf" ]; then
+        jq -R -s '
+            split("\n") | map(select(test("^\\s*[^#\\s]")) | capture("^\\s*(?<k>[^=\\s]+)\\s*=\\s*(?<v>.*?)\\s*$"))
+            | map({(.k): .v}) | add // {}' "$config/icons.conf"
+    else
+        echo '{}'
+    fi
+}
+
+# {"PANE_ID": "process"} for the non-agent panes: the foreground process
+# group leader (process-info also lists children, e.g. nvim's language servers).
+# `procs PANES` asks every pane (one process-info round trip each);
+# `procs PANES TAB` asks only TAB's panes and takes the others from the cache
+# the last run left in $state/procs.json.
 procs() {
-    local id
-    "$herdr" pane list 2>/dev/null | jq -r '.result.panes[]? | select(.agent | not) | .pane_id' |
+    local id only="${2:-}" cache=/dev/null
+    [ -n "$only" ] && [ -f "$state/procs.json" ] && cache="$state/procs.json"
+    jq -r --arg t "$only" '.result.panes[]? | select((.agent | not) and ($t == "" or .tab_id == $t)) | .pane_id' <<<"$1" |
         while read -r id; do
-            "$herdr" pane process-info --pane "$id" 2>/dev/null | jq -r --arg id "$id" '
-                .result.process_info | select(. != null)
-                | (.foreground_process_group_id as $g | .foreground_processes
-                   | (map(select(.pid == $g))[0] // .[0]).name // empty)
-                | "\($id)\t\(.)"'
-        done | jq -R -s 'split("\n") | map(select(. != "") | split("\t") | {(.[0]): .[1]}) | add // {}'
+            printf '%s\t' "$id"
+            "$herdr" pane process-info --pane "$id" 2>/dev/null || echo null
+        done |
+        jq -R -n --slurpfile cache "$cache" '
+            ($cache[0] // {}) + ([inputs | select(. != "") | split("\t") as [$id, $json]
+              | ($json | fromjson? // null | .result.process_info) as $pi | select($pi != null)
+              | ($pi.foreground_process_group_id as $g | $pi.foreground_processes
+                 | (map(select(.pid == $g))[0] // .[0]).name // empty) as $name
+              | {($id): $name}] | add // {})'
 }
 
 # "tab<TAB>TAB_ID<TAB>NEW_LABEL" for every tab whose label must change,
 # "meta<TAB>PANE_ID<TAB>PLAIN_LABEL<TAB>AGENT_ICON<TAB>PADDED_WS" for every agent pane
 plan() {
+    local p procs
+    p="$("$herdr" pane list 2>/dev/null || echo '{}')"
+    # no cache yet (first run after a reinstall): ask every pane once
+    if [ "$2" = focus ] && [ -s "$state/procs.json" ]; then
+        procs="$(procs "$p" "$(jq -r '[.result.panes[]? | select(.focused)][0].tab_id // empty' <<<"$p")")"
+    else
+        procs="$(procs "$p")"
+    fi
+    printf '%s' "$procs" >"$state/procs.json.$$" && mv -f "$state/procs.json.$$" "$state/procs.json"
     jq -rn \
-        --argjson icons "$(icons)" \
+        --argjson d "$DEFAULT_ICONS" \
+        --argjson u "$(icons_user)" \
         --argjson t "$("$herdr" tab list 2>/dev/null || echo '{}')" \
-        --argjson p "$("$herdr" pane list 2>/dev/null || echo '{}')" \
-        --argjson procs "$(procs)" \
+        --argjson p "$p" \
+        --argjson procs "$procs" \
         --argjson w "$("$herdr" workspace list 2>/dev/null || echo '{}')" \
         --argjson wsw "$WS_WIDTH" \
         --arg off "$1" '
         def ws($n): if length > $n then .[:$n - 1] + "…" else . + ("⠀" * ($n - length)) end;
         def esc: gsub("(?<c>[\\\\^$.|?*+()\\[\\]{}])"; "\\\(.c)");
+        ($d + $u) as $icons
         # + the glyphs of earlier versions, so old prefixes get cleaned up
-        ("⚡▲✓○✻⌬◈❂◉▸◎◆π✦◐◑☿◇󰅩" | split("")) as $old
+        | ("⚡▲✓○✻⌬◈❂◉▸◎◆π✦◐◑☿◇󰅩" | split("")) as $old
         | ([$icons[], $old[]] | map(select(. != "") | esc) | unique | join("|")) as $any
         | {blocked: 0, done: 1, working: 2, idle: 3} as $rank
         | ($p.result.panes // []) as $panes
@@ -137,22 +170,27 @@ plan() {
           ($agents[] | "meta\t\(.pane_id)\t\($base)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
 }
 
+# sync [focus]: full = every pane's process asked; focus = only the
+# focused tab's (a focus change can't change the others)
 sync() {
-    local off=0 kind id label icon ws seen=" "
+    local off=0 kind id label icon ws seen=" " last
     [ -e "$state/off" ] && off=1
     while IFS=$'\t' read -r kind id label icon ws; do
         case "$kind" in
             tab) "$herdr" tab rename "$id" "$label" >/dev/null 2>&1 || true ;;
             meta)
                 seen+="$id "
-                [ "$(cat "$state/meta/$id" 2>/dev/null)" = "$label $icon $ws" ] && continue
+                # builtin read, not $(cat): this runs for every agent pane on every focus
+                last=""
+                IFS= read -r last 2>/dev/null <"$state/meta/$id" || true
+                [ "$last" = "$label $icon $ws" ] && continue
                 # pane id first: herdr 0.9 rejects options before it
                 "$herdr" pane report-metadata "$id" --source agent-tabs \
                     --token "tab_name=$label" --token "agent_icon=$icon" --token "ws=$ws" \
                     >/dev/null 2>&1 && printf '%s' "$label $icon $ws" >"$state/meta/$id"
                 ;;
         esac
-    done < <(plan "$off")
+    done < <(plan "$off" "${1:-}")
     # forget panes that are gone or no longer run an agent
     for f in "$state/meta"/*; do
         [ -e "$f" ] || continue
@@ -160,12 +198,35 @@ sync() {
     done
 }
 
-case "${1:-sync}" in
-    sync) sync ;;
-    # a server start drops pane metadata: report every $tab_name again
-    startup) rm -f "$state/meta"/*; sync ;;
-    toggle)
-        if [ -e "$state/off" ]; then rm -f "$state/off"; else : >"$state/off"; fi
-        sync
-        ;;
+# pending marks: .pending-full wins over .pending-focus
+mode="${1:-sync}"
+case "$mode" in
+    focus) : >"$state/.pending-focus" ;;
+    *) : >"$state/.pending-full" ;;
 esac
+case "$mode" in
+    # a server start drops pane metadata: report every $tab_name again
+    startup) rm -f "$state/meta"/* ;;
+    toggle) if [ -e "$state/off" ]; then rm -f "$state/off"; else : >"$state/off"; fi ;;
+esac
+
+trap 'prof_end' EXIT
+while take_lock; do
+    trap 'rm -f "$lock"; prof_end' EXIT
+    while :; do
+        if [ -e "$state/.pending-full" ]; then
+            rm -f "$state/.pending-full" "$state/.pending-focus"
+            sync
+        elif [ -e "$state/.pending-focus" ]; then
+            rm -f "$state/.pending-focus"
+            sync focus
+        else
+            break
+        fi
+    done
+    rm -f "$lock"
+    trap 'prof_end' EXIT
+    # an event that came in after the last check but before the lock was
+    # dropped found it held and left only its mark: go round for it
+    [ -e "$state/.pending-full" ] || [ -e "$state/.pending-focus" ] || break
+done

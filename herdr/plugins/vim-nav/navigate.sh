@@ -21,6 +21,9 @@
 # with prefix+h/j/k/l.
 
 set -euo pipefail
+# handler timing -> herdr/herdr-prof.sh (no-op if missing)
+# shellcheck source=../prof.sh
+source "$HOME/.dotfiles/herdr/plugins/prof.sh" 2>/dev/null || true
 
 dir="${1:?usage: navigate.sh <left|down|up|right>}"
 herdr="${HERDR_BIN_PATH:-herdr}"

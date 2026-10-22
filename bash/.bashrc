@@ -57,6 +57,9 @@ alias clear="TERM=xterm /usr/bin/clear" #terminals database is inaccessible
 alias cls="clear && printf '\e[3J'"
 alias pbcopy="perl -pe 'chomp if eof' | pbcopy"
 alias cddot="cd ~/.dotfiles"
+# profiling: shell startup (shellprof help) and herdr plugin handlers (herdrprof help)
+alias shellprof='bash ~/.dotfiles/bash/shellprof.sh'
+alias herdrprof='bash ~/.dotfiles/herdr/herdr-prof.sh'
 [ -f "$HOME/.dotfiles/bash/aliases-backup.sh" ] && source "$HOME/.dotfiles/bash/aliases-backup.sh"
 alias ..="cd .."
 

@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 
+# Startup profiler hook: `shellprof` (bash/shellprof.sh) starts a login shell
+# with BASHPROF=FILE; every line from here to the bottom of this file
+# (.bashrc and ~/external/* included) is traced into FILE with a timestamp.
+if [[ -n ${BASHPROF:-} && -n ${EPOCHREALTIME:-} ]]; then
+    _bashprof_ps4="$PS4"
+    exec {BASH_XTRACEFD}>>"$BASHPROF"
+    PS4='+${EPOCHREALTIME}	${BASH_SOURCE[0]:-?}:${LINENO}	${FUNCNAME[0]:-}	'
+    set -x
+fi
+
 # Machine-local overrides kept outside this repo. Sourced first so it can seed
 # PATH and exports before the rest of this file runs. It is expected to be
 # machine-specific and may not exist at all, so guard the source.
@@ -48,6 +58,14 @@ fi
 
 # Must go last or usr bin will come before home brew and then path which fild old bash.
 eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# end of the BASHPROF trace (hook at the top); unsetting the fd closes it
+if [[ -n ${_bashprof_ps4+x} ]]; then
+    set +x
+    unset BASH_XTRACEFD BASHPROF
+    PS4="$_bashprof_ps4"
+    unset _bashprof_ps4
+fi
 
 if [[ $- == *i* ]]; then
     if [[ -s $HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh ]]; then
