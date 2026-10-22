@@ -57,7 +57,16 @@ fi
 [[ $- == *i* ]] && eval "$(starship init bash)"
 
 # Must go last or usr bin will come before home brew and then path which fild old bash.
-eval "$(/opt/homebrew/bin/brew shellenv)"
+# This is the output of `brew shellenv`, pasted in: running brew for it cost
+# ~570 ms per shell on the work machine (shellprof). Its output never changes;
+# if a brew update ever adds a line, re-paste from:
+#   env -i HOME=$HOME PATH=/usr/bin:/bin /opt/homebrew/bin/brew shellenv
+export HOMEBREW_PREFIX="/opt/homebrew"
+export HOMEBREW_CELLAR="/opt/homebrew/Cellar"
+export HOMEBREW_REPOSITORY="/opt/homebrew"
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin${PATH+:$PATH}"
+[ -z "${MANPATH-}" ] || { export MANPATH="${MANPATH%"${MANPATH##*[!:]}"}"; export MANPATH=":${MANPATH#"${MANPATH%%[!:]*}"}"; }
+export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}"
 
 # end of the BASHPROF trace (hook at the top); unsetting the fd closes it
 if [[ -n ${_bashprof_ps4+x} ]]; then
