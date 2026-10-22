@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# agent-tabs.sh sync | focus | startup | toggle
+# agent-tabs.sh sync | focus | startup | toggle   (focus = sync; kept for the manifest)
 #
 # Every tab with an agent gets "<status> <agent> " in front of its label; the
 # prefix is stripped and re-applied on each sync, so a manual rename keeps
@@ -94,23 +94,35 @@ icons_user() {
 
 # {"PANE_ID": "process"} for the non-agent panes: the foreground process
 # group leader (process-info also lists children, e.g. nvim's language servers).
-# `procs PANES` asks every pane (one process-info round trip each);
-# `procs PANES TAB` asks only TAB's panes and takes the others from the cache
-# the last run left in $state/procs.json.
+# process-info is one CLI round trip per pane (~65 ms each on the work Mac,
+# 48 panes = 3 s), and herdr has no batch form, so only these are asked: the
+# focused tab's panes and panes not in the cache ($state/procs.json, from
+# earlier runs). The rest keep their cached process; it changes only when
+# you run something in that pane, and you see it the next time you focus it.
+# `procs PANES 1` asks every pane (startup, toggle, no cache yet).
 procs() {
-    local id only="${2:-}" cache=/dev/null
-    [ -n "$only" ] && [ -f "$state/procs.json" ] && cache="$state/procs.json"
-    jq -r --arg t "$only" '.result.panes[]? | select((.agent | not) and ($t == "" or .tab_id == $t)) | .pane_id' <<<"$1" |
+    local id cache=/dev/null
+    [ "${2:-}" != 1 ] && [ -s "$state/procs.json" ] && cache="$state/procs.json"
+    jq -r --slurpfile cache "$cache" '
+        ($cache[0] // null) as $c
+        | ([.result.panes[]? | select(.focused)][0].tab_id) as $ft
+        | .result.panes[]? | select(.agent | not) | .pane_id as $id
+        | select($c == null or .tab_id == $ft or ($c | has($id) | not)) | $id' <<<"$1" |
         while read -r id; do
             printf '%s\t' "$id"
             "$herdr" pane process-info --pane "$id" 2>/dev/null || echo null
         done |
-        jq -R -n --slurpfile cache "$cache" '
-            ($cache[0] // {}) + ([inputs | select(. != "") | split("\t") as [$id, $json]
-              | ($json | fromjson? // null | .result.process_info) as $pi | select($pi != null)
-              | ($pi.foreground_process_group_id as $g | $pi.foreground_processes
-                 | (map(select(.pid == $g))[0] // .[0]).name // empty) as $name
-              | {($id): $name}] | add // {})'
+        jq -R -n --slurpfile cache "$cache" --argjson p "$1" '
+            [$p.result.panes[]? | select(.agent | not) | .pane_id] as $live
+            # cached entries for panes that still exist and still have no agent
+            | (($cache[0] // {}) | with_entries(select(.key as $k | $live | index($k))))
+            # "" = asked, no process found: cached too, so it is not re-asked every run
+            + ([inputs | select(. != "") | split("\t") as [$id, $json]
+                | ($json | fromjson? // null | .result.process_info) as $pi
+                | {($id): (if $pi == null then ""
+                           else ($pi.foreground_process_group_id as $g | $pi.foreground_processes
+                                 | (map(select(.pid == $g))[0] // .[0]).name // "") end)}]
+               | add // {})'
 }
 
 # "tab<TAB>TAB_ID<TAB>NEW_LABEL" for every tab whose label must change,
@@ -118,12 +130,7 @@ procs() {
 plan() {
     local p procs
     p="$("$herdr" pane list 2>/dev/null || echo '{}')"
-    # no cache yet (first run after a reinstall): ask every pane once
-    if [ "$2" = focus ] && [ -s "$state/procs.json" ]; then
-        procs="$(procs "$p" "$(jq -r '[.result.panes[]? | select(.focused)][0].tab_id // empty' <<<"$p")")"
-    else
-        procs="$(procs "$p")"
-    fi
+    procs="$(procs "$p" "$2")"
     printf '%s' "$procs" >"$state/procs.json.$$" && mv -f "$state/procs.json.$$" "$state/procs.json"
     jq -rn \
         --argjson d "$DEFAULT_ICONS" \
@@ -170,8 +177,7 @@ plan() {
           ($agents[] | "meta\t\(.pane_id)\t\($base)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
 }
 
-# sync [focus]: full = every pane's process asked; focus = only the
-# focused tab's (a focus change can't change the others)
+# sync [1]: 1 = ask every pane for its process (see procs)
 sync() {
     local off=0 kind id label icon ws seen=" " last
     [ -e "$state/off" ] && off=1
@@ -198,11 +204,11 @@ sync() {
     done
 }
 
-# pending marks: .pending-full wins over .pending-focus
+# pending marks: .pending-full (every pane's process asked) wins over .pending
 mode="${1:-sync}"
 case "$mode" in
-    focus) : >"$state/.pending-focus" ;;
-    *) : >"$state/.pending-full" ;;
+    startup | toggle) : >"$state/.pending-full" ;;
+    *) : >"$state/.pending" ;;
 esac
 case "$mode" in
     # a server start drops pane metadata: report every $tab_name again
@@ -215,11 +221,11 @@ while take_lock; do
     trap 'rm -f "$lock"; prof_end' EXIT
     while :; do
         if [ -e "$state/.pending-full" ]; then
-            rm -f "$state/.pending-full" "$state/.pending-focus"
+            rm -f "$state/.pending-full" "$state/.pending"
+            sync 1
+        elif [ -e "$state/.pending" ]; then
+            rm -f "$state/.pending"
             sync
-        elif [ -e "$state/.pending-focus" ]; then
-            rm -f "$state/.pending-focus"
-            sync focus
         else
             break
         fi
@@ -228,5 +234,5 @@ while take_lock; do
     trap 'prof_end' EXIT
     # an event that came in after the last check but before the lock was
     # dropped found it held and left only its mark: go round for it
-    [ -e "$state/.pending-full" ] || [ -e "$state/.pending-focus" ] || break
+    [ -e "$state/.pending-full" ] || [ -e "$state/.pending" ] || break
 done

@@ -52,7 +52,7 @@ command = ["./agent-tabs.sh", "sync"]
 on = "workspace.closed"
 command = ["./agent-tabs.sh", "sync"]
 
-# a focus change only re-asks the focused tab's processes (cheap run); a tab
+# every event runs the same incremental sync (see procs in agent-tabs.sh); a tab
 # switch also sends pane.focused, so tab.focused needs no handler of its own
 [[events]]
 on = "pane.focused"
