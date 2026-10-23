@@ -1622,7 +1622,8 @@ impl App {
     /// Where the cursor starts: no query → the header (`links.start_on_group`)
     /// so Return switches to kitchen-sink; a query naming the group → the
     /// header (`kitchen-sink`) or its best row (`ks notes`); any other query →
-    /// the best local match, else the best kitchen-sink match.
+    /// the better of the best local and best kitchen-sink match (a tie goes to
+    /// kitchen-sink, listed first).
     fn start_sel(&self, query: &str) -> usize {
         let g = self.group_len;
         let start_on_group = self.cfg.links.get("start_on_group").and_then(|v| v.as_bool()).unwrap_or(true);
@@ -1639,6 +1640,14 @@ impl App {
             } else {
                 0
             }
+        } else if self.view.len() > g && g > 1 {
+            // Both lists match: kitchen-sink wins unless the local match is
+            // strictly better.
+            if self.quality(1, self.group.row_query(query)) >= self.quality(g, query) {
+                1
+            } else {
+                g
+            }
         } else if self.view.len() > g {
             g
         } else if g > 1 {
@@ -1646,6 +1655,12 @@ impl App {
         } else {
             0
         }
+    }
+
+    fn quality(&self, i: usize, query: &str) -> f64 {
+        let it = &self.view[i].it;
+        let hay = if it.search.is_empty() { &it.plain } else { &it.search };
+        fuzzy::match_quality(hay, query).unwrap_or(f64::MIN)
     }
 
     /// ^e / ^m on the header: open / close the group in place.

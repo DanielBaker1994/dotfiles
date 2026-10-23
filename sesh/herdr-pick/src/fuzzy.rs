@@ -3,6 +3,16 @@
 // Returns match positions (into the plain text) plus a score.
 
 pub fn fuzzy_match(text: &str, query: &str) -> Option<(Vec<usize>, f64)> {
+    raw_match(text, query).map(|(pos, score)| (pos, score - text.chars().count() as f64 * 0.02))
+}
+
+/// How well `query` matches `text`, without the length tie-break, so rows
+/// whose search text carries different extras (paths, subtitles) compare fairly.
+pub fn match_quality(text: &str, query: &str) -> Option<f64> {
+    raw_match(text, query).map(|(_, score)| score)
+}
+
+fn raw_match(text: &str, query: &str) -> Option<(Vec<usize>, f64)> {
     let terms: Vec<&str> = query.split_whitespace().collect();
     if terms.is_empty() {
         return None;
@@ -54,5 +64,19 @@ pub fn fuzzy_match(text: &str, query: &str) -> Option<(Vec<usize>, f64)> {
     }
     pos.sort_unstable();
     pos.dedup();
-    Some((pos, score - text.chars().count() as f64 * 0.02))
+    Some((pos, score))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quality_ignores_extra_text() {
+        let ks = match_quality("Notes Untitled-1.md /Users/me/notes", "Notes").unwrap();
+        let local = match_quality("Notes /private/tmp/Notes", "Notes").unwrap();
+        assert_eq!(ks, local);
+        assert!(match_quality("my-notes", "Notes").is_none());
+        assert!(match_quality("xnotes", "notes").unwrap() < local);
+    }
 }
