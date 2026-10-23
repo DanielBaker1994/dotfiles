@@ -159,12 +159,30 @@ fi
 
 . "$HOME/.cargo/env"
 
-# Each of these forks a process; skip them for non-interactive shells such as
-# nvim's `bash -lc` prefetches (see nvim/lua/bash_external/init.lua).
+# source_init NAME ARGS...: source the output of `NAME ARGS...`, cached in
+# ~/.cache/bash-init/NAME.bash. Init scripts only change when the tool is
+# upgraded, and starting the tool on every shell was the slowest part of
+# startup on the work Mac (shellprof). Builtins only on a cache hit: the cache
+# is rebuilt when it is missing, or older than the binary or the directory
+# holding it (`brew upgrade` relinks into a new Cellar version, which touches
+# that directory). Force a rebuild: rm -r ~/.cache/bash-init
+source_init() {
+    local name="$1" bin cache="$HOME/.cache/bash-init/$1.bash"
+    hash "$name" 2>/dev/null || return 0
+    bin="${BASH_CMDS[$name]}"
+    if [[ ! -s $cache || $bin -nt $cache || ${bin%/*} -nt $cache ]]; then
+        mkdir -p "${cache%/*}"
+        "$@" >"$cache.$$" && mv -f "$cache.$$" "$cache" || { rm -f "$cache.$$"; return 0; }
+    fi
+    source "$cache"
+}
+
+# Skip these for non-interactive shells such as nvim's `bash -lc` prefetches
+# (see nvim/lua/bash_external/init.lua).
 if [[ $- == *i* ]]; then
-    eval "$(zoxide init bash)"
+    source_init zoxide init bash
     # fzf keybindings for bash: Ctrl-R (history search), Ctrl-T (files), Alt-C (cd)
-    eval "$(fzf --bash)"
+    source_init fzf --bash
 fi
 
 # opencode

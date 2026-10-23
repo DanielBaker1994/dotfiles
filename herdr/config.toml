@@ -148,7 +148,7 @@ command = "local.last.agent"
 description = "last agent"
 
 [ui.toast]
-delivery = "herdr"
+delivery = "system"
 
 [ui.sound]
 enabled = false

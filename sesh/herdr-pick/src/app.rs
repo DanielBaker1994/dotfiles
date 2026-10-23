@@ -18,7 +18,7 @@ use crossterm::event::{
 use crossterm::terminal;
 use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
-use std::sync::atomic::{AtomicI32, Ordering};
+use std::sync::atomic::{AtomicI32, AtomicU64, Ordering};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
@@ -34,6 +34,37 @@ pub fn install_signals() {
         libc::signal(libc::SIGTERM, on_signal as libc::sighandler_t);
         libc::signal(libc::SIGINT, on_signal as libc::sighandler_t);
     }
+}
+
+/// Bumped by the event loop on every pass. If it stops advancing the loop is
+/// wedged: when the shell that launched the popup dies, crossterm's reader can
+/// spin forever in `read()` on the revoked tty (returning EIO instead of
+/// blocking) and never return to the loop that checks SIGNAL, so SIGTERM is
+/// ignored too. The watchdog notices the stalled heartbeat and leaves instead
+/// of burning a core for days.
+static HEARTBEAT: AtomicU64 = AtomicU64::new(0);
+
+fn spawn_watchdog() {
+    const TICK_MS: u64 = 250;
+    const STUCK_MS: u64 = 5000;
+    std::thread::spawn(|| {
+        let mut last = HEARTBEAT.load(Ordering::Relaxed);
+        let mut stuck = 0u64;
+        loop {
+            std::thread::sleep(Duration::from_millis(TICK_MS));
+            let now = HEARTBEAT.load(Ordering::Relaxed);
+            if now == last {
+                stuck += TICK_MS;
+                if stuck >= STUCK_MS {
+                    let _ = crossterm::terminal::disable_raw_mode();
+                    std::process::exit(1);
+                }
+            } else {
+                stuck = 0;
+                last = now;
+            }
+        }
+    });
 }
 
 enum Msg {
@@ -279,7 +310,15 @@ pub fn run(cfg: Config) -> i32 {
     app.group = Group::new(links::load_cache(&app.cfg), expanded, names);
     app.load_list("ws", false);
     app.fetch_links();
+    spawn_watchdog();
     loop {
+        HEARTBEAT.fetch_add(1, Ordering::Relaxed);
+        // stdin gone (redirected away, or the popup's tty revoked under us):
+        // no real input can arrive, so leave instead of spinning on it.
+        if !std::io::stdin().is_terminal() {
+            app.quit_code = Some(1);
+            break;
+        }
         let sig = SIGNAL.load(Ordering::SeqCst);
         if sig != 0 {
             app.quit_code = Some(128 + sig);
