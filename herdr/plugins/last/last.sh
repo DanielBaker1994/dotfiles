@@ -8,7 +8,8 @@
 # history (PLACES, newest first, no duplicates) holds
 #   herdr:<ws>   a herdr workspace (recorded on focus, like `ws` below)
 #   ks           kitchen-sink took focus     (AeroSpace on-focus-changed → app-focus)
-#   term         Ghostty took focus          (same hook)
+#   term         Ghostty took focus, herdr not answering (same hook; else
+#                herdr:<focused ws>, the workspace Ghostty shows again)
 # `workspace` goes to the first entry that is neither the current workspace
 # nor `term`: kitchen-sink when you came from there, else the last workspace.
 # `from-ks` (kitchen-sink's Ctrl+B Shift+L) goes to the newest herdr entry.
@@ -119,14 +120,26 @@ jump() {
     "$herdr" "$kind" focus "$prev" >/dev/null 2>&1 || true
 }
 
+# the workspace herdr shows (empty when herdr does not answer)
+focused_workspace() {
+    "$herdr" workspace list 2>/dev/null |
+        jq -r '.result.workspaces[]? | select(.focused) | .workspace_id' 2>/dev/null | head -n1 || true
+}
+
 # AeroSpace focus hook: note kitchen-sink / Ghostty taking focus (other apps
-# leave the history alone).
+# leave the history alone). Back in Ghostty you are in herdr's focused
+# workspace again, so it becomes the newest place: with only `term` recorded
+# a kitchen-sink visit outranked it, and prefix+L from the next workspace
+# went to kitchen-sink instead of the workspace you had just left.
 app_focus() {
-    local app
+    local app ws
     app="$(aerospace list-windows --focused --format '%{app-bundle-id}' 2>/dev/null || true)"
     case "$app" in
         dev.danielbaker.kitchen-sink) push_place ks ;;
-        com.mitchellh.ghostty) push_place term ;;
+        com.mitchellh.ghostty)
+            ws="$(focused_workspace)"
+            if [ -n "$ws" ]; then push_place "herdr:$ws"; else push_place term; fi
+            ;;
     esac
 }
 
