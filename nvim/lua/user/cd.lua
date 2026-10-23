@@ -1,11 +1,24 @@
 -- <leader>cd — pick a directory to cd into.
 --
 -- The workspace comes from user.workspace (resolved from the launch dir).
--- Entries: the matched root's configured targets (bash/external.sh
+-- Entries: "here" (the open buffer's directory) first, then the workspace
+-- root, the matched root's configured targets (bash/external.sh
 -- NVIM_CD_TARGETS), then zoxide results strictly inside the workspace.
 local M = {}
 
 local workspace = require('user.workspace')
+
+-- The current buffer's directory (oil:// buffers resolve to the listed
+-- dir), or nil for an unnamed / non-file buffer.
+local function buffer_dir()
+    local name = vim.api.nvim_buf_get_name(0):gsub('^oil://', '')
+    if name == '' or name:match('^%a+://') then
+        return nil
+    end
+    local dir = vim.fn.isdirectory(name) == 1 and name or vim.fn.fnamemodify(name, ':h')
+    dir = vim.fn.resolve(vim.fn.fnamemodify(dir, ':p')):gsub('/$', '')
+    return vim.fn.isdirectory(dir) == 1 and dir or nil
+end
 
 -- { name = display, dir = absolute }: configured targets first (first-wins
 -- on duplicate dirs), then zoxide paths inside the workspace.
@@ -18,8 +31,10 @@ local function build_entries()
             table.insert(entries, { name = name, dir = dir })
         end
     end
-    -- Workspace root is always offered first, then configured targets, then
-    -- zoxide paths strictly inside the workspace.
+    -- "here" (the open buffer's directory) is always offered first, then the
+    -- workspace root, configured targets, and zoxide paths strictly inside
+    -- the workspace.
+    add('here', buffer_dir())
     add('.', ws)
     if entry and entry.targets then
         for name, sub in pairs(entry.targets) do
@@ -67,6 +82,9 @@ function M.pick()
         local dir = e.dir
         if home and vim.startswith(dir, home .. '/') then
             dir = '~' .. dir:sub(#home + 1)
+        end
+        if e.name == 'here' then
+            dir = 'here: ' .. dir
         end
         table.insert(items, { dir = e.dir, display = dir })
     end

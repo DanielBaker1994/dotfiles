@@ -1,11 +1,22 @@
--- Opens bash/build_deploy.sh in a terminal split; the script shows its own
+-- Opens the build/deploy script in a terminal split; the script shows its own
 -- menu and owns the whole pipeline. Argument = directory to resolve the
 -- project from (current buffer's dir).
+--
+-- The script is $BUILD_DEPLOY_SHELL_SCRIPT_PATH. Set (and export) it in the
+-- machine-local overrides file, ~/external/.bashrc (sourced first by
+-- bash/.bashrc), since this workflow runs on both the personal and the work
+-- computer and each points at its own script, e.g.
+--   export BUILD_DEPLOY_SHELL_SCRIPT_PATH="$HOME/.dotfiles/bash/build_deploy.sh"
 local M = {}
 
 function M.open()
-    local dotdir = vim.env.DOTDIR or (vim.env.HOME .. '/.dotfiles')
-    local script = dotdir .. '/bash/build_deploy.sh'
+    local script = vim.env.BUILD_DEPLOY_SHELL_SCRIPT_PATH
+    if not script or script == '' then
+        vim.notify('build_deploy: BUILD_DEPLOY_SHELL_SCRIPT_PATH is not set (export it in ~/external/.bashrc)',
+            vim.log.levels.ERROR)
+        return
+    end
+    script = vim.fn.expand(script)
     if vim.fn.filereadable(script) == 0 then
         vim.notify('build_deploy: script not found: ' .. script, vim.log.levels.ERROR)
         return
