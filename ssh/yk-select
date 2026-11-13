@@ -54,9 +54,12 @@ case "$1" in
     if [ -z "$sers" ]; then echo "${R}✘ No YubiKey detected - plug one in${N}"; exit 1; fi
     for ser in $sers; do
       case "$(slot_of "$ser")" in
-        k1) echo "${G}✔ Primary YubiKey (k1)${N} ${D}serial $ser${N}" ;;
-        k2) echo "${G}✔ Backup YubiKey (k2)${N} ${D}serial $ser${N}" ;;
-        *)  echo "${Y}? Unknown YubiKey${N} ${D}serial $ser - ssh will try both and remember which works${N}" ;;
+        k1) echo "${G}✔ PRIMARY YubiKey plugged in${N} ${D}(k1, \"yubikey-1\", serial $ser)${N}" ;;
+        k2) echo "${G}✔ BACKUP YubiKey plugged in${N} ${D}(k2, \"yubikey-2\", serial $ser)${N}" ;;
+        *)  guess="primary or backup"
+            grep -q ' k1$' "$MAP" 2>/dev/null && ! grep -q ' k2$' "$MAP" && guess="probably your BACKUP"
+            grep -q ' k2$' "$MAP" 2>/dev/null && ! grep -q ' k1$' "$MAP" && guess="probably your PRIMARY"
+            echo "${Y}? New YubiKey - $guess${N} ${D}(serial $ser) - first login tries both and remembers${N}" ;;
       esac
     done
     c=$(choose); [ "$c" != any ] && echo "${C}→ using ~/.ssh/id_ed25519_sk_servers_$c${N}"

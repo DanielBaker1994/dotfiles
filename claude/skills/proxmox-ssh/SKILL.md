@@ -40,6 +40,19 @@ ssh offers k1 then k2, and connect.sh learns the mapping after a success.
 Check the current state: `~/.dotfiles/ssh/yk-select --describe`.
 Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--learn k2`.
 
+## Primary vs backup: always say which one
+| Name to use with the user | Key file | Comment in .pub | Serial |
+|---|---|---|---|
+| **Primary YubiKey** | `id_ed25519_sk_servers_k1` | `yubikey-1` | in `~/.ssh/yubikey-map` (local) |
+| **Backup YubiKey** | `id_ed25519_sk_servers_k2` | `yubikey-2` | learned the first time it's used |
+
+- When talking to the user, say "primary" or "backup", not k1/k2 on their own.
+- `~/.dotfiles/ssh/yk-select --describe` prints which one is plugged in.
+- **Check both keys work everywhere:** `bash ~/.claude/skills/proxmox-ssh/scripts/audit.sh [root@node]`.
+  It's read-only and shows a PRIMARY / BACKUP ✔/✘ table for the node and every CT/VM
+  (it needs an open connection to the node). Run it after setting up any guest.
+  Last run 2026-11-13 on 10.0.0.84: all ✔ (node, CT101, CT102, VM100).
+
 ## How to authenticate (never ask the user to switch tabs or copy commands)
 1. Tell the user in one line: "A macOS dialog will pop up: enter your passphrase, then tap the YubiKey."
 2. Run `bash ~/.claude/skills/proxmox-ssh/scripts/connect.sh <host> [host...]` with a timeout of 180000 ms or more.
