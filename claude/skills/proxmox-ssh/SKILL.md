@@ -27,9 +27,15 @@ the Tailscale tailnet name, or keys).
 | `mealplanner` | CT102 10.0.0.206 | root, hardware keys only |
 | `media-vm` | VM100 10.0.0.247 | Ubuntu 24.04. Root needs hardware keys (`Match User root`); `daniel@10.0.0.247` still logs in with a non-hardware key and has NOPASSWD sudo. qemu-guest-agent installed 2026-11-13 |
 
-Keys: `~/.ssh/id_ed25519_sk_servers_k1` (primary) and `_k2` (backup). Both are ED25519-SK
-with a file passphrase, so every new connection needs a passphrase and a touch. `yk-select`
-makes ssh offer only the plugged-in key's file. If the key is unknown or `ykman` is missing,
+Keys: `~/.ssh/id_ed25519_sk_servers_k1` (primary YubiKey, "yubikey-1") and `_k2` (backup, "yubikey-2"),
+each on its own device (verified 2026-11-13: k2 on the primary gives `FIDO_ERR_NO_CREDENTIALS`).
+They're ED25519-SK, **resident + verify-required** (flags 0x25), so every new connection needs the
+YubiKey **PIN** and a touch. The dialog asks for the PIN. In `ssh -v` output, the first
+"incorrect passphrase" line is just ssh discovering it needs the PIN. That's normal.
+`signing failed ...: invalid format` is a catch-all: run `ssh -v` and look for `FIDO_ERR_NO_CREDENTIALS`
+(wrong YubiKey) or `FIDO_ERR_PIN_INVALID` (wrong PIN).
+Because the keys are resident, a new Mac can recreate the key files with `ssh-keygen -K` (once per YubiKey).
+`yk-select` makes ssh offer only the plugged-in key's file. If the key is unknown or `ykman` is missing,
 ssh offers k1 then k2, and connect.sh learns the mapping after a success.
 Check the current state: `~/.dotfiles/ssh/yk-select --describe`.
 Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--learn k2`.
