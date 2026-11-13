@@ -21,3 +21,49 @@ path = "~/Documents/Raycast"
 name = "BrowserCats"
 path = "~"
 startup_command = "terminal-browser open cats.com"
+
+# ---- Proxmox (YubiKey PIN+tap per connect unless an ssh ControlMaster is open) ----
+# LXC: shell via the host (pct enter) - no ssh setup inside the container needed
+# VM:  direct ssh to the guest IP (ARP-resolved 2026-11-12)
+
+# mediaserver 10.0.0.84  (grafana http://10.0.0.84:3000)
+[[session]]
+name = "pve-mediaserver"
+path = "~"
+startup_command = "ssh root@10.0.0.84"
+
+[[session]]
+name = "pve-mediaserver/ubuntu-media-server (vm 100)"
+path = "~"
+startup_command = "ssh daniel@10.0.0.247"
+
+[[session]]
+name = "pve-mediaserver/notifications (ct 101)"
+path = "~"
+startup_command = "ssh -t root@10.0.0.84 pct enter 101"
+
+[[session]]
+name = "pve-mediaserver/mealplanner (ct 102)"
+path = "~"
+startup_command = "ssh -t root@10.0.0.84 pct enter 102"
+
+# pve 10.0.0.226  (grafana http://10.0.0.226:3000)
+[[session]]
+name = "pve-personal"
+path = "~"
+startup_command = "ssh root@10.0.0.226"
+
+[[session]]
+name = "pve-personal/umbrel (vm 101)"
+path = "~"
+startup_command = "ssh umbrel@10.0.0.231"
+
+[[session]]
+name = "pve-personal/pbs (vm 200)"
+path = "~"
+startup_command = "ssh pbsadmin@10.0.0.230"
+
+[[session]]
+name = "pve-personal/metube (ct 103)"
+path = "~"
+startup_command = "ssh -t root@10.0.0.226 pct enter 103"

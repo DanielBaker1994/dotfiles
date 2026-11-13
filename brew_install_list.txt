@@ -5,6 +5,7 @@ automake
 bash
 bash-completion
 basictex
+keycastr
 bat
 bear
 bison
