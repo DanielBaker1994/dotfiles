@@ -54,6 +54,7 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
   Last run 2026-11-13: 10.0.0.84 all ✔ (node, CT101, CT102, VM100). 10.0.0.226: node ✔. CT103 metube
   and CT105 immich not set up yet. CT106 files is deliberately left without root keys (locked-down SFTP box).
   VM200 pbs: no guest agent, and 10.0.0.230 is unreachable.
+  **The user said "leave those for now" (2026-11-13). Don't set up metube/immich/files/pbs unless asked.**
 - **Live-tested 2026-11-13:** the PRIMARY logged into 10.0.0.84, 10.0.0.226 and media-vm. The BACKUP logged into
   10.0.0.84, notifications, mealplanner, media-vm and 10.0.0.226 (all connections closed first, so none were reused).
 - An unknown YubiKey is assumed to fill whichever slot is still unmapped. connect.sh records it after the first
