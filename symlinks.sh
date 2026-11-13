@@ -33,6 +33,8 @@ _sl_manifest() {
         "$HOME/.config/lazygit/config.yml|$SL_DIR/lazygit/config.yml" \
         "$HOME/.config/ghostty|$SL_DIR/ghostty" \
         "$HOME/.gitconfig|$SL_DIR/git/.gitconfig" \
+        "$HOME/.claude/skills/proxmox-ssh|$SL_DIR/claude/skills/proxmox-ssh" \
+        "$HOME/.ssh/askpass-macos|$SL_DIR/ssh/askpass-macos" \
         "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty|$SL_DIR/ghostty/config.ghostty"
 }
 

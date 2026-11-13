@@ -22,9 +22,10 @@ name = "BrowserCats"
 path = "~"
 startup_command = "terminal-browser open cats.com"
 
-# ---- Proxmox (YubiKey PIN+tap per connect unless an ssh ControlMaster is open) ----
-# LXC: shell via the host (pct enter) - no ssh setup inside the container needed
-# VM:  direct ssh to the guest IP (ARP-resolved 2026-11-12)
+# ---- Proxmox (YubiKey passphrase+tap per connect; reused 30 min via ControlMaster) ----
+# Key auto-picked for the plugged-in YubiKey: ~/.dotfiles/ssh/proxmox.conf (proxmox-ssh skill)
+# Guests with hardware-key root ssh use their alias (notifications, mealplanner);
+# the rest still go via the host (pct enter) or their existing user.
 
 # mediaserver 10.0.0.84  (grafana http://10.0.0.84:3000)
 [[session]]
@@ -33,19 +34,19 @@ path = "~"
 startup_command = "ssh root@10.0.0.84"
 
 [[session]]
-name = "pve-mediaserver/ubuntu-media-server (vm 100)"
+name = "pve-mediaserver/ubuntu-media-server (vm 100, daniel)"
 path = "~"
 startup_command = "ssh daniel@10.0.0.247"
 
 [[session]]
 name = "pve-mediaserver/notifications (ct 101)"
 path = "~"
-startup_command = "ssh -t root@10.0.0.84 pct enter 101"
+startup_command = "ssh notifications"
 
 [[session]]
 name = "pve-mediaserver/mealplanner (ct 102)"
 path = "~"
-startup_command = "ssh -t root@10.0.0.84 pct enter 102"
+startup_command = "ssh mealplanner"
 
 # pve 10.0.0.226  (grafana http://10.0.0.226:3000)
 [[session]]

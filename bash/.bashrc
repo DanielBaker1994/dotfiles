@@ -36,12 +36,25 @@ f() {
 mediaconnect() {
     ssh daniel@10.0.0.247
 }
-proxmoxmediaconnect() {
-    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && printf '\033[1;33mPlease ensure your YubiKey is ready, you will need to tap it.\033[0m\n' && ssh root@10.0.0.84 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
+# YubiKey SSH (see ~/.dotfiles/ssh/proxmox.conf + yk-select): shows which key
+# is plugged in, skips the prompt when a reusable connection is already open.
+_ykssh() {
+    if [[ $(command -v ssh) != /opt/homebrew/bin/ssh* ]]; then
+        printf '\033[1;31m✘ ssh is not Homebrew: %s (FIDO keys need it)\033[0m\n' "$(command -v ssh)"; return 1
+    fi
+    if ssh -O check "$@" >/dev/null 2>&1; then
+        printf '\033[1;32m✔ reusing open connection to %s - no tap needed\033[0m\n' "${@: -1}"
+    else
+        printf '\033[1;36m== %s\033[0m\n' "${@: -1}"
+        ~/.dotfiles/ssh/yk-select --describe | sed 's/^/  /' || return 1
+        printf '  \033[1;33m➜ enter passphrase, then tap the YubiKey when it blinks\033[0m\n'
+    fi
+    ssh "$@"
 }
-proxmoxpersonalconnect() {
-    [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] && printf '\033[1;33mPlease ensure your YubiKey is ready, you will need to tap it.\033[0m\n' && ssh root@10.0.0.226 || printf '\033[31mWARNING: ssh is not Homebrew: %s\033[0m\n' "$(command -v ssh)"
-}
+proxmoxmediaconnect()    { _ykssh root@10.0.0.84; }
+proxmoxpersonalconnect() { _ykssh root@10.0.0.226; }
+notificationsconnect()   { _ykssh notifications; }
+mealplannerconnect()     { _ykssh mealplanner; }
 export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 
 alias bashr='source ~/.bash_profile'
