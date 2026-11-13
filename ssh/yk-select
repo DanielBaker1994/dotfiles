@@ -5,6 +5,7 @@
 #
 #   yk-select k1|k2|any     exit 0 if that slot should be used (for ssh_config `Match exec`)
 #   yk-select --slot        print the chosen slot: k1, k2 or any
+#   yk-select --known       exit 0 if the plugged-in key is already mapped
 #   yk-select --describe    coloured one-line summary for humans
 #   yk-select --learn SLOT  record the currently plugged-in key as SLOT
 #
@@ -32,12 +33,20 @@ choose() {
   for ser in $(present); do
     case "$(slot_of "$ser")" in k1) have1=1 ;; k2) have2=1 ;; esac
   done
-  if [ -n "$have1" ]; then echo k1; elif [ -n "$have2" ]; then echo k2; else echo any; fi
+  if [ -n "$have1" ]; then echo k1; elif [ -n "$have2" ]; then echo k2
+  elif [ -n "$(present)" ] && [ -f "$MAP" ]; then
+    # Unknown key, but the other slot is already mapped to a different serial: it must be this one
+    if grep -q ' k1$' "$MAP" && ! grep -q ' k2$' "$MAP"; then echo k2
+    elif grep -q ' k2$' "$MAP" && ! grep -q ' k1$' "$MAP"; then echo k1
+    else echo any; fi
+  else echo any; fi
 }
+known() { local ser; for ser in $(present); do [ -n "$(slot_of "$ser")" ] || return 1; done; [ -n "$(present)" ]; }
 
 case "$1" in
   k1|k2|any) [ "$(choose)" = "$1" ] ;;
   --slot) choose ;;
+  --known) known ;;   # exit 0 if every plugged-in key is already mapped
   --learn)
     [[ "$2" =~ ^k[12]$ ]] || { echo "usage: yk-select --learn k1|k2" >&2; exit 2; }
     rm -f "$CACHE"; sers=$(present)
@@ -59,7 +68,7 @@ case "$1" in
         *)  guess="primary or backup"
             grep -q ' k1$' "$MAP" 2>/dev/null && ! grep -q ' k2$' "$MAP" && guess="probably your BACKUP"
             grep -q ' k2$' "$MAP" 2>/dev/null && ! grep -q ' k1$' "$MAP" && guess="probably your PRIMARY"
-            echo "${Y}? New YubiKey - $guess${N} ${D}(serial $ser) - first login tries both and remembers${N}" ;;
+            echo "${Y}? New YubiKey - $guess${N} ${D}(serial $ser) - remembered after the first login${N}" ;;
       esac
     done
     c=$(choose); [ "$c" != any ] && echo "${C}→ using ~/.ssh/id_ed25519_sk_servers_$c${N}"

@@ -60,11 +60,6 @@ path = "~"
 startup_command = "ssh root@10.0.0.226"
 
 [[session]]
-name = "pve-personal/umbrel (vm 101)"
-path = "~"
-startup_command = "ssh umbrel@10.0.0.231"
-
-[[session]]
 name = "pve-personal/pbs (vm 200)"
 path = "~"
 startup_command = "ssh pbsadmin@10.0.0.230"

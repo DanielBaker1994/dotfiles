@@ -23,6 +23,7 @@ done
 echo "${C}== YubiKey${N}"
 "$YK" --describe | sed 's/^/  /' || exit 98
 slot=$("$YK" --slot)
+known=1; "$YK" --known || known=
 
 try() {  # $1 host, $2 log
   SSH_ASKPASS=$ASKPASS SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
@@ -40,15 +41,17 @@ for h in "${todo[@]}"; do
   if ! ssh -O check "$h" >/dev/null 2>&1 && [ "$slot" != any ] && grep -q "signing failed.*servers_$slot\".*invalid format" "$log"; then
     other=k1; [ "$slot" = k1 ] && other=k2
     echo "  ${Y}! this YubiKey isn't $slot - remapping to $other and retrying (one more dialog + tap)${N}"
-    "$YK" --learn "$other" && slot=$other
+    "$YK" --learn "$other" && slot=$other && known=1
     try "$h" "$log"
   fi
   if ssh -O check "$h" >/dev/null 2>&1; then
     echo "  ${G}✔ connected${N} ${D}- reusable for 30 min${N}"
     grep -q 'Permanently added' "$log" && echo "  ${D}(new host key saved to known_hosts)${N}"
-    if [ "$slot" = any ]; then   # unknown key: learn which slot it is
-      used=k1; grep -q 'signing failed.*servers_k1' "$log" && used=k2
-      "$YK" --learn "$used" 2>/dev/null && echo "  ${B}★ remembered this YubiKey as $used${N} ${D}(~/.ssh/yubikey-map)${N}" && slot=$used
+    if [ -z "$known" ]; then   # new key: remember which slot it turned out to be
+      used=$slot
+      if [ "$slot" = any ]; then used=k1; grep -q 'signing failed.*servers_k1' "$log" && used=k2; fi
+      label=PRIMARY; [ "$used" = k2 ] && label=BACKUP
+      "$YK" --learn "$used" 2>/dev/null && echo "  ${B}★ remembered this YubiKey as your $label ($used)${N} ${D}(~/.ssh/yubikey-map)${N}" && slot=$used && known=1
     fi
   else
     fail=$((fail+1)); echo "  ${R}✘ failed${N}"
