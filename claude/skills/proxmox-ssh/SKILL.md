@@ -25,7 +25,7 @@ the Tailscale tailnet name, or keys).
 | `proxmoxpersonalconnect` | `root@10.0.0.226` | also `pve-226` and its Tailscale name |
 | `notifications` | CT101 10.0.0.139 | root, hardware keys only |
 | `mealplanner` | CT102 10.0.0.206 | root, hardware keys only |
-| `media-vm` | VM100 10.0.0.247 | root NOT provisioned yet. `daniel@10.0.0.247` works (non-hardware key, NOPASSWD sudo) |
+| `media-vm` | VM100 10.0.0.247 | Ubuntu 24.04. Root needs hardware keys (`Match User root`); `daniel@10.0.0.247` still logs in with a non-hardware key and has NOPASSWD sudo. qemu-guest-agent installed 2026-11-13 |
 
 Keys: `~/.ssh/id_ed25519_sk_servers_k1` (primary) and `_k2` (backup). Both are ED25519-SK
 with a file passphrase, so every new connection needs a passphrase and a touch. `yk-select`
