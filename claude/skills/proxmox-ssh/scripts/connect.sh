@@ -24,13 +24,25 @@ echo "${C}== YubiKey${N}"
 "$YK" --describe | sed 's/^/  /' || exit 98
 slot=$("$YK" --slot)
 
+try() {  # $1 host, $2 log
+  SSH_ASKPASS=$ASKPASS SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+    ssh -fN -o ControlMaster=yes -o ConnectTimeout=10 "$1" </dev/null >"$2" 2>&1
+  ssh -O check "$1" >/dev/null 2>&1
+}
+
 fail=0
 for h in "${todo[@]}"; do
   echo "${C}== $h${N}"
   echo "  ${Y}➜ Dialog: enter your key passphrase/PIN, then tap the YubiKey when it blinks${N}"
   log=~/.ssh/cm/connect-${h//[^A-Za-z0-9._-]/_}.log
-  SSH_ASKPASS=$ASKPASS SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
-    ssh -fN -o ControlMaster=yes -o ConnectTimeout=10 "$h" </dev/null >"$log" 2>&1
+  try "$h" "$log"
+  # Mapped slot is wrong ("invalid format" = credential not on this device): flip, relearn, retry once
+  if ! ssh -O check "$h" >/dev/null 2>&1 && [ "$slot" != any ] && grep -q "signing failed.*servers_$slot\".*invalid format" "$log"; then
+    other=k1; [ "$slot" = k1 ] && other=k2
+    echo "  ${Y}! this YubiKey isn't $slot - remapping to $other and retrying (one more dialog + tap)${N}"
+    "$YK" --learn "$other" && slot=$other
+    try "$h" "$log"
+  fi
   if ssh -O check "$h" >/dev/null 2>&1; then
     echo "  ${G}✔ connected${N} ${D}- reusable for 30 min${N}"
     grep -q 'Permanently added' "$log" && echo "  ${D}(new host key saved to known_hosts)${N}"
