@@ -34,7 +34,6 @@ f() {
 }
 # Home-server helpers (proxmoxmediaconnect, mealplannerconnect, filesmount, ...)
 # live in the private ~/home_server repo, sourced from ~/external/.bashrc above.
-export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 
 alias bashr='source ~/.bash_profile'
 alias bbopen='nvim ~/.bash_profile'
