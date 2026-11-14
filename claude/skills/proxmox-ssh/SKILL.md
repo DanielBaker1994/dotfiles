@@ -98,6 +98,22 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 - Break-glass if SSH ever fails: `qm guest exec <vmid> -- ...` / `pct exec <ctid> -- ...` from the node.
   media-vm's serial console auto-logs in root.
 
+## Leak sweep (secrets lying around in guests)
+`bash ~/.claude/skills/proxmox-ssh/scripts/leak-scan.sh root@<node> [--skip VMID,...]` is READ-ONLY. It scans the node
+and every running CT (pct exec) and VM (guest agent) for private keys, credential stores (gh, Claude Code, docker,
+aws, netrc...), token-shaped strings, secret-looking shell-history lines, env-file permissions and stray backups.
+It **prints paths, perms and categories only, never secret values.** Dependency caches and library test fixtures are
+skipped (they hold fake keys). Use `--skip 200` for pbs (out of scope).
+Rules agreed with the user (2026-11-13):
+- **Never edit env files' contents.** Only fix perms: real env files get 600 with the same owner. Every env
+  file here is loaded via systemd `EnvironmentFile=` or docker compose as root, so 600 is safe (check
+  consumers first on new ones). Templates (`.env.example`) just lose group/world write.
+- Delete unused user SSH private keys (check git remotes, ~/.ssh/config, cron and systemd first). Keep
+  `/etc/ssh/ssh_host_*` (server identity) and the PVE node `/root/.ssh/id_rsa`.
+- Histories: remove only secret-looking lines, not the whole file.
+- First sweep 2026-11-13: removed daniel's key (media-vm), root@pve ed25519 (226), daniel's home archive,
+  domains.cfg backups (old Yubico API secret), and 217 secret-looking history lines (187 on mealplanner).
+
 ## Inventory a node
 `ssh -o BatchMode=yes root@10.0.0.84 'bash -s' < ~/.claude/skills/proxmox-ssh/scripts/inventory-remote.sh`
 (this only reads: pct/qm lists, OS, IPs, sshd version, guest-agent status).
