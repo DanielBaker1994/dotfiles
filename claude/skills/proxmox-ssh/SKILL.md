@@ -113,6 +113,10 @@ Rules agreed with the user (2026-11-13):
 - Histories: remove only secret-looking lines, not the whole file.
 - First sweep 2026-11-13: removed daniel's key (media-vm), root@pve ed25519 (226), daniel's home archive,
   domains.cfg backups (old Yubico API secret), and 217 secret-looking history lines (187 on mealplanner).
+  Logged Claude Code + gh out on BOTH NODES (hosts must hold no account tokens). The user chose to keep them
+  logged in on the guests (notifications, mealplanner, media-vm). Expected leftovers in a scan: those guest
+  credential files, CT101 `/root/env.bak-pre-twilio` (env backup, 640 root:nudge, contents untouched by rule)
+  and CT101's two app-data zips (600).
 
 ## Inventory a node
 `ssh -o BatchMode=yes root@10.0.0.84 'bash -s' < ~/.claude/skills/proxmox-ssh/scripts/inventory-remote.sh`
