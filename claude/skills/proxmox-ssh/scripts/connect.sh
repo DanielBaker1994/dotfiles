@@ -2,8 +2,8 @@
 # Open (or reuse) an authenticated SSH master connection for each host.
 # A native macOS dialog asks for the key passphrase (or PIN), the user taps the
 # YubiKey, then `ssh -o BatchMode=yes <host> ...` reuses the connection with no
-# prompt for 30 min (ControlPersist in ~/.dotfiles/ssh/proxmox.conf).
-# Usage: connect.sh <host> [host...]      Exit code = number of failures.
+# prompt for 10 min (or 30 with --long).
+# Usage: connect.sh [--long] <host> [host...]     Exit code = number of failures.
 G=$'\033[1;32m' Y=$'\033[1;33m' R=$'\033[1;31m' C=$'\033[1;36m' B=$'\033[1m' D=$'\033[2m' N=$'\033[0m'
 YK=~/.dotfiles/ssh/yk-select
 ASKPASS=~/.ssh/askpass-macos
@@ -11,7 +11,9 @@ ASKPASS=~/.ssh/askpass-macos
 mkdir -p ~/.ssh/cm && chmod 700 ~/.ssh/cm
 
 [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] || { echo "${R}✘ ssh is not Homebrew ($(command -v ssh)) - FIDO keys won't work${N}"; exit 99; }
-[ $# -gt 0 ] || { echo "usage: connect.sh <host> [host...]"; exit 2; }
+PERSIST=10m
+[ "$1" = --long ] && { PERSIST=30m; shift; }
+[ $# -gt 0 ] || { echo "usage: connect.sh [--long] <host> [host...]   (--long = reusable 30 min instead of 10)"; exit 2; }
 
 todo=()
 for h in "$@"; do
@@ -21,13 +23,14 @@ done
 [ ${#todo[@]} -eq 0 ] && exit 0
 
 echo "${C}== YubiKey${N}"
-"$YK" --describe | sed 's/^/  /' || exit 98
+desc=$("$YK" --describe); rc=$?; printf '%s\n' "$desc" | sed 's/^/  /'
+[ $rc -eq 0 ] || { echo "  ${Y}➜ plug in your primary or backup YubiKey, then run this again${N}"; exit 98; }
 slot=$("$YK" --slot)
 known=1; "$YK" --known || known=
 
 try() {  # $1 host, $2 log
   SSH_ASKPASS=$ASKPASS SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
-    ssh -fN -o ControlMaster=yes -o ConnectTimeout=10 "$1" </dev/null >"$2" 2>&1
+    ssh -fN -o ControlMaster=yes -o ControlPersist=$PERSIST -o ConnectTimeout=10 "$1" </dev/null >"$2" 2>&1
   ssh -O check "$1" >/dev/null 2>&1
 }
 
@@ -45,7 +48,7 @@ for h in "${todo[@]}"; do
     try "$h" "$log"
   fi
   if ssh -O check "$h" >/dev/null 2>&1; then
-    echo "  ${G}✔ connected${N} ${D}- reusable for 30 min${N}"
+    echo "  ${G}✔ connected${N} ${D}- reusable for $PERSIST${N}"
     grep -q 'Permanently added' "$log" && echo "  ${D}(new host key saved to known_hosts)${N}"
     if [ -z "$known" ]; then   # new key: remember which slot it turned out to be
       used=$slot
@@ -55,8 +58,12 @@ for h in "${todo[@]}"; do
     fi
   else
     fail=$((fail+1)); echo "  ${R}✘ failed${N}"
-    if grep -q 'Permission denied' "$log"; then
+    if grep -q 'device not found' "$log" && ! grep -q 'Authenticated' "$log"; then
+      echo "  ${R}  YubiKey not found - it was unplugged or not inserted fully${N}"
+    elif grep -q 'Permission denied' "$log"; then
       echo "  ${R}  key rejected - wrong YubiKey, or this host doesn't have the key in authorized_keys yet${N}"
+    elif grep -q 'Connection closed by' "$log" && ! grep -q 'Permission denied' "$log"; then
+      echo "  ${R}  dialog cancelled or PIN/tap not given in time - just rerun${N}"
     elif grep -qiE 'timed out|No route|refused' "$log"; then
       echo "  ${R}  host unreachable${N}"
     fi

@@ -24,7 +24,7 @@ startup_command = "terminal-browser open cats.com"
 
 # ---- Proxmox (YubiKey passphrase+tap per connect; reused 30 min via ControlMaster) ----
 # Key auto-picked for the plugged-in YubiKey: ~/.dotfiles/ssh/proxmox.conf (proxmox-ssh skill)
-# Guests with hardware-key root ssh use their alias (notifications, mealplanner, media-vm);
+# Guests with hardware-key root ssh use their alias (notifications, mealplanner, media-vm, metube, immich);
 # the rest still go via the host (pct enter) or their existing user.
 
 # mediaserver 10.0.0.84  (grafana http://10.0.0.84:3000)
@@ -37,11 +37,6 @@ startup_command = "ssh root@10.0.0.84"
 name = "pve-mediaserver/ubuntu-media-server (vm 100)"
 path = "~"
 startup_command = "ssh media-vm"
-
-[[session]]
-name = "pve-mediaserver/ubuntu-media-server (vm 100, daniel)"
-path = "~"
-startup_command = "ssh daniel@10.0.0.247"
 
 [[session]]
 name = "pve-mediaserver/notifications (ct 101)"
@@ -67,4 +62,9 @@ startup_command = "ssh pbsadmin@10.0.0.230"
 [[session]]
 name = "pve-personal/metube (ct 103)"
 path = "~"
-startup_command = "ssh -t root@10.0.0.226 pct enter 103"
+startup_command = "ssh metube"
+
+[[session]]
+name = "pve-personal/immich (ct 105)"
+path = "~"
+startup_command = "ssh immich"

@@ -25,7 +25,9 @@ the Tailscale tailnet name, or keys).
 | `proxmoxpersonalconnect` | `root@10.0.0.226` | also `pve-226` and its Tailscale name |
 | `notifications` | CT101 10.0.0.139 | root, hardware keys only |
 | `mealplanner` | CT102 10.0.0.206 | root, hardware keys only |
-| `media-vm` | VM100 10.0.0.247 | Ubuntu 24.04. Root needs hardware keys (`Match User root`); `daniel@10.0.0.247` still logs in with a non-hardware key and has NOPASSWD sudo. qemu-guest-agent installed 2026-11-13 |
+| `media-vm` | VM100 10.0.0.247 | Ubuntu 24.04. **Root is the only login** (`AllowUsers root`, hardware keys only). daniel deleted 2026-11-13: home archived at `/root/daniel-home-backup.tar.gz`, files/.bashrc/Claude Code moved to /root. `ops-dashboard` (port 8089) runs as no-login `opsdash`. Plex-refresh cron is root's, logging to `/var/log/plex-refresh.log`. `ubuntu` (uid 1000) is kept only as the containers' PUID: nologin, no sudo. Serial console auto-logs in root |
+| `metube` | CT103 **100.82.133.76 (Tailscale)** | its CT firewall drops LAN traffic (policy_in DROP), so SSH works over Tailscale only. Keep it that way |
+| `immich` | CT105 10.0.0.208 | root, hardware keys only |
 
 Keys: `~/.ssh/id_ed25519_sk_servers_k1` (primary YubiKey, "yubikey-1") and `_k2` (backup, "yubikey-2"),
 each on its own device (verified 2026-11-13: k2 on the primary gives `FIDO_ERR_NO_CREDENTIALS`).
@@ -51,10 +53,9 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 - **Check both keys work everywhere:** `bash ~/.claude/skills/proxmox-ssh/scripts/audit.sh [root@node]`.
   It's read-only and shows a PRIMARY / BACKUP ✔/✘ table for the node and every CT/VM
   (it needs an open connection to the node). Run it after setting up any guest.
-  Last run 2026-11-13: 10.0.0.84 all ✔ (node, CT101, CT102, VM100). 10.0.0.226: node ✔. CT103 metube
-  and CT105 immich not set up yet. CT106 files is deliberately left without root keys (locked-down SFTP box).
-  VM200 pbs: no guest agent, and 10.0.0.230 is unreachable.
-  **The user said "leave those for now" (2026-11-13). Don't set up metube/immich/files/pbs unless asked.**
+  Last run 2026-11-13: 10.0.0.84 all ✔ (node, CT101, CT102, VM100). 10.0.0.226 ✔ (node, CT103, CT105).
+  CT106 files is deliberately left without root keys (locked-down SFTP box): its ✘ is expected.
+  VM200 pbs: no guest agent and 10.0.0.230 unreachable. On hold until the user gives its IP.
 - **Live-tested 2026-11-13:** the PRIMARY logged into 10.0.0.84, 10.0.0.226 and media-vm. The BACKUP logged into
   10.0.0.84, notifications, mealplanner, media-vm and 10.0.0.226 (all connections closed first, so none were reused).
 - An unknown YubiKey is assumed to fill whichever slot is still unmapped. connect.sh records it after the first
@@ -65,11 +66,23 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 2. Run `bash ~/.claude/skills/proxmox-ssh/scripts/connect.sh <host> [host...]` with a timeout of 180000 ms or more.
    It prints which YubiKey it detected, then shows one dialog and needs one tap per host not already connected.
    If it says "No YubiKey detected", ask the user to plug one in and rerun.
-3. From then on, run `ssh -o BatchMode=yes <host> '...'` freely for 30 min: no prompts.
+3. From then on, run `ssh -o BatchMode=yes <host> '...'` freely for 10 min (30 with `connect.sh --long`): no prompts.
    `BatchMode` makes it fail fast if the master has died. If that happens, rerun connect.sh.
 4. To end early: `ssh -O exit <host>`.
 
 `ssh` must be `/opt/homebrew/bin/ssh`. Apple's ssh can't use these keys.
+
+## Hardening applied (2026-11-13, user asked for "maximum security")
+- Both nodes: sshd accepts only sk keys and no passwords. The web UI/API is limited to LAN and Tailscale via
+  `/etc/default/pveproxy` (ALLOW_FROM 10.0.0.0/24,100.64.0.0/10, DENY_FROM all). Web UI 2FA is Yubico
+  OTP on both YubiKeys plus recovery codes. **Suggested next step: switch to WebAuthn** (it needs a hostname,
+  not an IP, and the user has to register the keys in a browser).
+- The `root@mediaserver`/`root@pve` RSA keys in the nodes' authorized_keys are managed by Proxmox, and
+  sshd already rejects them (sk-only). Leave them alone.
+- `dashboard@pve` and `prometheus@pve` are PVEAuditor (read-only).
+- ControlPersist is 10 min by default. Use `connect.sh --long` for 30 min on long jobs.
+- Break-glass if SSH ever fails: `qm guest exec <vmid> -- ...` / `pct exec <ctid> -- ...` from the node.
+  media-vm's serial console auto-logs in root.
 
 ## Inventory a node
 `ssh -o BatchMode=yes root@10.0.0.84 'bash -s' < ~/.claude/skills/proxmox-ssh/scripts/inventory-remote.sh`

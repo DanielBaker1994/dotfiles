@@ -33,9 +33,6 @@ f() {
     sel=$(fzf --bind 'ctrl-y:execute(printf %s $PWD/{} | command pbcopy)+abort') || return
     nvim "$PWD/$sel"
 }
-mediaconnect() {
-    ssh daniel@10.0.0.247
-}
 # YubiKey SSH (see ~/.dotfiles/ssh/proxmox.conf + yk-select): shows which key
 # is plugged in, skips the prompt when a reusable connection is already open.
 _ykssh() {
@@ -56,6 +53,8 @@ proxmoxpersonalconnect() { _ykssh root@10.0.0.226; }
 notificationsconnect()   { _ykssh notifications; }
 mealplannerconnect()     { _ykssh mealplanner; }
 mediavmconnect()         { _ykssh media-vm; }
+metubeconnect()          { _ykssh metube; }
+immichconnect()          { _ykssh immich; }
 export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 
 alias bashr='source ~/.bash_profile'
