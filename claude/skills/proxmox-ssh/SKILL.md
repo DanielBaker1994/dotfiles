@@ -87,6 +87,8 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 - The tailnet ACL only grants access to `tag:server`. A new node needs `tailscale up --advertise-tags=tag:server`,
   or its inbound packet filter is empty (Tailscale ping works but TCP is silently dropped).
   The mediaserver node's PVE firewall also needed `IN ACCEPT -source 100.64.0.0/10 -p tcp -dport 8006`.
+- **YubiKey OTP interface disabled on both keys** (2026-11-13, `ykman config usb --disable OTP`) so stray taps
+  stop typing codes. Only FIDO and CCID are enabled. Re-enable with `ykman config usb --enable OTP`.
 - **Browser: Chrome only** for registering or using the YubiKeys. Safari and Firefox on this Mac hand off to the
   macOS passkey sheet, which never reaches the key (tapping just types an OTP). In Chrome pick "Use a security key".
 - The `root@mediaserver`/`root@pve` RSA keys in the nodes' authorized_keys are managed by Proxmox, and
