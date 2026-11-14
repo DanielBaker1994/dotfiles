@@ -19,7 +19,6 @@ function aerospacelist() {
 }
 
 unalias f 2>/dev/null
-unalias mediaconnect proxmoxmediaconnect proxmoxpersonalconnect 2>/dev/null
 f() {
     # Cancel (ESC) -> no selection -> nothing copied.
     # Ctrl+Y copies the highlighted entry's ABSOLUTE path ($PWD + the path,
@@ -33,28 +32,8 @@ f() {
     sel=$(fzf --bind 'ctrl-y:execute(printf %s $PWD/{} | command pbcopy)+abort') || return
     nvim "$PWD/$sel"
 }
-# YubiKey SSH (see ~/.dotfiles/ssh/proxmox.conf + yk-select): shows which key
-# is plugged in, skips the prompt when a reusable connection is already open.
-_ykssh() {
-    if [[ $(command -v ssh) != /opt/homebrew/bin/ssh* ]]; then
-        printf '\033[1;31m✘ ssh is not Homebrew: %s (FIDO keys need it)\033[0m\n' "$(command -v ssh)"; return 1
-    fi
-    if ssh -O check "$@" >/dev/null 2>&1; then
-        printf '\033[1;32m✔ reusing open connection to %s - no tap needed\033[0m\n' "${@: -1}"
-    else
-        printf '\033[1;36m== %s\033[0m\n' "${@: -1}"
-        ~/.dotfiles/ssh/yk-select --describe | sed 's/^/  /' || return 1
-        printf '  \033[1;33m➜ enter passphrase, then tap the YubiKey when it blinks\033[0m\n'
-    fi
-    ssh "$@"
-}
-proxmoxmediaconnect()    { _ykssh root@10.0.0.84; }
-proxmoxpersonalconnect() { _ykssh root@10.0.0.226; }
-notificationsconnect()   { _ykssh notifications; }
-mealplannerconnect()     { _ykssh mealplanner; }
-mediavmconnect()         { _ykssh media-vm; }
-metubeconnect()          { _ykssh metube; }
-immichconnect()          { _ykssh immich; }
+# Home-server helpers (proxmoxmediaconnect, mealplannerconnect, filesmount, ...)
+# live in the private ~/home_server repo, sourced from ~/external/.bashrc above.
 export TEST_TOKEN_NOT_REAL="ATATT3xFfGF0-MEGHpdjwsHm3_7n9kjQWns-j6c1eytLrJmJynOlybv5FUXHR2enc5-6eq19OroOzuNRj6l8FCuxVZWVF4T0anCXfZXn42wxxM_JLaXArvGr4H5-dnm1A1ZGnTzbQmqCpBMcMeiAjJp271T_aW_yqttIZIIqpXX4_FPfZlKU-kE=F7651C8D"
 
 alias bashr='source ~/.bash_profile'

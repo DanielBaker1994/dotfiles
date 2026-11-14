@@ -1,1 +1,0 @@
-{ "name": "mealplanner-ui-test", "private": true, "dependencies": { "playwright": "1.57.0" } }

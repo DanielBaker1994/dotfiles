@@ -33,9 +33,6 @@ _sl_manifest() {
         "$HOME/.config/lazygit/config.yml|$SL_DIR/lazygit/config.yml" \
         "$HOME/.config/ghostty|$SL_DIR/ghostty" \
         "$HOME/.gitconfig|$SL_DIR/git/.gitconfig" \
-        "$HOME/.claude/skills/proxmox-ssh|$SL_DIR/claude/skills/proxmox-ssh" \
-        "$HOME/.claude/skills/mealplanner|$SL_DIR/claude/skills/mealplanner" \
-        "$HOME/.ssh/askpass-macos|$SL_DIR/ssh/askpass-macos" \
         "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty|$SL_DIR/ghostty/config.ghostty"
 }
 
@@ -109,6 +106,18 @@ _sl_remove_stale() {
     done < <(_sl_stale)
 }
 
+# sesh/sesh.toml imports ~/external/sesh.toml, and sesh panics (breaking the
+# herdr prefix+w picker) when an import is missing. Create an empty one if
+# there is none; never touch an existing file or link (~/home_server's
+# install.sh replaces it with a link to its sessions).
+_sl_placeholders() {
+    local f="$HOME/external/sesh.toml"
+    [ -e "$f" ] || [ -L "$f" ] && return 0
+    mkdir -p "${f%/*}"
+    printf '# machine-local sesh sessions (imported by ~/.dotfiles/sesh/sesh.toml)\n' >"$f"
+    ok "created empty ~/external/sesh.toml (sesh import target)"
+}
+
 validate_sym_links() {
     local mode="${1:-prompt}"
     _sl_build_manifest
@@ -135,6 +144,13 @@ validate_sym_links() {
         esac
     done < <(_sl_stale)
 
+    if [ -e "$HOME/external/sesh.toml" ]; then
+        printf '  \033[32m\342\234\224\033[0m %s\n' "~/external/sesh.toml (sesh import target)"
+    else
+        printf '  \033[31m\342\234\230\033[0m %s  \033[2m(missing: sesh will panic; run --fix)\033[0m\n' "~/external/sesh.toml"
+        bad=$((bad + 1))
+    fi
+
     if [ "$bad" -eq 0 ] && [ "$stale" -eq 0 ]; then
         ok "all $total symlinks OK"
         return 0
@@ -145,6 +161,7 @@ validate_sym_links() {
             return 1
             ;;
         fix)
+            _sl_placeholders
             _sl_repair "${bad_idx[@]}"
             _sl_remove_stale
             return 0
@@ -154,7 +171,7 @@ validate_sym_links() {
                 printf '\n  Fix %d link(s) and remove %d stale? [y/N] ' "$bad" "$stale"
                 read -r ans
                 case "$ans" in
-                    y|Y|yes|YES) _sl_repair "${bad_idx[@]}"; _sl_remove_stale; return 0 ;;
+                    y|Y|yes|YES) _sl_placeholders; _sl_repair "${bad_idx[@]}"; _sl_remove_stale; return 0 ;;
                 esac
             else
                 warn "not a terminal — re-run with --fix to repair"
@@ -177,6 +194,7 @@ ensure_sym_links() {
     else
         _sl_repair "${bad[@]}"
     fi
+    _sl_placeholders
     _sl_remove_stale
 }
 

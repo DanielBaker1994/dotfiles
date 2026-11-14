@@ -1,3 +1,8 @@
+# Machine-local sessions (e.g. the private ~/home_server repo symlinks its
+# sessions file here). sesh PANICS if an import is missing, so the dotfiles
+# setup (symlinks.sh) creates an empty ~/external/sesh.toml when there is none.
+import = ["~/external/sesh.toml"]
+
 [[session]]
 name = "dotfiles"
 path = "~/.dotfiles"
@@ -10,10 +15,6 @@ startup_command = "echo 'gl to me :)'"
 
 
 [[session]]
-name = "home_server"
-path = "~/home_server"
-
-[[session]]
 name = "raycast"
 path = "~/Documents/Raycast"
 
@@ -21,50 +22,3 @@ path = "~/Documents/Raycast"
 name = "BrowserCats"
 path = "~"
 startup_command = "terminal-browser open cats.com"
-
-# ---- Proxmox (YubiKey passphrase+tap per connect; reused 30 min via ControlMaster) ----
-# Key auto-picked for the plugged-in YubiKey: ~/.dotfiles/ssh/proxmox.conf (proxmox-ssh skill)
-# Guests with hardware-key root ssh use their alias (notifications, mealplanner, media-vm, metube, immich);
-# the rest still go via the host (pct enter) or their existing user.
-
-# mediaserver 10.0.0.84  (grafana http://10.0.0.84:3000)
-[[session]]
-name = "pve-mediaserver"
-path = "~"
-startup_command = "ssh root@10.0.0.84"
-
-[[session]]
-name = "pve-mediaserver/ubuntu-media-server (vm 100)"
-path = "~"
-startup_command = "ssh media-vm"
-
-[[session]]
-name = "pve-mediaserver/notifications (ct 101)"
-path = "~"
-startup_command = "ssh notifications"
-
-[[session]]
-name = "pve-mediaserver/mealplanner (ct 102)"
-path = "~"
-startup_command = "ssh mealplanner"
-
-# pve 10.0.0.226  (grafana http://10.0.0.226:3000)
-[[session]]
-name = "pve-personal"
-path = "~"
-startup_command = "ssh root@10.0.0.226"
-
-[[session]]
-name = "pve-personal/pbs (vm 200)"
-path = "~"
-startup_command = "ssh pbsadmin@10.0.0.230"
-
-[[session]]
-name = "pve-personal/metube (ct 103)"
-path = "~"
-startup_command = "ssh metube"
-
-[[session]]
-name = "pve-personal/immich (ct 105)"
-path = "~"
-startup_command = "ssh immich"
