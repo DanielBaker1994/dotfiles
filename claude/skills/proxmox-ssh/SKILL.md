@@ -74,9 +74,21 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 
 ## Hardening applied (2026-11-13, user asked for "maximum security")
 - Both nodes: sshd accepts only sk keys and no passwords. The web UI/API is limited to LAN and Tailscale via
-  `/etc/default/pveproxy` (ALLOW_FROM 10.0.0.0/24,100.64.0.0/10, DENY_FROM all). Web UI 2FA is Yubico
-  OTP on both YubiKeys plus recovery codes. **Suggested next step: switch to WebAuthn** (it needs a hostname,
-  not an IP, and the user has to register the keys in a browser).
+  `/etc/default/pveproxy` (ALLOW_FROM 10.0.0.0/24,100.64.0.0/10, DENY_FROM all).
+- **Web UI 2FA = WebAuthn only** (2026-11-13): root@pam has `Key1` and `Key2` (primary and backup YubiKey)
+  plus recovery keys. Yubico OTP is removed, and so is the realm-level `tfa type=yubico` on the `pam` realm.
+  That realm setting was what greyed out WebAuthn, because realm TFA forces its own type. Backups:
+  `/root/domains.cfg.bak-*`. **Never re-add realm TFA.**
+- WebAuthn needs a hostname and a trusted cert, so log in at `https://<node>.<tailnet>.ts.net:8006`. On a bare
+  IP the WebAuthn tab fails ("effective domain is not a valid domain"), and only recovery keys work there.
+  Both nodes run Tailscale (tag:server, accept-dns off) and get a Let's Encrypt cert via `tailscale cert`,
+  renewed monthly by `pve-tailscale-cert-renew.timer` (`/usr/local/bin/pve-tailscale-cert-renew.sh`).
+  `datacenter.cfg` has `webauthn: rp=…,origin=https://…:8006,id=…`.
+- The tailnet ACL only grants access to `tag:server`. A new node needs `tailscale up --advertise-tags=tag:server`,
+  or its inbound packet filter is empty (Tailscale ping works but TCP is silently dropped).
+  The mediaserver node's PVE firewall also needed `IN ACCEPT -source 100.64.0.0/10 -p tcp -dport 8006`.
+- **Browser: Chrome only** for registering or using the YubiKeys. Safari and Firefox on this Mac hand off to the
+  macOS passkey sheet, which never reaches the key (tapping just types an OTP). In Chrome pick "Use a security key".
 - The `root@mediaserver`/`root@pve` RSA keys in the nodes' authorized_keys are managed by Proxmox, and
   sshd already rejects them (sk-only). Leave them alone.
 - `dashboard@pve` and `prometheus@pve` are PVEAuditor (read-only).
