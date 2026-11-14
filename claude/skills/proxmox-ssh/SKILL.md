@@ -98,6 +98,44 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 - Break-glass if SSH ever fails: `qm guest exec <vmid> -- ...` / `pct exec <ctid> -- ...` from the node.
   media-vm's serial console auto-logs in root.
 
+## Network isolation, updates, watchtower (2026-11-13)
+Check everything: `bash ~/.claude/skills/proxmox-ssh/scripts/netsec-audit.sh root@<node>` (READ-ONLY): firewall per
+guest, auto-updates, host pending updates, Tailscale tag + who may connect in over the tailnet.
+
+**Model:** every guest can reach the internet (so apt, docker pulls and model downloads just work), but never other LAN
+devices or guests. Inbound is DROP except its own service ports. Two layers are needed:
+- **Proxmox firewall** = LAN traffic. It CANNOT see Tailscale traffic inside guests that run tailscale (decrypted on
+  tailscale0), so for those guests the **Tailscale policy** is the only control on tailnet traffic.
+
+**Firewall template** = security group `guest-isolate` + IPSet `lan6` in each node's `/etc/pve/firewall/cluster.fw`
+(backup: `/root/cluster.fw.pre-isolate`). The group allows DHCP/DHCPv6, Tailscale direct UDP 41641, SSH from the LAN,
+and DNS to the gateway, then drops all IPv4 LAN egress and IPv6 LAN egress (tcp/udp: link-local, ULA and the ISP /64s
+in `lan6`; **update lan6 if the ISP prefix changes**, a stale entry fails open). To isolate a guest:
+1. Inventory first: `ss -tlnu`, LAN peers, network mounts, and who calls it (e.g. host `tailscale serve`).
+2. Write `/etc/pve/firewall/<id>.fw`: `[OPTIONS] enable: 1 / policy_in: DROP / policy_out: ACCEPT`, then `[RULES]`
+   with the specific IN ports (`-source dc/local-net`, or a single host) and any OUT exceptions **before** `GROUP guest-isolate`.
+3. Add `firewall=1` to net0 (`pct set <id> --net0 "<current>,firewall=1"` / `qm set`). This applies live.
+4. Wait about 10s (pve-firewall reloads periodically), then verify: service ports from the Mac, internet from inside,
+   and LAN + LAN-v6 blocked from inside.
+Rollback: `enable: 0` in the guest .fw (instant).
+Applied: immich 105 (2283 only from 10.0.0.226 = host serve), notifications 101 (80/443/8080 from LAN), mealplanner 102
+(80/443/8765), media-vm 100 (web UIs from LAN, Plex 32400 from anywhere, Plex/Jellyfin discovery; OUT exception
+10.0.0.84:8006 for ops-dashboard). metube/files/pbs already had equivalent rules. Port 80/443 on guests usually only
+listen on tailscale0 (tailscale serve), which is expected.
+
+**Auto-updates:** `unattended-upgrades` on all CTs (Debian default: stable + security) and media-vm (Ubuntu: security).
+Hosts are restricted to **Debian-Security only** (`/etc/apt/apt.conf.d/52unattended-local` uses `#clear` on
+Origins-Pattern). Proxmox packages are never automatic: run `apt full-upgrade` + reboot in a window. No automatic reboots
+anywhere. `files` (CT106) has out=DROP, so it can't update until egress is decided.
+
+**Watchtower (media-vm):** nightly 04:00 updates every container except itself. It's pinned to
+`nickfedor/watchtower:1.24.0` with `com.centurylinklabs.watchtower.enable=false`, because it holds the docker socket
+(= root). Bump it deliberately. Cleanup stays on (7.5G free, and `--filter until` prunes by build date, so a rollback
+window is unreliable). Compose backup: `/root/docker-compose.yaml.bak-20261113`.
+
+**Tailscale (needs the user, in the admin console):** see the to-do in the conversation of 2026-11-13: tag immich, remove
+stale `debian`/`umbrel`, split `tag:server` into role tags, replace server->server `*` with specific grants, add tests.
+
 ## Leak sweep (secrets lying around in guests)
 `bash ~/.claude/skills/proxmox-ssh/scripts/leak-scan.sh root@<node> [--skip VMID,...]` is READ-ONLY. It scans the node
 and every running CT (pct exec) and VM (guest agent) for private keys, credential stores (gh, Claude Code, docker,
