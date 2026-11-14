@@ -24,7 +24,7 @@ the Tailscale tailnet name, or keys).
 | `proxmoxmediaconnect` | `root@10.0.0.84` | PVE node "mediaserver" |
 | `proxmoxpersonalconnect` | `root@10.0.0.226` | also `pve-226` and its Tailscale name |
 | `notifications` | CT101 10.0.0.139 | root, hardware keys only |
-| `mealplanner` | CT102 10.0.0.206 | root, hardware keys only |
+| `mealplanner` | CT102 10.0.0.206 | root, hardware keys only. The app: see the **mealplanner** skill. Never stop `product-photos-reseed.service` (API poller) |
 | `media-vm` | VM100 10.0.0.247 | Ubuntu 24.04. **Root is the only login** (`AllowUsers root`, hardware keys only). daniel deleted 2026-11-13: home archived at `/root/daniel-home-backup.tar.gz`, files/.bashrc/Claude Code moved to /root. `ops-dashboard` (port 8089) runs as no-login `opsdash`. Plex-refresh cron is root's, logging to `/var/log/plex-refresh.log`. `ubuntu` (uid 1000) is kept only as the containers' PUID: nologin, no sudo. Serial console auto-logs in root |
 | `metube` | CT103 **100.82.133.76 (Tailscale)** | its CT firewall drops LAN traffic (policy_in DROP), so SSH works over Tailscale only. Keep it that way |
 | `immich` | CT105 10.0.0.208 | root, hardware keys only |
@@ -66,7 +66,9 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 2. Run `bash ~/.claude/skills/proxmox-ssh/scripts/connect.sh <host> [host...]` with a timeout of 180000 ms or more.
    It prints which YubiKey it detected, then shows one dialog and needs one tap per host not already connected.
    If it says "No YubiKey detected", ask the user to plug one in and rerun.
-3. From then on, run `ssh -o BatchMode=yes <host> '...'` freely for 10 min (30 with `connect.sh --long`): no prompts.
+3. From then on, run `ssh -o BatchMode=yes <host> '...'` freely for 10 min (30 with `connect.sh --long`, **5 h with
+   `connect.sh --work`**, which the user asked for on working sessions like the meal planner, 2026-11-14): no prompts.
+   These are idle timeouts: the master closes only after that long with no ssh use.
    `BatchMode` makes it fail fast if the master has died. If that happens, rerun connect.sh.
 4. To end early: `ssh -O exit <host>`.
 
@@ -94,7 +96,7 @@ Map a key by hand: plug in only that key, then run `yk-select --learn k1` or `--
 - The `root@mediaserver`/`root@pve` RSA keys in the nodes' authorized_keys are managed by Proxmox, and
   sshd already rejects them (sk-only). Leave them alone.
 - `dashboard@pve` and `prometheus@pve` are PVEAuditor (read-only).
-- ControlPersist is 10 min by default. Use `connect.sh --long` for 30 min on long jobs.
+- ControlPersist is 10 min by default. Use `connect.sh --long` for 30 min, `--work` for 5 h (dev sessions).
 - Break-glass if SSH ever fails: `qm guest exec <vmid> -- ...` / `pct exec <ctid> -- ...` from the node.
   media-vm's serial console auto-logs in root.
 

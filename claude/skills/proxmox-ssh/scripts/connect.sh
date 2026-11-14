@@ -2,8 +2,8 @@
 # Open (or reuse) an authenticated SSH master connection for each host.
 # A native macOS dialog asks for the key passphrase (or PIN), the user taps the
 # YubiKey, then `ssh -o BatchMode=yes <host> ...` reuses the connection with no
-# prompt for 10 min (or 30 with --long).
-# Usage: connect.sh [--long] <host> [host...]     Exit code = number of failures.
+# prompt for 10 min (30 with --long, 5 h with --work). It's an idle timeout: any ssh use restarts it.
+# Usage: connect.sh [--long|--work] <host> [host...]     Exit code = number of failures.
 G=$'\033[1;32m' Y=$'\033[1;33m' R=$'\033[1;31m' C=$'\033[1;36m' B=$'\033[1m' D=$'\033[2m' N=$'\033[0m'
 YK=~/.dotfiles/ssh/yk-select
 ASKPASS=~/.ssh/askpass-macos
@@ -12,8 +12,8 @@ mkdir -p ~/.ssh/cm && chmod 700 ~/.ssh/cm
 
 [[ $(command -v ssh) == /opt/homebrew/bin/ssh* ]] || { echo "${R}✘ ssh is not Homebrew ($(command -v ssh)) - FIDO keys won't work${N}"; exit 99; }
 PERSIST=10m
-[ "$1" = --long ] && { PERSIST=30m; shift; }
-[ $# -gt 0 ] || { echo "usage: connect.sh [--long] <host> [host...]   (--long = reusable 30 min instead of 10)"; exit 2; }
+case "${1:-}" in --long) PERSIST=30m; shift ;; --work) PERSIST=5h; shift ;; esac
+[ $# -gt 0 ] || { echo "usage: connect.sh [--long|--work] <host> [host...]   (--long = reusable 30 min, --work = 5 h, default 10 min)"; exit 2; }
 
 todo=()
 for h in "$@"; do
