@@ -163,6 +163,14 @@ rows = [["state_icon", { token = "$agent_icon", bold = true }, "machine", { toke
 
 [ui.sidebar.agents.rows_by_agent]
 claude = [["state_icon", { token = "$agent_icon", fg = "#d97757", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+
+# tmux break-pane / vim Ctrl-w T: move the focused split into a new tab
+# (plugin: ~/.dotfiles/herdr/plugins/break-pane)
+[[keys.command]]
+key = "prefix+!"
+type = "plugin_action"
+command = "local.break-pane.break"
+description = "break pane to new tab"
 opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
 
 # spaces: drop the git branch/status row, show just the space name

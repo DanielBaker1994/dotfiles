@@ -1,0 +1,14 @@
+# tmux-style break-pane: prefix+! moves the focused split into its own new tab
+# (vim: Ctrl-w T). Bound in ~/.dotfiles/herdr/config.toml.
+id = "local.break-pane"
+name = "Break pane"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Move the focused pane into a new tab"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "break"
+title = "Break pane to new tab"
+contexts = ["global"]
+command = ["bash", "break.sh"]
