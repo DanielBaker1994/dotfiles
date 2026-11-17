@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
 #
-# last.sh record | workspace | tab | agent-record | agent | app-focus | from-ks
+# last.sh record | workspace | tab | agent-record | agent
 #
 # tmux-style "last" jumps, driven by Herdr's focus events.
-#
-# prefix+L also crosses into kitchen-sink (the link bank): a shared "places"
-# history (PLACES, newest first, no duplicates) holds
-#   herdr:<ws>   a herdr workspace (recorded on focus, like `ws` below)
-#   ks           kitchen-sink took focus     (AeroSpace on-focus-changed → app-focus)
-#   term         Ghostty took focus, herdr not answering (same hook; else
-#                herdr:<focused ws>, the workspace Ghostty shows again)
-# `workspace` goes to the first entry that is neither the current workspace
-# nor `term`: kitchen-sink when you came from there, else the last workspace.
-# `from-ks` (kitchen-sink's Ctrl+B Shift+L) goes to the newest herdr entry.
 #
 # State (HERDR_PLUGIN_STATE_DIR):
 #   ws            "CURRENT PREVIOUS" workspace ids
@@ -32,8 +22,6 @@ source "$HOME/.dotfiles/herdr/plugins/prof.sh" 2>/dev/null || true
 herdr="${HERDR_BIN_PATH:-herdr}"
 state="${HERDR_PLUGIN_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/herdr-last}"
 [ -d "$state" ] || mkdir -p "$state"
-places="${HERDR_LINK_PLACES:-${XDG_STATE_HOME:-$HOME/.local/state}/link-bank/places}"
-herdr_pick="${HERDR_PICK_BIN:-$HOME/.dotfiles/sesh/bin/herdr-pick}"
 
 # Recording runs on every focus event, so it sticks to builtins: one mv per
 # file it changes, nothing for a file that already has the entry on top.
@@ -49,7 +37,7 @@ push() {
 }
 
 # move LINE to the top of FILE, dropping other lines KEEP says match it
-# (prefix match for "ws epoch" lines, exact for places); keep MAX lines
+# (prefix match for "ws epoch" lines); keep MAX lines
 to_top() {
     local file="$1" line="$2" key="$3" max="$4" l n=1
     {
@@ -72,18 +60,20 @@ push_mru() {
     to_top "$state/mru" "$1 $now" "$1" 100
 }
 
-# move ENTRY to the top of the shared places history (kept to 50 entries)
-push_place() {
-    local top=""
-    read -r top 2>/dev/null <"$places" || true
-    [ "$top" = "$1" ] && return
-    [ -d "${places%/*}" ] || mkdir -p "${places%/*}"
-    to_top "$places" "$1" "$1" 50
+# Keep the sidebar's spaces ordered by most recent access: the workspace that
+# just took focus moves to the top. herdr's CLI has no move command, so this
+# speaks the socket API (workspace.move). Only when the workspace changed.
+move_to_top() {
+    local sock="${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}"
+    printf '{"id":"last-top","method":"workspace.move","params":{"workspace_id":"%s","insert_index":0}}\n' "$1" |
+        nc -U -w1 "$sock" >/dev/null 2>&1 || true
 }
 
 record() {
     [ -n "${HERDR_WORKSPACE_ID:-}" ] || return 0
-    push_place "herdr:$HERDR_WORKSPACE_ID"
+    local top=""
+    read -r top _ 2>/dev/null <"$state/mru" || true
+    [ "$top" = "$HERDR_WORKSPACE_ID" ] || move_to_top "$HERDR_WORKSPACE_ID"
     push_mru "$HERDR_WORKSPACE_ID"
     push ws "$HERDR_WORKSPACE_ID"
     [ -n "${HERDR_TAB_ID:-}" ] && push "tab-$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID"
@@ -120,69 +110,14 @@ jump() {
     "$herdr" "$kind" focus "$prev" >/dev/null 2>&1 || true
 }
 
-# the workspace herdr shows (empty when herdr does not answer)
-focused_workspace() {
-    "$herdr" workspace list 2>/dev/null |
-        jq -r '.result.workspaces[]? | select(.focused) | .workspace_id' 2>/dev/null | head -n1 || true
-}
-
-# AeroSpace focus hook: note kitchen-sink / Ghostty taking focus (other apps
-# leave the history alone). Back in Ghostty you are in herdr's focused
-# workspace again, so it becomes the newest place: with only `term` recorded
-# a kitchen-sink visit outranked it, and prefix+L from the next workspace
-# went to kitchen-sink instead of the workspace you had just left.
-app_focus() {
-    local app ws
-    app="$(aerospace list-windows --focused --format '%{app-bundle-id}' 2>/dev/null || true)"
-    case "$app" in
-        dev.danielbaker.kitchen-sink) push_place ks ;;
-        com.mitchellh.ghostty)
-            ws="$(focused_workspace)"
-            if [ -n "$ws" ]; then push_place "herdr:$ws"; else push_place term; fi
-            ;;
-    esac
-}
-
-# prefix+L: the place before this one. kitchen-sink → herdr-pick go-ks (its
-# last view); a workspace → focus it, dropping it when it is gone. No shared
-# history to go to → the herdr-only pair, as before.
-jump_place() {
-    local cur="herdr:${HERDR_WORKSPACE_ID:-}" p
-    while read -r p; do
-        case "$p" in
-            "$cur" | term | "") continue ;;
-            ks)
-                "$herdr_pick" go-ks app >/dev/null 2>&1 || true
-                return
-                ;;
-            herdr:*)
-                if "$herdr" workspace focus "${p#herdr:}" >/dev/null 2>&1; then return; fi
-                grep -vxF -- "$p" "$places" >"$places.tmp.$$" || true
-                mv -f "$places.tmp.$$" "$places"
-                ;;
-        esac
-    done < <(cat "$places" 2>/dev/null)
-    jump ws workspace
-}
-
-# kitchen-sink's Ctrl+B Shift+L: raise Ghostty on the newest herdr workspace
-# (Ghostty as it is when there is none).
-from_ks() {
-    local p
-    p="$(grep -m1 '^herdr:' "$places" 2>/dev/null || true)"
-    exec "$herdr_pick" go-id "${p#herdr:}"
-}
-
 case "${1:-}" in
     record) record ;;
     # pane.focused: keep the last agent pane (no-op for plain shell panes)
     agent-record) record_agent ;;
     workspace)
         record
-        jump_place
+        jump ws workspace
         ;;
-    app-focus) app_focus ;;
-    from-ks) from_ks ;;
     tab)
         record
         ws="${HERDR_WORKSPACE_ID:-}"

@@ -7,7 +7,6 @@ mod app;
 mod config;
 mod data;
 mod fuzzy;
-mod links;
 mod model;
 mod proc;
 mod style;
@@ -41,27 +40,6 @@ fn main() {
         }
         Some("config-check") => {
             println!("{cfg_path}");
-        }
-        Some("list") if args.get(1).map(|s| s.as_str()) == Some("--json") => {
-            exit(links::print_list_json(&cfg));
-        }
-        Some("go-id") => {
-            if let Err(e) = links::go_id(&cfg, args.get(1).map(|s| s.as_str()).unwrap_or("")) {
-                eprintln!("{e}");
-                exit(1);
-            }
-        }
-        Some("go-ks") => {
-            // kitchen-sink presents a place (`app` = its last view); started
-            // when it is not running (prefix+L, last.sh).
-            match links::go_ks(&cfg, args.get(1).map(|s| s.as_str()).unwrap_or("app")) {
-                Ok(()) => {}
-                Err(links::LinkErr::Offline) => links::launch_ks(&cfg),
-                Err(links::LinkErr::Unavailable(e)) => {
-                    eprintln!("{e}");
-                    exit(1);
-                }
-            }
         }
         Some("list") => {
             ensure(&cfg);

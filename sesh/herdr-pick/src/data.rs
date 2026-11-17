@@ -21,10 +21,6 @@ pub enum ItemKind {
     Agent,
     Cfg,
     Dir,
-    /// The link group's header (kitchen-sink's places, collapsed).
-    Group,
-    /// One kitchen-sink place under the header (`target` = its links id).
-    Link,
     None,
 }
 
@@ -37,8 +33,6 @@ impl ItemKind {
             ItemKind::Agent => "agent",
             ItemKind::Cfg => "cfg",
             ItemKind::Dir => "dir",
-            ItemKind::Group => "group",
-            ItemKind::Link => "link",
             ItemKind::None => "none",
         }
     }
@@ -50,8 +44,6 @@ impl ItemKind {
             "agent" => ItemKind::Agent,
             "cfg" => ItemKind::Cfg,
             "dir" => ItemKind::Dir,
-            "group" => ItemKind::Group,
-            "link" => ItemKind::Link,
             _ => ItemKind::None,
         }
     }
@@ -532,10 +524,15 @@ fn list_cfg(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
     for s in v.as_array().cloned().unwrap_or_default() {
         let name = s.get("Name").and_then(|x| x.as_str()).unwrap_or("");
         let path = s.get("Path").and_then(|x| x.as_str()).unwrap_or("");
+        let cmd = s.get("StartupCommand").and_then(|x| x.as_str()).unwrap_or("");
         if name.is_empty() || live_names.iter().any(|n| n == name) {
             continue;
         }
-        if live_cwds.iter().any(|c| c == path) {
+        // a pane sitting in the session's dir only means "already open" for a
+        // plain-dir session; one with its own command (ssh, nvim, ...) is a
+        // different thing even at a shared path like ~ — the name check above
+        // still hides it once its workspace exists
+        if cmd.trim().is_empty() && live_cwds.iter().any(|c| c == path) {
             continue;
         }
         let display = ui::fill_tmpl(
@@ -678,7 +675,7 @@ pub fn preview_for(cfg: &Config, _st: &Style, model: &Model, item: &Item) -> Str
                 }
             }
         }
-        ItemKind::Group | ItemKind::Link | ItemKind::None => cfg.text("no_preview"),
+        ItemKind::None => cfg.text("no_preview"),
     }
 }
 
@@ -785,7 +782,7 @@ pub fn label_for(cfg: &Config, _st: &Style, model: &Model, item: &Item) -> Strin
             }
         }
         ItemKind::Cfg | ItemKind::Dir => item.target.clone(),
-        ItemKind::Group | ItemKind::Link | ItemKind::None => String::new(),
+        ItemKind::None => String::new(),
     };
     if cfg.ui.preview_label_fmt.is_empty() {
         format!(" {inner} ")
@@ -954,7 +951,7 @@ pub fn act(cfg: &Config, text: &str) -> Result<(), String> {
             let path = cfg.expand_path(&item.target);
             connect(cfg, &base_name(&path), &path, "")
         }
-        ItemKind::Group | ItemKind::Link | ItemKind::None => Ok(()),
+        ItemKind::None => Ok(()),
     }
 }
 

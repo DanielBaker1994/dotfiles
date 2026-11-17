@@ -120,12 +120,6 @@ height = "85%"
 kitty_graphics = true
 
 # tmux-style last jumps (plugin: ~/.dotfiles/herdr/plugins/last)
-[[keys.command]]
-key = "prefix+shift+l"
-type = "plugin_action"
-command = "local.last.workspace"
-description = "last workspace"
-
 # copy a path from the last output (plugin: ~/.dotfiles/herdr/plugins/copy-path)
 [[keys.command]]
 key = "prefix+f"
@@ -163,6 +157,12 @@ rows = [["state_icon", { token = "$agent_icon", bold = true }, "machine", { toke
 
 [ui.sidebar.agents.rows_by_agent]
 claude = [["state_icon", { token = "$agent_icon", fg = "#d97757", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+
+# spaces: drop the git branch/status row, show just the space name
+[ui.sidebar.spaces]
+row_gap = 0
+rows = [["state_icon", "workspace"]]
 
 # tmux break-pane / vim Ctrl-w T: move the focused split into a new tab
 # (plugin: ~/.dotfiles/herdr/plugins/break-pane)
@@ -171,9 +171,3 @@ key = "prefix+!"
 type = "plugin_action"
 command = "local.break-pane.break"
 description = "break pane to new tab"
-opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
-
-# spaces: drop the git branch/status row, show just the space name
-[ui.sidebar.spaces]
-row_gap = 0
-rows = [["state_icon", "workspace"]]

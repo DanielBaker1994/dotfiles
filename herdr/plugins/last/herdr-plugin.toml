@@ -1,5 +1,6 @@
 # tmux-style "last" jumps: records focus history from herdr events.
-#   prefix+L → last workspace, or kitchen-sink when you came from there (tmux: last session)
+#   (the "Last workspace" action has no key; run it from the action palette)
+#   sidebar spaces are kept ordered by most recent access (workspace.move on focus)
 #   prefix+l → last tab in this workspace (tmux: last window)
 #   prefix+a → last agent pane (toggle like prefix+l, not sidebar order)
 id = "local.last"

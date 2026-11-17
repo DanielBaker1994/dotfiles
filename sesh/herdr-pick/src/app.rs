@@ -7,7 +7,6 @@ use crate::ansi;
 use crate::config::Config;
 use crate::data::{self, Item, ItemKind, PreviewPart};
 use crate::fuzzy;
-use crate::links::{self, Group, GroupStatus, LinkErr, LinkRow};
 use crate::model::{Dest, Model, Pane};
 use crate::proc;
 use crate::style::Style;
@@ -82,8 +81,6 @@ enum Msg {
         key: String,
         text: String,
     },
-    /// kitchen-sink's places arrived (or didn't) for the link group.
-    Links(Result<Vec<LinkRow>, LinkErr>),
 }
 
 #[derive(Clone, Debug)]
@@ -228,14 +225,6 @@ pub struct App {
     dirty: bool,
     dry_run: bool,
     quit_code: Option<i32>,
-    /// The link group (kitchen-sink's places) under the local rows.
-    group: Group,
-    /// The last refilter had a query (clearing it restores the group's default).
-    group_had_query: bool,
-    /// Rows of the pinned link group at the top of `view` (header + links).
-    group_len: usize,
-    /// kitchen-sink exists here (else no group, no fetch).
-    ks_installed: bool,
 }
 
 pub fn run(cfg: Config) -> i32 {
@@ -293,23 +282,8 @@ pub fn run(cfg: Config) -> i32 {
         dirty: true,
         dry_run: dry,
         quit_code: None,
-        group: Group::new(None, false, Vec::new()),
-        group_had_query: false,
-        group_len: 0,
-        ks_installed: false,
     };
-    app.ks_installed = links::ks_installed(&app.cfg);
-    let expanded = app.group_default_expanded();
-    let names = app
-        .cfg
-        .links
-        .get("group_names")
-        .and_then(|v| v.as_array())
-        .map(|a| a.iter().filter_map(|n| n.as_str().map(str::to_string)).collect())
-        .unwrap_or_default();
-    app.group = Group::new(links::load_cache(&app.cfg), expanded, names);
     app.load_list("ws", false);
-    app.fetch_links();
     spawn_watchdog();
     loop {
         HEARTBEAT.fetch_add(1, Ordering::Relaxed);
@@ -390,13 +364,6 @@ impl App {
                         self.dirty = true;
                     }
                 }
-                Msg::Links(result) => {
-                    if let Ok(rows) = &result {
-                        links::save_cache(&self.cfg, rows);
-                    }
-                    self.group.apply(result);
-                    self.refilter_keep_current();
-                }
             }
         }
     }
@@ -466,9 +433,7 @@ impl App {
                     continue;
                 }
                 let it = &self.view[idx as usize].it;
-                if !matches!(it.kind, ItemKind::Group | ItemKind::Link) {
-                    candidates.push(it.clone());
-                }
+                candidates.push(it.clone());
             }
         }
         for it in candidates {
@@ -651,16 +616,7 @@ impl App {
             self.dirty = true;
             return;
         }
-        // h / l on the group are vim moves only with no query: while typing
-        // (`kitchen-sink`, `ks fil`) a letter is a letter.
-        let typing = ch.is_some() && !ctrl && !alt && !self.query.is_empty();
-        let local = match self.current().map(|i| i.kind) {
-            _ if typing => None,
-            Some(ItemKind::Group) => self.cfg.keys.group_keymap.get(&id).cloned(),
-            Some(ItemKind::Link) => self.cfg.keys.link_keymap.get(&id).cloned(),
-            _ => None,
-        };
-        if let Some(action) = local.or_else(|| self.cfg.keys.keymap.get(&id).cloned()) {
+        if let Some(action) = self.cfg.keys.keymap.get(&id).cloned() {
             self.do_action(&action);
             return;
         }
@@ -732,10 +688,6 @@ impl App {
             "help" => self.show_help(),
             "undo" => self.undo_move(),
             "start-move" => self.start_move(),
-            "links-jump" => self.links_jump(),
-            "group-open" => self.group_set(true),
-            "group-close" => self.group_set(false),
-            "group-toggle" => self.group_toggle(),
             a if a.starts_with("mode:") => {
                 let m = a[5..].to_string();
                 if m == "ws" {
@@ -755,12 +707,7 @@ impl App {
         }
         self.help = false;
         let max = self.view.len() as i64 - 1;
-        self.sel = if d.abs() == 1 && self.group_len > 0 {
-            // with the pinned group, ↑ / ↓ wrap through the whole list
-            links::step(self.view.len(), self.sel, d)
-        } else {
-            (self.sel as i64 + d).clamp(0, max) as usize
-        };
+        self.sel = (self.sel as i64 + d).clamp(0, max) as usize;
         self.schedule_preview();
         self.dirty = true;
     }
@@ -844,13 +791,9 @@ impl App {
             self.view
                 .sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
         }
-        let mut rows = self.group_rows(&query);
-        self.group_len = rows.len();
-        rows.append(&mut self.view);
-        self.view = rows;
         let max = self.view.len().saturating_sub(1);
         // 0 = "from the top": the cursor's start for this query
-        self.sel = if keep_sel == 0 { self.start_sel(&query) } else { keep_sel.min(max) };
+        self.sel = if keep_sel == 0 { 0 } else { keep_sel.min(max) };
         self.schedule_preview();
         self.place_flash_cursor();
         self.dirty = true;
@@ -908,12 +851,6 @@ impl App {
         };
         let key = it.key();
         if self.preview.key == key {
-            return;
-        }
-        if matches!(it.kind, ItemKind::Group | ItemKind::Link) {
-            self.preview = self.group_preview(&it);
-            self.pending_preview = None;
-            self.dirty = true;
             return;
         }
         self.sel_settled = Instant::now();
@@ -1568,7 +1505,7 @@ impl App {
 
     fn do_kill(&mut self) {
         let it = match self.current() {
-            Some(i) if !matches!(i.kind, ItemKind::Group | ItemKind::Link) => i.clone(),
+            Some(i) => i.clone(),
             _ => return,
         };
         let _ = data::kill_item(&self.cfg, &it);
@@ -1587,254 +1524,12 @@ impl App {
     }
 
     fn choose(&mut self) {
-        match self.current().map(|i| (i.kind, i.target.clone())) {
-            Some((ItemKind::Group, _)) => return self.choose_header(),
-            Some((ItemKind::Link, id)) => return self.choose_link(&id),
-            _ => {}
-        }
         if let Some(it) = self.current() {
             let line = it.line.clone();
             self.term.restore();
             let _ = data::act(&self.cfg, &line);
         }
         self.quit_code = Some(0);
-    }
-
-    // ── link group (kitchen-sink's places) ──────────────────────────────
-
-    /// Fetch kitchen-sink's rows in the background; never blocks the list.
-    fn fetch_links(&mut self) {
-        if !self.ks_installed {
-            return;
-        }
-        let cfg = self.cfg.clone();
-        let tx = self.tx.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(Msg::Links(links::fetch_ks(&cfg)));
-        });
-    }
-
-    /// The group shows in the modes `links.modes` names (spaces / all).
-    fn links_on(&self) -> bool {
-        self.ks_installed
-            && self.cfg
-            .links
-            .get("modes")
-            .and_then(|m| m.as_array())
-            .map(|a| a.iter().any(|m| m.as_str() == Some(self.mode.as_str())))
-            .unwrap_or(false)
-    }
-
-    /// The pinned group: header + visible link rows, above the local ones.
-    /// Clearing the query restores its default (`links.start_expanded`).
-    fn group_rows(&mut self, query: &str) -> Vec<ViewRow> {
-        let mut out = Vec::new();
-        if !self.links_on() {
-            return out;
-        }
-        if query.is_empty() && self.group_had_query {
-            self.group.expanded = self.group_default_expanded();
-        }
-        self.group_had_query = !query.is_empty();
-        if !self.group.header_shown(query) {
-            return out;
-        }
-        out.push(ViewRow { it: self.header_item(query), pos: Vec::new(), score: 0.0 });
-        let row_query = self.group.row_query(query).to_string();
-        for (i, score) in self.group.visible(query) {
-            let it = self.link_item(i);
-            let pos = if row_query.is_empty() {
-                Vec::new()
-            } else {
-                fuzzy::fuzzy_match(&it.plain, &row_query).map(|(p, _)| p).unwrap_or_default()
-            };
-            out.push(ViewRow { it, pos, score });
-        }
-        out
-    }
-
-    /// The group opens expanded unless `links.start_expanded` is false.
-    fn group_default_expanded(&self) -> bool {
-        self.cfg.links.get("start_expanded").and_then(|v| v.as_bool()).unwrap_or(true)
-    }
-
-    /// Where the cursor starts: no query → the header (`links.start_on_group`)
-    /// so Return switches to kitchen-sink; a query naming the group → the
-    /// header (`kitchen-sink`) or its best row (`ks notes`); any other query →
-    /// the better of the best local and best kitchen-sink match (a tie goes to
-    /// kitchen-sink, listed first).
-    fn start_sel(&self, query: &str) -> usize {
-        let g = self.group_len;
-        let start_on_group = self.cfg.links.get("start_on_group").and_then(|v| v.as_bool()).unwrap_or(true);
-        if g > 0 && self.links_on() {
-            if let Some(rest) = self.group.scope(query) {
-                return if rest.is_empty() || g < 2 { 0 } else { 1 };
-            }
-        }
-        if query.is_empty() {
-            if g > 0 && start_on_group {
-                0
-            } else if self.view.len() > g {
-                g
-            } else {
-                0
-            }
-        } else if self.view.len() > g && g > 1 {
-            // Both lists match: kitchen-sink wins unless the local match is
-            // strictly better.
-            if self.quality(1, self.group.row_query(query)) >= self.quality(g, query) {
-                1
-            } else {
-                g
-            }
-        } else if self.view.len() > g {
-            g
-        } else if g > 1 {
-            1
-        } else {
-            0
-        }
-    }
-
-    fn quality(&self, i: usize, query: &str) -> f64 {
-        let it = &self.view[i].it;
-        let hay = if it.search.is_empty() { &it.plain } else { &it.search };
-        fuzzy::match_quality(hay, query).unwrap_or(f64::MIN)
-    }
-
-    /// ^e / ^m on the header: open / close the group in place.
-    fn group_toggle(&mut self) {
-        let open = !self.group.expanded;
-        self.group_set(open);
-    }
-
-    fn header_item(&self, query: &str) -> Item {
-        let cfg = &self.cfg;
-        let arrow = if self.group.open(query) { &cfg.icons.group_open } else { &cfg.icons.group_closed };
-        let text = ui::fill_tmpl(
-            &cfg.row("group"),
-            &[
-                ("arrow", arrow.clone()),
-                ("label", cfg.text("group_label")),
-                ("tail", self.group.header_tail(cfg)),
-            ],
-        );
-        let display = if self.group.dim() { self.st.dim(&text) } else { self.st.fg("group", &text) };
-        data::mk_item(display, ItemKind::Group, "group", "", false)
-    }
-
-    fn link_item(&self, i: usize) -> Item {
-        let cfg = &self.cfg;
-        let r = &self.group.rows[i];
-        let icon = cfg.icons.link_kinds.get(&r.kind).cloned().unwrap_or_default();
-        let display = ui::fill_tmpl(
-            &cfg.row("link"),
-            &[
-                ("icon", self.st.fg("link_icon", &icon)),
-                ("title", self.st.fg("link_title", &r.title)),
-                ("subtitle", self.st.fg("link_meta", &r.subtitle)),
-            ],
-        );
-        data::mk_item(display, ItemKind::Link, &r.id, &r.search_text(), false)
-    }
-
-    /// Refilter, keeping the cursor on the same item when it is still there.
-    fn refilter_keep_current(&mut self) {
-        let key = self.current().map(|i| i.key());
-        self.refilter(self.sel);
-        if let Some(i) = key.and_then(|k| self.view.iter().position(|v| v.it.key() == k)) {
-            self.sel = i;
-            self.schedule_preview();
-        }
-    }
-
-    fn header_index(&self) -> Option<usize> {
-        self.view.iter().position(|v| v.it.kind == ItemKind::Group)
-    }
-
-    /// `^k`: jump to the header and open the group.
-    fn links_jump(&mut self) {
-        if !self.links_on() {
-            return;
-        }
-        self.group.expanded = true;
-        self.refilter(self.sel);
-        if let Some(i) = self.header_index() {
-            self.sel = i;
-            self.help = false;
-            self.schedule_preview();
-        }
-    }
-
-    /// → / l open the group from its header; ← / h close it from the header
-    /// or a link row (the cursor lands on the header).
-    fn group_set(&mut self, open: bool) {
-        let kind = self.current().map(|i| i.kind);
-        let on_header = kind == Some(ItemKind::Group);
-        if !(on_header || (!open && kind == Some(ItemKind::Link))) {
-            return;
-        }
-        self.group.expanded = open;
-        self.refilter(self.sel);
-        if let Some(i) = self.header_index() {
-            self.sel = i;
-            self.schedule_preview();
-        }
-    }
-
-    /// Return on the header: just bring kitchen-sink forward (`do:go:app`,
-    /// its last view); when it is down or too old to answer, start / raise
-    /// it with `ks_launch`.
-    fn choose_header(&mut self) {
-        self.term.restore();
-        let up = self.group.status != GroupStatus::Offline && links::go_ks(&self.cfg, "app").is_ok();
-        if !up {
-            links::launch_ks(&self.cfg);
-        }
-        self.quit_code = Some(0);
-    }
-
-    /// Return on a link row: kitchen-sink presents it (and activates; AeroSpace
-    /// follows), the popup closes.
-    fn choose_link(&mut self, id: &str) {
-        match links::go_ks(&self.cfg, id) {
-            Ok(()) => {
-                self.term.restore();
-                self.quit_code = Some(0);
-            }
-            Err(LinkErr::Offline) => {
-                links::launch_ks(&self.cfg);
-                self.quit_code = Some(0);
-            }
-            Err(LinkErr::Unavailable(e)) => {
-                let msg = proc::subst_str(&self.cfg.text("link_failed"), &[("err", &e)]);
-                let msg = self.st.fg("error_text", &msg);
-                self.set_status(&msg);
-            }
-        }
-    }
-
-    fn group_preview(&self, it: &Item) -> Preview {
-        let cfg = &self.cfg;
-        let (text, label) = if it.kind == ItemKind::Group {
-            let text = if self.group.status == GroupStatus::Offline {
-                cfg.text("group_offline_preview")
-            } else {
-                cfg.text("group_header_preview")
-            };
-            (text, format!(" {} ", cfg.text("group_label")))
-        } else {
-            match self.group.rows.iter().find(|r| r.id == it.target) {
-                Some(r) => {
-                    let text = r.preview.clone().unwrap_or_else(|| {
-                        proc::subst_str(&cfg.text("group_preview"), &[("title", &r.title), ("subtitle", &r.subtitle)])
-                    });
-                    (text, proc::subst_str(&cfg.text("link_label"), &[("kind", &r.kind)]))
-                }
-                None => (cfg.text("no_preview"), String::new()),
-            }
-        };
-        Preview { key: it.key(), label, scroll: 0, parts: vec![PreviewPart { title: String::new(), text }] }
     }
 
     // ── mouse ───────────────────────────────────────────────────────────
@@ -2041,7 +1736,7 @@ impl App {
                 proc::subst_str(
                     &cfg.ui.info_fmt,
                     &[
-                        ("shown", &(self.view.len() - self.group_len).to_string()),
+                        ("shown", &self.view.len().to_string()),
                         ("total", &self.items.len().to_string())
                     ]
                 )
