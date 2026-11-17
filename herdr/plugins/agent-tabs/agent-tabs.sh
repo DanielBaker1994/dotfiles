@@ -6,7 +6,8 @@
 # prefix is stripped and re-applied on each sync, so a manual rename keeps
 # its name and a tab whose agent exits goes back to plain. A label that is
 # just a number counts as the default one and follows the tab's position
-# in its workspace (1, 2, 3 … with no gaps).
+# in its workspace and is named "<space>_<n>" (dotfiles_1, dotfiles_2 … no gaps,
+# renumbered on close/move, renamed with the space).
 # A tab without an agent gets the icon of its foreground process instead
 # (proc.nvim, proc.zsh ... in DEFAULT_ICONS; proc.default for unknown ones).
 # Status glyphs are herdr's own (status_indicators = "symbols"); agent icons
@@ -159,7 +160,13 @@ plan() {
              .n[$x.workspace_id] += 1 | .pos[$x.tab_id] = .n[$x.workspace_id]) | .pos) as $pos
         | $tabs[] as $tab
         | ($tab.label | sub("^((" + $any + ")+ )+"; "")) as $base
-        | (if $base | test("^[0-9]+$") then $pos[$tab.tab_id] | tostring else $base end) as $base
+        # default label = "<space>_<position>" (dotfiles_3); a bare number or any
+        # "<name>_<number>" (also an old space name after a rename) counts as default
+        | ($wsname[$tab.workspace_id] // "") as $wsn
+        | ($base | test("^[0-9]+$") or test("^.+_[0-9]+$")) as $auto
+        | ($pos[$tab.tab_id] | tostring) as $num
+        | (if $auto then (if $wsn == "" then $num else $wsn + "_" + $num end) else $base end) as $base
+        | (if $auto then $num else $base end) as $short
         | [$panes[] | select(.tab_id == $tab.tab_id and .agent)] as $agents
         | ($agents | sort_by($rank[.agent_status] // 4) | first // null) as $pane
         # tab without an agent: icon of the foreground process (focused pane first)
@@ -174,7 +181,7 @@ plan() {
            end) as $prefix
         | (if $prefix == "" then $base else $prefix + " " + $base end) as $label
         | (if $label != $tab.label then "tab\t\($tab.tab_id)\t\($label)" else empty end),
-          ($agents[] | "meta\t\(.pane_id)\t\($base)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
+          ($agents[] | "meta\t\(.pane_id)\t\($short)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
 }
 
 # sync [1]: 1 = ask every pane for its process (see procs)

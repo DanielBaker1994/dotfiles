@@ -49,6 +49,10 @@ on = "pane.exited"
 command = ["./agent-tabs.sh", "sync"]
 
 [[events]]
+on = "workspace.renamed"
+command = ["./agent-tabs.sh", "sync"]
+
+[[events]]
 on = "workspace.closed"
 command = ["./agent-tabs.sh", "sync"]
 
