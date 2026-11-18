@@ -1,4 +1,4 @@
--- EXTERNAL_BUILD_AND_OPEN_PDF — build a PDF from markdown and open it (see
+-- EXTERNAL_BUILD_AND_OPEN_PDF — build a PDF from markdown and open the PDF (see
 -- lua/user/db_functions.lua markdown_open). An action command, run via the
 -- defs harness so it does NOT re-source the login shell per call.
 local bx = require('bash_external')

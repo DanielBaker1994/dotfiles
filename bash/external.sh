@@ -94,7 +94,7 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
         --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \
         -o "$html_tmp" "$markdown_source"; then
-        open "$html_tmp"
+        : # the live HTML view is nvim's :Prose (<leader>mp); this builds the PDF
     else
         echo "Pandoc failed"
         return 3
@@ -105,6 +105,7 @@ function EXTERNAL_BUILD_AND_OPEN_PDF() {
         echo "weasyprint failed"
         return 3
     }
+    open "$pdf_file"
     # PNG at 200 dpi, rasterised from the finished PDF so the pixel size
     # always follows the PDF page size (nothing cut off) and matches the PDF.
     # Writes ONE <out>.png named like the markdown: pages stacked top to bottom
