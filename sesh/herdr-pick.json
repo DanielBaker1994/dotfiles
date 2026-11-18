@@ -182,7 +182,7 @@
     "new_exists": "open",
     "new_create": "create",
     "new_none": "(no matching directory — enter creates what you typed)",
-    "new_hint": "tab complete  ↑/↓ choose  enter open/create  esc cancel",
+    "new_hint": "tab / ^y complete  ↑/↓ choose  enter open/create  esc cancel",
     "shell": "shell",
     "here": "here",
     "none": "-"

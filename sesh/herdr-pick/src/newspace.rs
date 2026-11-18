@@ -189,7 +189,7 @@ pub fn run(cfg: &Config, st: &Style) -> i32 {
                 chosen = Some(target);
                 break;
             }
-            (KeyCode::Tab, _) => {
+            (KeyCode::Tab, _) | (KeyCode::Char('y'), true) => {
                 if let Some(c) = cands.get(sel) {
                     input = c.clone();
                     sel = 0;
