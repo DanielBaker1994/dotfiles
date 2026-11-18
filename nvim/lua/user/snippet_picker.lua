@@ -1,7 +1,7 @@
 -- snippet_picker.lua — fuzzy "Insert" picker over the filetype's VSCode-format
 -- snippets (nvim/snippets/<ft>.json), ported from kitchen-sink's notes pane.
 -- blink.cmp still does the as-you-type popup; this is the browse-everything
--- view: <leader>i (normal) / :Insert.
+-- view: <leader>mdi (normal) / :Insert.
 --
 -- Type words to filter ("callout risk", "table"), a size ("3x4" = 3 body rows
 -- x 4 columns) builds that table, "clipboard" turns a copied CSV / TSV into a
@@ -239,7 +239,7 @@ end
 
 function M.setup()
   vim.api.nvim_create_user_command('Insert', M.pick, { desc = 'search + insert a snippet' })
-  vim.keymap.set('n', '<leader>i', M.pick, { desc = 'insert: search snippets' })
+  vim.keymap.set('n', '<leader>mdi', M.pick, { desc = 'Markdown: insert snippet' })
 end
 
 return M
