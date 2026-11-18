@@ -40,7 +40,7 @@ deps cached), online retry. Output is copied to `sesh/bin/herdr-pick`
 - Mouse: click, double-click, wheel, drag a split (⠿) or a whole tab onto a
   workspace (new tab) or a tab (split), with marching-ants drop frame, landing
   preview, edge auto-scroll, result flash, and `^z` undo (single split).
-- Keyboard move (`^g`), kill (`^d`), scratch (`^o`), browser (`^b`), help (`?`).
+- Keyboard move (`^g`), kill (`^d`), new space (prefix+n, `herdr-pick new`), browser (`^b`), help (`?`).
 - CLI grammar kept: `list [MODE] | state | preview LINE | label LINE | kill LINE
   | go LINE|PATH | browser | help` — the node TUI still works against it.
 - `HERDR_PICKER_DRY_RUN=1` logs the herdr move command instead of running it.

@@ -287,28 +287,16 @@ pub fn load_mru(cfg: &Config) -> Vec<(String, i64)> {
 
 fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
     let mru = load_mru(cfg);
-    let rank = |id: &str| -> f64 {
-        mru.iter()
-            .position(|(mid, _)| mid == id)
+    // "recent" is the sidebar's order: the last plugin moves the focused
+    // workspace to the top of herdr's list on every focus, so herdr's own
+    // order *is* most-recent-first. The picker follows it exactly.
+    let recent = |w: &crate::model::Workspace| -> f64 {
+        model
+            .workspaces
+            .iter()
+            .position(|x| x.id == w.id)
             .map(|i| i as f64)
             .unwrap_or(1000.0)
-    };
-    // prefix+w is for going back: the most recently accessed *other* session
-    // pins to the top (tmux last-session style), the current one follows it
-    // marked "here", the rest keep mru order.
-    let focused_id = model.workspaces.iter().find(|w| w.focused).map(|w| &w.id);
-    let prev_id = mru
-        .iter()
-        .find(|(id, _)| Some(id) != focused_id && model.workspaces.iter().any(|w| &w.id == id))
-        .map(|(id, _)| id);
-    let recent = |w: &crate::model::Workspace| -> f64 {
-        if Some(&w.id) == prev_id {
-            -1.0
-        } else if w.focused {
-            0.5
-        } else {
-            rank(&w.id)
-        }
     };
     let srank = |s: &str| -> i32 {
         match s {
@@ -991,20 +979,6 @@ pub fn browser(cfg: &Config, _st: &Style) -> Result<(), String> {
         ],
     );
     connect(cfg, &name, &cfg.home(), &cmd)
-}
-
-pub fn scratch(cfg: &Config) -> Option<String> {
-    let script = cfg.path("scratch_script");
-    let (status, out) = proc::run_script_capture(&script, &[]).ok()?;
-    if status != 0 {
-        return None;
-    }
-    let path = out.trim().to_string();
-    if path.is_empty() {
-        None
-    } else {
-        Some(path)
-    }
 }
 
 pub fn log_move(cfg: &Config, line: &str) {

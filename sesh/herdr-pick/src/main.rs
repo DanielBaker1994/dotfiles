@@ -8,6 +8,7 @@ mod config;
 mod data;
 mod fuzzy;
 mod model;
+mod newspace;
 mod proc;
 mod style;
 mod ui;
@@ -89,6 +90,12 @@ fn main() {
         Some("go") => {
             ensure(&cfg);
             let _ = data::act(&cfg, args.get(1).map(|s| s.as_str()).unwrap_or(""));
+        }
+        Some("new") => {
+            app::install_signals();
+            ensure(&cfg);
+            let st = style::Style::new(&cfg);
+            exit(newspace::run(&cfg, &st));
         }
         Some("browser") => {
             ensure(&cfg);

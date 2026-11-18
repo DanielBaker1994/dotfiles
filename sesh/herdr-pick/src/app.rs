@@ -659,7 +659,6 @@ impl App {
                 let mode = self.mode.clone();
                 self.load_list(&mode, true);
             }
-            "scratch" => self.do_scratch(),
             "browser" => {
                 self.term.restore();
                 let _ = data::browser(&self.cfg, &self.st);
@@ -794,6 +793,11 @@ impl App {
         let max = self.view.len().saturating_sub(1);
         // 0 = "from the top": the cursor's start for this query
         self.sel = if keep_sel == 0 { 0 } else { keep_sel.min(max) };
+        // prefix+w is for going back: with the sidebar's order the current
+        // space is row 0, so start the cursor on the one before it
+        if keep_sel == 0 && self.mode == "ws" && self.sort == "recent" && query.is_empty() && max >= 1 {
+            self.sel = 1;
+        }
         self.schedule_preview();
         self.place_flash_cursor();
         self.dirty = true;
@@ -1513,14 +1517,6 @@ impl App {
         self.preview.key.clear();
         let mode = self.mode.clone();
         self.load_list(&mode, true);
-    }
-
-    fn do_scratch(&mut self) {
-        self.term.restore();
-        if let Some(path) = data::scratch(&self.cfg) {
-            let _ = data::act(&self.cfg, &path);
-        }
-        self.quit_code = Some(0);
     }
 
     fn choose(&mut self) {

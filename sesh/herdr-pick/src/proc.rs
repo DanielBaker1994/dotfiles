@@ -69,24 +69,6 @@ pub fn run(program: &str, args: &[String], timeout: Duration) -> Result<Out, Str
     result
 }
 
-/// Run a script with stdin inherited, stdout captured (create_scratch.sh).
-pub fn run_script_capture(program: &str, args: &[String]) -> Result<(i32, String), String> {
-    let child = Command::new(program)
-        .args(args)
-        .stdin(Stdio::inherit())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .map_err(|e| format!("{program}: {e}"))?;
-    let mut child = child;
-    let mut so = child.stdout.take().unwrap();
-    let reader = std::thread::spawn(move || read_all(&mut so));
-    let status = child.wait().map_err(|e| format!("{program}: {e}"))?;
-    let out = String::from_utf8_lossy(&reader.join().unwrap_or_default()).into_owned();
-    Ok((status.code().unwrap_or(-1), out))
-}
-
-/// Parse a JSON document from command output; `error` objects become Err.
 pub fn parse_json(out: &Out, what: &str) -> Result<Value, String> {
     if out.status != 0 {
         let msg = out.stderr.lines().next().unwrap_or("").trim().to_string();
