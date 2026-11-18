@@ -248,7 +248,7 @@ pub fn run(cfg: Config) -> i32 {
         tx,
         rx,
         term,
-        mode: "ws".to_string(),
+        mode: "all".to_string(),
         sort: "recent".to_string(),
         expanded: false,
         items: Vec::new(),
@@ -283,7 +283,7 @@ pub fn run(cfg: Config) -> i32 {
         dry_run: dry,
         quit_code: None,
     };
-    app.load_list("ws", false);
+    app.load_list("all", false);
     spawn_watchdog();
     loop {
         HEARTBEAT.fetch_add(1, Ordering::Relaxed);
@@ -795,7 +795,7 @@ impl App {
         self.sel = if keep_sel == 0 { 0 } else { keep_sel.min(max) };
         // prefix+w is for going back: with the sidebar's order the current
         // space is row 0, so start the cursor on the one before it
-        if keep_sel == 0 && self.mode == "ws" && self.sort == "recent" && query.is_empty() && max >= 1 {
+        if keep_sel == 0 && (self.mode == "ws" || self.mode == "all") && self.sort == "recent" && query.is_empty() && max >= 1 {
             self.sel = 1;
         }
         self.schedule_preview();
