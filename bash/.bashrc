@@ -18,6 +18,37 @@ function aerospacelist() {
     aerospace layout h_tiles
 }
 
+# Close herdr workspaces ("spaces") by label.
+#   close_spaces kitchen-sink quickterm      # explicit names
+#   close_spaces                             # uses $CLOSE_SPACES
+# CLOSE_SPACES = space-separated space names to close. NOTE: export it in
+# ~/external/.bashrc (sourced above) so work and home can differ without
+# conflicting; this is only the fallback.
+#   export CLOSE_SPACES="kitchen-sink quickterm keepalive"
+# Names that match no workspace are reported and skipped. The focused
+# workspace is skipped too (closing it would kill the shell running this).
+export CLOSE_SPACES="${CLOSE_SPACES:-kitchen-sink quickterm}"
+close_spaces() {
+    local -a names=("$@")
+    # shellcheck disable=SC2206  # intentional word splitting of the env var
+    ((${#names[@]})) || names=($CLOSE_SPACES)
+    local json name id focused
+    json=$(herdr workspace list) || return 1
+    for name in "${names[@]}"; do
+        id=$(jq -r --arg n "$name" '.result.workspaces[] | select(.label==$n) | .workspace_id' <<<"$json" | head -n1)
+        if [ -z "$id" ]; then
+            echo "close_spaces: no workspace named '$name'" >&2
+            continue
+        fi
+        focused=$(jq -r --arg n "$name" '.result.workspaces[] | select(.label==$n) | .focused' <<<"$json" | head -n1)
+        if [ "$focused" = true ]; then
+            echo "close_spaces: skipping '$name' (focused)" >&2
+            continue
+        fi
+        herdr workspace close "$id" >/dev/null && echo "closed $name"
+    done
+}
+
 unalias f 2>/dev/null
 f() {
     # Cancel (ESC) -> no selection -> nothing copied.

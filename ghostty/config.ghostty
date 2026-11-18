@@ -66,3 +66,6 @@ palette = 12=#7aa2f7
 palette = 13=#bb9af7
 palette = 14=#7dcfff
 palette = 15=#c0caf5
+
+# Command palette: types `close_spaces` + Enter into the focused shell (herdr workspaces)
+command-palette-entry = title:"Close Spaces",description:"Close the herdr workspaces listed in CLOSE_SPACES_DEFAULT.",action:"text:close_spaces\n"
