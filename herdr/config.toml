@@ -120,6 +120,12 @@ height = "85%"
 kitty_graphics = true
 
 # tmux-style last jumps (plugin: ~/.dotfiles/herdr/plugins/last)
+[[keys.command]]
+key = "prefix+shift+l"
+type = "plugin_action"
+command = "local.last.workspace"
+description = "last workspace"
+
 # copy a path from the last output (plugin: ~/.dotfiles/herdr/plugins/copy-path)
 [[keys.command]]
 key = "prefix+f"
