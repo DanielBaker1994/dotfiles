@@ -227,7 +227,7 @@ pub struct App {
     quit_code: Option<i32>,
 }
 
-pub fn run(cfg: Config) -> i32 {
+pub fn run(cfg: Config, start_mode: &str) -> i32 {
     if !std::io::stdin().is_terminal() {
         eprintln!("{}", cfg.text("needs_terminal"));
         return 1;
@@ -248,7 +248,7 @@ pub fn run(cfg: Config) -> i32 {
         tx,
         rx,
         term,
-        mode: "all".to_string(),
+        mode: start_mode.to_string(),
         sort: "recent".to_string(),
         expanded: false,
         items: Vec::new(),
@@ -283,7 +283,7 @@ pub fn run(cfg: Config) -> i32 {
         dry_run: dry,
         quit_code: None,
     };
-    app.load_list("all", false);
+    app.load_list(start_mode, false);
     spawn_watchdog();
     loop {
         HEARTBEAT.fetch_add(1, Ordering::Relaxed);
@@ -798,9 +798,38 @@ impl App {
         if keep_sel == 0 && (self.mode == "ws" || self.mode == "all") && self.sort == "recent" && query.is_empty() && max >= 1 {
             self.sel = 1;
         }
+        // prefix+a keeps the old "last agent" toggle: the list stays sorted
+        // blocked-first, but the cursor starts on the agent you were in
+        // before this one, so prefix+a enter jumps back like it used to
+        if keep_sel == 0 && self.mode == "agents" && query.is_empty() {
+            if let Some(i) = self.last_agent_row() {
+                self.sel = i;
+            }
+        }
         self.schedule_preview();
         self.place_flash_cursor();
         self.dirty = true;
+    }
+
+    /// row of the agent pane to jump back to: the local.last plugin keeps
+    /// "CURRENT PREVIOUS" agent pane ids; when the focused pane is CURRENT
+    /// (we are in an agent) that is PREVIOUS, else the last agent visited
+    fn last_agent_row(&self) -> Option<usize> {
+        let raw = std::fs::read_to_string(self.cfg.path("agent_file")).ok()?;
+        let mut ids = raw.split_whitespace();
+        let (cur, prev) = (ids.next()?, ids.next());
+        let focused = self
+            .model
+            .workspaces
+            .iter()
+            .find(|w| w.focused)
+            .and_then(|w| w.active_tab_id.as_deref())
+            .and_then(|t| self.model.tab_pane(t))
+            .map(|p| p.id.as_str());
+        let want = if focused == Some(cur) { prev? } else { cur };
+        self.view
+            .iter()
+            .position(|r| r.it.kind == ItemKind::Agent && r.it.target == want)
     }
 
     fn place_flash(&mut self) {

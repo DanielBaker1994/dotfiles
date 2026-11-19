@@ -27,13 +27,16 @@ fn main() {
         }
     };
     match args.first().map(|s| s.as_str()) {
-        None => {
+        // no argument = prefix+w (all); `agents` = prefix+a, same picker
+        // opened on the agents-only list (^s/^a still switch out of it)
+        None | Some("agents") => {
             app::install_signals();
             if let Err(e) = data::ensure_herdr(&cfg) {
                 eprintln!("{e}");
                 exit(1);
             }
-            exit(app::run(cfg));
+            let mode = if args.is_empty() { "all" } else { "agents" };
+            exit(app::run(cfg, mode));
         }
         Some("help") => {
             let st = style::Style::new(&cfg);

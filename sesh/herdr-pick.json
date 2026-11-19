@@ -44,6 +44,7 @@
   "paths": {
     "sesh_toml": "$HOME/.dotfiles/sesh/sesh.toml",
     "mru_file": "$HOME/.local/state/herdr/plugins/local.last/mru",
+    "agent_file": "$HOME/.local/state/herdr/plugins/local.last/agent",
     "log_dir": "$HOME/.cache/herdr-pick",
     "herdr_socket": "$HOME/.config/herdr/herdr.sock",
     "default_config": "$HOME/.dotfiles/sesh/herdr-pick.json"
@@ -140,7 +141,7 @@
     "herdr_no_server": "herdr: no server running at {socket}",
     "herdr_start": "herdr: start it first — `herdr` to attach, or `herdr server` headless.",
     "needs_terminal": "herdr-pick: needs a terminal",
-    "usage": "usage: herdr-pick [list [MODE|--json] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | go-id WORKSPACE_ID | browser | new | help]",
+    "usage": "usage: herdr-pick [agents | list [MODE|--json] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | go-id WORKSPACE_ID | browser | new | help]",
     "config_missing": "herdr-pick: config not found (looked at {paths})",
     "config_bad": "herdr-pick: bad config {path}: {err}",
     "drag_status": "drag a split or tab onto a workspace or tab  {key}",

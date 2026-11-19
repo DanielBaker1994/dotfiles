@@ -33,9 +33,8 @@ previous_tab = ""
 
 new_tab = "prefix+c"
 
-# jump to the last agent: prefix+a toggles to the previously focused agent
-# pane, exactly like prefix+l does for tabs (plugin: ~/.dotfiles/herdr/plugins/last).
-# sidebar cycling stays on prefix+shift+a.
+# prefix+a = agents picker (keys.command below); sidebar cycling stays on
+# prefix+shift+a.
 next_agent = ""
 previous_agent = "prefix+shift+a"
 
@@ -139,16 +138,18 @@ type = "plugin_action"
 command = "local.last.tab"
 description = "last tab"
 
-# prefix+a: toggle to the previously focused agent pane (same shape as the
-# last-tab jump above; the pane.focused event in the plugin keeps the pair)
+# prefix+a: the prefix+w picker opened on agents only (herdr-pick agents),
+# blocked/done first. The cursor starts on the last agent (local.last plugin's
+# pair), so prefix+a enter is still the old "toggle to last agent".
 [[keys.command]]
 key = "prefix+a"
-type = "plugin_action"
-command = "local.last.agent"
-description = "last agent"
+type = "popup"
+command = "~/.dotfiles/sesh/connect-herdr.sh agents"
+width = "90%"
+height = "85%"
 
 [ui.toast]
-delivery = "system"
+delivery = "terminal"
 
 [ui.sound]
 enabled = false
