@@ -14,8 +14,7 @@ copy-on-select = clipboard
 # (default 3). tmux scrolls 1 line per event (see ~/.tmux.conf).
 mouse-scroll-multiplier = precision:1,discrete:5
 
-# Matches the Tokyo Night (night) theme used in nvim (colors explicit below;
-# Ghostty has no built-in Tokyo Night theme).
+# Matches the Tokyo Night (night) theme used in nvim (see `theme` below).
 macos-option-as-alt = true
 
 # mouse-hide-while-typing = true
@@ -43,29 +42,31 @@ font-family = "Hack Nerd Font"
 # richer/more saturated on the wide-gamut (Liquid Retina) panel.
 window-colorspace = display-p3
 
-# Colors (Tokyo Night night)
-background = #1a1b26
-foreground = #c0caf5
-cursor-color = #c0caf5
-cursor-text = #1a1b26
+# Colors: built-in TokyoNight Night theme (identical palette/bg/fg to the old
+# hand-written block). Only the brighter selection colour is kept as an override.
+theme = TokyoNight Night
 selection-background = #33467c
 selection-foreground = #c0caf5
-palette = 0=#15161e
-palette = 1=#f7768e
-palette = 2=#9ece6a
-palette = 3=#e0af68
-palette = 4=#7aa2f7
-palette = 5=#bb9af7
-palette = 6=#7dcfff
-palette = 7=#a9b1d6
-palette = 8=#414868
-palette = 9=#f7768e
-palette = 10=#9ece6a
-palette = 11=#e0af68
-palette = 12=#7aa2f7
-palette = 13=#bb9af7
-palette = 14=#7dcfff
-palette = 15=#c0caf5
 
 # Command palette: types `close_spaces` + Enter into the focused shell (herdr workspaces)
 command-palette-entry = title:"Close Spaces",description:"Close the herdr workspaces listed in CLOSE_SPACES_DEFAULT.",action:"text:close_spaces\n"
+
+# ---- shell integration / agents ----
+# Ping (macOS notification) when a command finishes after 30s while Ghostty is
+# not focused. Needs shell integration (sourced in bash/.bash_profile).
+notify-on-command-finish = unfocused
+notify-on-command-finish-action = notify
+notify-on-command-finish-after = 30s
+
+# cmd+up/down jump between shell prompts; cmd+shift+o opens the visible screen
+# in $EDITOR (cmd+shift+j above pastes the scrollback path instead).
+keybind = cmd+up=jump_to_prompt:-1
+keybind = cmd+down=jump_to_prompt:1
+keybind = cmd+shift+o=write_screen_file:open
+
+# ---- polish ----
+unfocused-split-opacity = 0.85
+window-save-state = always
+quick-terminal-position = top
+quick-terminal-screen = mouse
+quick-terminal-animation-duration = 0.1

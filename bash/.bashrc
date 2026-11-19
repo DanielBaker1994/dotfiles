@@ -92,11 +92,26 @@ fi
 FILE_LINES=/tmp/files_lines.txt
 alias ga='git add -u'
 alias gs='git status'
-parse_git_branch() {
-    local b
-    b=$(git symbolic-ref --short HEAD 2>/dev/null) && printf ' (%s)' "$b" || printf ' (detached)'
-}
-export PS1='\u \w $(parse_git_branch) >'
+# Prompt: starship (initialised in .bash_profile) owns PS1; the old
+# parse_git_branch/PS1 pair was overridden on every prompt and forked git twice.
+
+# ---- history ----
+HISTSIZE=100000
+HISTFILESIZE=200000
+HISTCONTROL=ignoreboth:erasedups
+HISTTIMEFORMAT='%F %T  '
+shopt -s histappend cdspell autocd globstar checkwinsize
+
+# ---- readline (interactive only) ----
+if [[ $- == *i* ]]; then
+    bind 'set show-all-if-ambiguous on'
+    bind 'set completion-ignore-case on'
+    bind 'set colored-stats on'
+    bind 'set mark-symlinked-directories on'
+    # Up/Down: search history for what is already typed (Ctrl-R stays fzf)
+    bind '"\e[A": history-search-backward'
+    bind '"\e[B": history-search-forward'
+fi
 
 function setdebug() {
     export PS4='+${BASH_SOURCE}:${LINENO}:${FUNCNAME[0]}(): '

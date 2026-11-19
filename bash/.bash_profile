@@ -56,6 +56,15 @@ fi
 
 [[ $- == *i* ]] && eval "$(starship init bash)"
 
+# Ghostty shell integration (prompt marks, notify-on-command-finish,
+# jump_to_prompt). Auto-injection only reaches the shell Ghostty spawns, not
+# herdr pane shells, so source it by hand. Sourced after starship so its
+# PROMPT_COMMAND hook runs last; no-op outside Ghostty or if already loaded.
+if [[ $- == *i* && -n ${GHOSTTY_RESOURCES_DIR-} && -z ${_ghostty_executing+x} \
+      && -r $GHOSTTY_RESOURCES_DIR/shell-integration/bash/ghostty.bash ]]; then
+    source "$GHOSTTY_RESOURCES_DIR/shell-integration/bash/ghostty.bash"
+fi
+
 # Must go last or usr bin will come before home brew and then path which fild old bash.
 # This is the output of `brew shellenv`, pasted in: running brew for it cost
 # ~570 ms per shell on the work machine (shellprof). Its output never changes;
