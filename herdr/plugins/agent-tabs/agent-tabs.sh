@@ -22,6 +22,8 @@
 # WS_WIDTH, longer names end in …) so the tab column lines up. herdr trims
 # token whitespace, so the padding is U+2800 (braille blank), not spaces.
 #
+# label.<agent> = glyph used in the tab label only (notifications quote the label,
+# and the system font has no Nerd Font glyphs -> "?" box); $agent_icon keeps <agent>.
 # Glyph overrides: $HERDR_PLUGIN_CONFIG_DIR/icons.conf, lines like
 #   claude = ✻
 #   status.working = ●
@@ -45,6 +47,7 @@ DEFAULT_ICONS='{
   "status.blocked": "×", "status.working": "◐", "status.done": "✓",
   "status.idle": "○",
   "claude": "󰛄",
+  "label.claude": "✻",
   "opencode": "⬓",
   "devin": "󰚩",
   "codex": "󰙴",
@@ -176,7 +179,7 @@ plan() {
            elif $pane == null then
              ($icons["proc." + $proc] // $icons["proc.default"] // "")
            else [($icons["status." + ($tab.agent_status // "")] // ""),
-                 ($icons[$pane.agent] // $icons["agent.default"] // "")]
+                 ($icons["label." + $pane.agent] // $icons[$pane.agent] // $icons["agent.default"] // "")]
                 | map(select(. != "")) | join(" ")
            end) as $prefix
         | (if $prefix == "" then $base else $prefix + " " + $base end) as $label
