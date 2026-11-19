@@ -92,7 +92,8 @@ copy_on_select = true
 pane_borders = "auto"
 pane_outer_borders = true
 pane_gaps = true
-sidebar_width = 26
+sidebar_width = 36
+sidebar_max_width = 48
 sidebar_start_collapsed = false
 
 status_indicators = "symbols"
@@ -160,11 +161,11 @@ enabled = false
 # status in the theme's state colors. One line per agent, icon colored per agent.
 # $ws = workspace name padded to a fixed width so the tab numbers line up.
 [ui.sidebar.agents]
-rows = [["state_icon", { token = "$agent_icon", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+rows = [["state_icon", { token = "$agent_icon", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"], [{ token = "terminal_title_stripped", fg = "#c0caf5" }]]
 
 [ui.sidebar.agents.rows_by_agent]
-claude = [["state_icon", { token = "$agent_icon", fg = "#d97757", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
-opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"]]
+claude = [["state_icon", { token = "$agent_icon", fg = "#d97757", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"], [{ token = "terminal_title_stripped", fg = "#c0caf5" }]]
+opencode = [["state_icon", { token = "$agent_icon", fg = "#7dcfff", bold = true }, "machine", { token = "$ws", bold = true }, "$tab_name"], [{ token = "terminal_title_stripped", fg = "#c0caf5" }]]
 
 # spaces: drop the git branch/status row, show just the space name
 [ui.sidebar.spaces]
