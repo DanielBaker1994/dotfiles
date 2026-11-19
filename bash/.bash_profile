@@ -86,8 +86,18 @@ if [[ -n ${_bashprof_ps4+x} ]]; then
 fi
 
 if [[ $- == *i* ]]; then
+    # bash-completion 1.3 sources all 218 files in etc/bash_completion.d up
+    # front (~90 ms of a ~130 ms startup, shellprof). Load it on the first Tab
+    # for a command with no spec instead; returning 124 makes readline retry
+    # with the specs it just defined.
     if [[ -s $HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh ]]; then
-        . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+        _lazy_bash_completion() {
+            complete -r -D
+            . "$HOMEBREW_PREFIX/etc/profile.d/bash_completion.sh"
+            unset -f _lazy_bash_completion
+            return 124
+        }
+        complete -D -F _lazy_bash_completion -o bashdefault -o default
     fi
     complete -F _starship -o nosort -o bashdefault -o default starship
 fi
