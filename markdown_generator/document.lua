@@ -24,6 +24,7 @@
 --   ```csv / ```tsv  → a real table (first row = header)
 --   ```svg           → the SVG itself, inline
 --   \newpage, \pagebreak, <!-- pagebreak -->, ::: pagebreak  → page break
+--   ![](~/pics/x.png)  ~/ and $HOME/ image paths expand (as in nvim's image.nvim)
 --   tables whose first column is all numbers lose the bold "row label" column
 
 local ALERTS = { note = 'Note', tip = 'Tip', important = 'Important', warning = 'Warning', caution = 'Caution' }
@@ -163,6 +164,17 @@ local function para(el)
   end
 end
 
+-- ── images: ~/ and $HOME/ paths (nvim's image.nvim expands them; pandoc
+-- would look for a folder literally named "~") ─────────────────────────────
+local HOME = os.getenv('HOME') or ''
+local function image(el)
+  local rest = el.src:match('^~(/.*)') or el.src:match('^%$HOME(/.*)') or el.src:match('^%${HOME}(/.*)')
+  if rest and HOME ~= '' then
+    el.src = HOME .. rest
+    return el
+  end
+end
+
 local function raw_block(el)
   if el.format == 'html' and el.text:match('^%s*<!%-%-%s*page%-?break%s*%-%->%s*$') then return PAGEBREAK end
 end
@@ -279,6 +291,6 @@ end
 -- block transforms first, then the document pass (title / TOC see the result)
 return {
   { CodeBlock = code_block, BulletList = bullet_list, Div = div, Para = para,
-    RawBlock = raw_block, Table = label_table },
+    RawBlock = raw_block, Table = label_table, Image = image },
   { Pandoc = Pandoc },
 }
