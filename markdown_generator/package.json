@@ -1,0 +1,11 @@
+{
+  "name": "markdown-generator-helpers",
+  "private": true,
+  "description": "node deps for render.mjs (mermaid + math). Installed OUTSIDE the dotfiles (~/.local/share/markdown_generator, ~500MB) by EXTERNAL_MARKDOWN_NODE_SETUP in bash/external.sh; bump a version here and the next build reinstalls.",
+  "type": "module",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "12.2.0",
+    "mathjax-full": "3.2.1",
+    "puppeteer": "25.18.1"
+  }
+}

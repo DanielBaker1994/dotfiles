@@ -77,7 +77,9 @@ vim.keymap.set('n', '<leader><leader>', buffers_picker,
 
 local db = require('user.db_functions')
 vim.keymap.set('n', '<leader>sp', db.search_parent_from_buffer, { desc = 'Grep Parent from buffer path' })
-vim.keymap.set('n', '<leader>mdo', db.markdown_open, { desc = 'Convert markdown to PDF (pandoc) and open' })
+vim.keymap.set('n', '<leader>mdo', db.markdown_open, { desc = 'Markdown: build HTML/PDF/PNG and open the HTML' })
+vim.keymap.set('n', '<leader>mdp', db.markdown_open_pdf, { desc = 'Markdown: build and open the PDF' })
+vim.keymap.set('n', '<leader>mdw', db.markdown_watch_toggle, { desc = 'Markdown: toggle rebuild on save' })
 
 -- Git history via diffview.nvim — commit list panel with diffs.
 -- <leader>gs is the interactive filter builder (no flags to memorize); inside

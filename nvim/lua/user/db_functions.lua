@@ -4,28 +4,62 @@ local M = {}
 -- (see lua/bash_external/build_and_open_pdf.lua).
 local build_and_open_pdf = require('bash_external.build_and_open_pdf')
 
-function M.markdown_open()
-    local bufname = vim.fn.expand('%:t')
-    if not bufname:lower():match('%.md$') then
-        vim.notify('Current buffer name must contain ".md"', vim.log.levels.ERROR)
+-- Build <name>.html/.pdf/.png next to the buffer's .md (EXTERNAL_BUILD_AND_OPEN_PDF).
+--   opts.open  'html' (default) | 'pdf' | 'none'
+--   opts.quiet only speak up on warnings / failure (used by the rebuild-on-save watch)
+-- Exit 0 + stderr = built, with warnings (missing image, bad mermaid/math): shown
+-- as WARN so they're not lost behind a "built" message.
+function M.markdown_build(buf, opts)
+    opts = opts or {}
+    buf = (buf and buf ~= 0) and buf or vim.api.nvim_get_current_buf()
+    local src = vim.api.nvim_buf_get_name(buf)
+    if not src:lower():match('%.md$') then
+        vim.notify('Current buffer name must end in ".md"', vim.log.levels.ERROR)
         return
     end
-    local out_name = vim.fn.expand('%:t:r')
-    local out_dir = vim.fn.expand('%:p:h')
-    local out_path = out_dir .. '/' .. out_name
-
-    local src = vim.fn.expand('%:p')
-
-    -- Async so the UI doesn't freeze while pandoc + weasyprint run.
-    vim.notify('Building PDF from ' .. vim.fn.fnamemodify(src, ':~') .. ' ...', vim.log.levels.INFO)
+    local out_path = vim.fn.fnamemodify(src, ':r')
+    if not opts.quiet then
+        vim.notify('Building ' .. vim.fn.fnamemodify(src, ':~') .. ' ...', vim.log.levels.INFO)
+    end
+    -- Async so the UI doesn't freeze while pandoc + mermaid + weasyprint run.
     build_and_open_pdf.run_async(src, out_path, function(ret)
+        local msg = vim.trim((ret.stderr ~= '' and ret.stderr) or ret.stdout or '')
         if ret.code ~= 0 then
-            local err = (ret.stderr ~= '' and ret.stderr) or ret.stdout or 'unknown'
-            vim.notify('pandoc failed: ' .. err, vim.log.levels.ERROR)
-        else
-            vim.notify('PDF built: ' .. vim.fn.fnamemodify(out_path .. '.pdf', ':~'), vim.log.levels.INFO)
+            vim.notify('Markdown build failed:\n' .. (msg ~= '' and msg or 'unknown error'), vim.log.levels.ERROR)
+        elseif msg ~= '' then
+            vim.notify('Built with warnings:\n' .. msg, vim.log.levels.WARN)
+        elseif not opts.quiet then
+            vim.notify('Built: ' .. vim.fn.fnamemodify(out_path, ':~') .. '.{html,pdf,png}', vim.log.levels.INFO)
         end
-    end)
+    end, { open = opts.open })
+end
+
+function M.markdown_open() M.markdown_build(0, { open = 'html' }) end
+function M.markdown_open_pdf() M.markdown_build(0, { open = 'pdf' }) end
+
+-- Rebuild on every :w (nothing is opened, so the browser tab just needs a
+-- Cmd+R). Buffer-local; toggled by <leader>mdw or the winbar's live segment.
+local watch_group = vim.api.nvim_create_augroup('user_markdown_watch', { clear = true })
+function M.markdown_watching(buf)
+    buf = (buf and buf ~= 0) and buf or vim.api.nvim_get_current_buf()
+    return #vim.api.nvim_get_autocmds({ group = watch_group, buffer = buf }) > 0
+end
+
+function M.markdown_watch_toggle()
+    local buf = vim.api.nvim_get_current_buf()
+    if M.markdown_watching(buf) then
+        vim.api.nvim_clear_autocmds({ group = watch_group, buffer = buf })
+        vim.notify('Markdown: rebuild on save OFF', vim.log.levels.INFO)
+    else
+        vim.api.nvim_create_autocmd('BufWritePost', {
+            group = watch_group,
+            buffer = buf,
+            callback = function(ev) M.markdown_build(ev.buf, { open = 'none', quiet = true }) end,
+        })
+        vim.notify('Markdown: rebuild on save ON (refresh the browser after :w)', vim.log.levels.INFO)
+        M.markdown_build(buf, { open = 'html' })
+    end
+    vim.cmd('redrawstatus!')   -- also repaints the winbar's live segment
 end
 
 function M.search_parent_from_buffer()

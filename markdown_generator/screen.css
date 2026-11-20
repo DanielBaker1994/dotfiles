@@ -1,10 +1,13 @@
 <style>
-/* Copy-to-clipboard button beside each code block (copy_button.js adds the .codeblock
-   wrapper + .copy-btn). Screen only. Shared: the kitchen-sink reading view loads this
-   same file (beside [notes] pdf-css); colors come from the --p-* palette. */
-.codeblock { display: flex; align-items: stretch; }
-.codeblock pre { flex: 1 1 auto; min-width: 0; }
-.copy-btn { flex: 0 0 auto; align-self: stretch; width: 34px; margin: .8em 8px .8em 0;
+/* Screen-only enhancements for the opened .html (screen.js adds the elements;
+   weasyprint runs no JS, so none of this reaches the PDF). Colors come from the
+   --p-* palette in friendly_document_styling.css. */
+
+/* copy-to-clipboard button beside each code block (.codeblock wrapper + .copy-btn) */
+.codeblock { display: flex; align-items: stretch; margin: .8em 0; }
+.codeblock pre { flex: 1 1 auto; min-width: 0; margin: 0; }
+div.code .codeblock { margin: 0; }
+.copy-btn { flex: 0 0 auto; align-self: stretch; width: 34px; margin: 0 8px 0 0;
   display: flex; align-items: center; justify-content: center; padding: 0;
   border: none; border-radius: 8px; background: var(--p-s0); color: var(--p-dim);
   cursor: pointer; transition: background .15s, color .15s; }
@@ -12,5 +15,15 @@
 .copy-btn:active { background: var(--p-s1); }
 .copy-btn.copied { background: var(--p-success-tint); color: var(--p-success); }
 .copy-btn:focus { outline: none; }
+.copy-btn:focus-visible { outline: 2px solid var(--p-accent); outline-offset: 2px; }
 .copy-btn svg { width: 16px; height: 16px; }
+
+/* heading permalinks: hover a heading, click # to put its link in the address bar */
+h2[id], h3[id], h4[id], h5[id], h6[id] { scroll-margin-top: 1.2em; }
+.anchor { margin-left: .35em; border: none; color: var(--p-dim); opacity: 0; font-weight: 400;
+          text-decoration: none; transition: opacity .15s; }
+h2:hover > .anchor, h3:hover > .anchor, h4:hover > .anchor, h5:hover > .anchor, h6:hover > .anchor,
+.anchor:focus-visible { opacity: 1; }
+
+@media print { .copy-btn, .anchor { display: none !important; } }
 </style>

@@ -1,11 +1,14 @@
 <style>
 
-/* ═══ ONE palette, ONE rule set ═══
-   Every color below reads a --p-* variable. This :root block is the plain light
-   style; the kitchen-sink app appends its theme's :root { --p-*: … } AFTER this
-   file (same specificity, later wins) and a document template overrides both via
-   :root:has(.name) (more specific). So one set of rules serves the plain nvim
-   build, the app's reading view / PDF, and every template. */
+/* ═══ friendly_document_styling.css — the one stylesheet for
+   EXTERNAL_BUILD_AND_OPEN_PDF (bash/external.sh): screen (the opened .html)
+   AND print (weasyprint .pdf → .png). pandoc's own default CSS is switched off
+   (-M document-css=false), so everything a document looks like is in here.
+
+   ONE palette, ONE rule set: every color reads a --p-* variable. This :root is
+   the plain light look; a document template (front matter `theme: NAME` or the
+   <div class="doc NAME"> marker) retargets the variables via :root:has(.NAME)
+   further down. render.lua reads the same blocks to color diagrams. ═══ */
 :root {
   --p-bg: #ffffff; --p-text: #1a1a1a; --p-dim: #6b7c90; --p-accent: #2b6cb0; --p-accent2: #1f5190;
   --p-well: #f5f6f7; --p-s0: #f7fbff; --p-s1: #eaf3fb; --p-rule: #d6e4f0;
@@ -15,44 +18,116 @@
   --p-danger: #b00020; --p-danger-tint: rgba(176,0,32,.06);
   --p-accent2-tint: rgba(31,81,144,.06); --p-selection: rgba(43,108,176,.25);
   --md-accent_pretty: var(--p-accent); --md-accent_pretty-2: var(--p-accent2); --md-muted: var(--p-dim);
+  /* template shape defaults: a .doc marker with no palette (front matter
+     `footer:` alone) still gets a complete template */
+  --t-kw: var(--p-accent2); --t-str: var(--p-success); --t-com: var(--p-dim); --t-fn: var(--p-accent);
+  --t-num: var(--p-warning); --t-head-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --t-title-bg: transparent; --t-title-color: var(--p-accent2); --t-title-rule: var(--p-accent);
+  --mono: "Hack Nerd Font Mono", Menlo, Consolas, monospace;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 ::selection { background: var(--p-selection); }
-div.sourceCode { background-color: transparent; }   /* pandoc paints this near-white */
 
 /* "Hack Nerd Font" is installed in ~/Library/Fonts and resolved by
    weasyprint via fontconfig; no @font-face needed. */
 .glyph { font-family: "Hack Nerd Font" }
 
-
-html {
-    color: var(--p-text);
-    background-color: var(--p-bg);
-}
-body { color: var(--p-text); }
+/* ═══ page + type scale ═══
+   Headings are em-based, so one body size drives everything: 16px on screen,
+   11pt in the PDF. */
+html { color: var(--p-text); background-color: var(--p-bg); }
 body {
-    margin: 0 auto;
-    max-width: 50em;
-    padding-left: 0px;
-    padding-right: 0px;
-    padding-top: 50px;
-    padding-bottom: 50px;
-    hyphens: manual;   /* auto put "in‐⏎cidunt" into copied text */
-    overflow-wrap: break-word;
-    /* text-rendering: optimizeLegibility; */
-    font-kerning: normal;
-    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-    line-height: 1.6;
+  margin: 0 auto;
+  max-width: 46em;                 /* ≈ 75 characters a line */
+  padding: 50px 1.5rem;            /* side gutter: text never touches the window edge */
+  color: var(--p-text);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.6;
+  hyphens: manual;                 /* auto put "in‐⏎cidunt" into copied text */
+  overflow-wrap: break-word;
+  font-kerning: normal;
 }
-/* @media (max-width: 800px) { */
-/*     body { */
-/*         font-size: 0.9em; */
-/*         padding: 0px; */
-/*     } */
-/**/
-/* } */
-/**/
+@media print {
+  body { font-size: 11pt; max-width: none; padding: 0; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }   /* Cmd+P keeps backgrounds */
+}
+p { margin: .7em 0; }
 
-/* GitHub alerts (> [!NOTE] ...): pandoc -f gfm emits
+h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 1.4em 0 .5em; }
+h1 { font-size: 1.55em; color: var(--md-accent_pretty); }
+h2 { font-size: 1.3em;  color: var(--md-accent_pretty-2); font-weight: 600; }
+h3 { font-size: 1.12em; color: var(--md-accent_pretty-2); font-weight: 600; }
+h4 { font-size: 1em;    color: var(--p-text); font-weight: 700; }
+h5 { font-size: .92em;  color: var(--p-text); font-weight: 600; }
+h6 { font-size: .8em;   color: var(--p-dim); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.secnum { color: var(--p-dim); margin-right: .45em; font-variant-numeric: tabular-nums; }   /* numbered: true */
+
+/* Document title: the first H1, plus an optional subtitle paragraph directly
+   beneath it (document.lua builds both from front matter title/subtitle when
+   the body has no H1). Kept after the generic h1 rule so it wins. */
+h1:first-of-type {
+  margin: 0 0 6px 0;
+  padding-top: 24px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: 1.65em;
+  color: var(--md-accent_pretty-2);
+}
+h1:first-of-type + p {
+  margin: 6px 0 1.2em 0;
+  color: var(--md-muted);
+  font-size: .82em;
+}
+
+/* ═══ inline text ═══ */
+a { color: var(--md-accent_pretty); text-decoration: none; border-bottom: 1px solid var(--p-accent); }
+a.footnote-ref, a.footnote-back, #TOC a { border-bottom: none; }
+:not(pre) > code {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--p-well);
+  color: var(--p-accent2);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+kbd {
+  font: .8em/1.4 var(--mono);
+  padding: .05em .45em;
+  border: 1px solid var(--p-rule);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--p-well);
+  color: var(--p-text);
+  white-space: nowrap;
+}
+mark { background: var(--p-mark, rgba(250,204,21,.35)); color: inherit; padding: 0 .15em; border-radius: 2px; }
+sub, sup { font-size: .75em; line-height: 0; }
+del { color: var(--p-dim); }
+abbr[title] { text-decoration: underline dotted; }
+
+/* ═══ blocks ═══ */
+ul, ol { padding-left: 1.6em; }
+li > ul, li > ol { margin: .15em 0; }
+li::marker { color: var(--md-accent_pretty); }   /* color only the marker, not the text */
+
+hr { border: none; border-top: 2px solid var(--p-rule); height: 1px; margin: 1.4em 0; }
+
+/* Plain blockquotes. GitHub alerts become div.note / div.tip / ... (below). */
+blockquote { margin: .8em 0; padding: .3em 1em; border-left: 4px solid var(--p-accent); color: var(--p-dim); }
+
+/* definition lists (Term ⏎ : Definition) */
+dl { margin: .8em 0; }
+dt { font-weight: 700; margin-top: .6em; }
+dd { margin: .15em 0 .3em 1.4em; }
+
+/* <details> (in the PDF the content is always shown; screen.js opens them for Cmd+P) */
+details { margin: .8em 0; padding: .5em 1em; border: 1px solid var(--p-rule); border-radius: 6px; background: var(--p-s0); }
+summary { font-weight: 600; color: var(--p-accent2); cursor: pointer; }
+details[open] > summary { margin-bottom: .4em; }
+details > :last-child { margin-bottom: .2em; }
+
+/* GitHub alerts (> [!NOTE] ..., or ::: note): pandoc -f gfm / document.lua emit
    <div class="note"><div class="title"><p>Note</p></div> ...body... </div>
    for the five standard types. --a = stripe/icon, --bg = tint, --t = text. */
 div.note, div.tip, div.important, div.warning, div.caution {
@@ -93,10 +168,9 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 
 
 /* ═══ Developer callouts + badges — work with or without a document template ═══
-   Callout:  <div class="callout risk">  (blank line)  markdown  (blank line)  </div>
-   kinds: decision risk breaking deprecated action example question rollback perf
-   Badge:    <span class="badge ok">Shipped</span>   (ok warn bad info muted accent)
-   Colors follow the --p-* palette (plain defaults at the top of this file). */
+   Callout:  ::: risk  (or <div class="callout risk">) … :::     {title="…"} renames it
+   kinds: summary tldr decision risk breaking deprecated action example question rollback perf
+   Badge:    <span class="badge ok">Shipped</span>   (ok warn bad info muted accent)  */
 .callout { margin: .8em 0; padding: .7em 1em .5em; border-left: 6px solid var(--a); border-radius: 6px;
            background: var(--bg); box-sizing: border-box; break-inside: avoid;
            --a: var(--p-accent); --bg: var(--p-s0); }
@@ -104,6 +178,8 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
                    letter-spacing: .07em; text-transform: uppercase; color: var(--a); }
 .callout > :first-child { margin-top: 0; }
 .callout > :last-child { margin-bottom: .2em; }
+.callout.summary    { --a: var(--p-accent);  --bg: var(--p-s0); }
+.callout.tldr       { --a: var(--p-accent);  --bg: var(--p-s1); }
 .callout.decision   { --a: var(--p-accent2); --bg: var(--p-accent2-tint); }
 .callout.risk       { --a: var(--p-warning); --bg: var(--p-warning-tint); }
 .callout.breaking   { --a: var(--p-danger);  --bg: var(--p-danger-tint); }
@@ -113,6 +189,8 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 .callout.question   { --a: var(--p-accent);  --bg: var(--p-s0); }
 .callout.rollback   { --a: var(--p-danger);  --bg: var(--p-s0); }
 .callout.perf       { --a: var(--p-success); --bg: var(--p-s0); }
+.callout.summary::before    { content: "Summary"; }
+.callout.tldr::before       { content: "TL;DR"; }
 .callout.decision::before   { content: "Decision"; }
 .callout.risk::before       { content: "Risk"; }
 .callout.breaking::before   { content: "Breaking change"; }
@@ -122,9 +200,10 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 .callout.question::before   { content: "Open question"; }
 .callout.rollback::before   { content: "Rollback"; }
 .callout.perf::before       { content: "Performance"; }
+.callout[data-title]::before { content: attr(data-title); }   /* after the kinds: wins */
 
 .badge { display: inline-block; padding: 0 .6em; border-radius: 999px; border: 1px solid var(--a); background: var(--bg);
-         color: var(--a); font: 600 .78em/1.7 "Helvetica Neue", Helvetica, Arial, sans-serif; white-space: nowrap;
+         color: var(--a); font: 600 .78em/1.7 var(--sans); white-space: nowrap;
          vertical-align: .08em; --a: var(--p-accent); --bg: var(--p-s0); }
 .badge.ok     { --a: var(--p-success); --bg: var(--p-success-tint); }
 .badge.warn   { --a: var(--p-warning); --bg: var(--p-warning-tint); }
@@ -133,231 +212,136 @@ div.warning > p:last-child, div.caution > p:last-child { margin-bottom: 0.2em; }
 .badge.muted  { --a: var(--p-dim);     --bg: var(--p-s0); }
 .badge.accent { --a: var(--p-accent2); --bg: var(--p-accent2-tint); }
 
-/* diagrams (```dot / ```d2 → inline SVG by diagrams.lua) */
-figure.diagram { margin: .9em 0; text-align: center; break-inside: avoid; }
-figure.diagram svg { max-width: 100%; height: auto; }
-pre.diagram-error { border: 1px solid var(--p-danger); border-left-width: 6px; border-radius: 6px;
-  background: var(--p-danger-tint); color: var(--p-text); white-space: pre-wrap; padding: .7em 1em; }
-pre.diagram-error strong { color: var(--p-danger); }
+/* ═══ report layout helpers (fenced divs) ═══
+   ::: stats        a bullet list of "- **42%** uptime" → a row of metric tiles
+   :::: columns  ::: column … ::: ::: column … ::: ::::   side by side       */
+.stats ul { display: flex; flex-wrap: wrap; list-style: none; padding: 0; margin: .8em -.4em; }
+.stats li { flex: 1 1 8em; margin: .4em; padding: .7em .9em; border: 1px solid var(--p-rule); border-radius: 8px;
+            background: var(--p-s0); color: var(--p-dim); font-size: .85em; line-height: 1.35; break-inside: avoid; }
+.stats li strong { display: block; margin-bottom: .15em; font-size: 1.9em; line-height: 1.1; font-weight: 700;
+                   color: var(--p-accent); font-variant-numeric: tabular-nums; }
+.columns { display: flex; align-items: flex-start; margin: 0 -.75em; }
+.columns > .column { flex: 1 1 0; min-width: 0; padding: 0 .75em; }
+
+/* a forced page break: ::: pagebreak, \newpage, <!-- pagebreak --> or <div class="pagebreak"></div> */
+.pagebreak { break-after: page; height: 0; margin: 0; }
+
+/* ═══ code ═══
+   document.lua wraps each fenced block in <div class="code" data-lang data-icon>
+   for the label above the box (icons = the nvim-web-devicons glyphs). */
+pre {
+  font-family: var(--mono);
+  font-size: .84em;
+  line-height: 1.45;
+  background-color: var(--p-well);
+  border: 1px solid var(--p-rule);
+  color: var(--p-text);
+  border-radius: 8px;
+  padding: .8em 1em;
+  margin: .8em 0;
+  overflow: auto;
+  white-space: pre;
+  -webkit-font-smoothing: antialiased;
+}
+pre code { background: transparent; color: inherit; border-radius: 0; padding: 0; font-size: inherit; display: block; }
+div.sourceCode { background-color: transparent; margin: 0; }   /* pandoc paints this near-white */
+div.code { margin: .8em 0; break-inside: avoid; }
+div.code pre { margin: 0; }
+div.code::before {
+  content: attr(data-icon) attr(data-lang);
+  display: block;
+  margin: 0 0 .3em .15em;
+  font: 600 .72em/1.2 "Hack Nerd Font", Menlo, monospace;
+  letter-spacing: .03em;
+  color: var(--p-dim);
+  break-after: avoid;
+}
 
 /* ```diff: removed / added / hunk lines (pandoc tags them st / va / dt) */
 code.sourceCode.diff span.st { color: var(--p-danger); }
 code.sourceCode.diff span.va { color: var(--p-success); }
 code.sourceCode.diff span.dt { color: var(--p-info); }
 
-/* Common pseudo-element style for all language icons (single authoritative block) */
-pre.sourceCode.bash::before,
-pre.sourceCode.cpp::before,
-pre.sourceCode.lua::before,
-pre.sourceCode.python::before,
-pre.sourceCode.shell::before,
-pre.sourceCode.java::before,
-pre.sourceCode.file::before,
-pre.sourceCode.log::before,
-pre.sourceCode.vim::before,
-pre[class*="bash"]::before,
-pre[class*="cpp"]::before,
-pre[class*="lua"]::before,
-pre[class*="python"]::before,
-pre[class*="shell"]::before,
-pre[class*="java"]::before,
-pre[class*="file"]::before,
-pre[class*="vim"]::before,
-pre[class*="log"]::before {
-  font-family: "Hack Nerd Font", monospace;
-  display: block;
-  margin-bottom: 0.4em;
-  font-size: 1.2em;
-  line-height: 1;
-}
-
-
-pre.sourceCode.vim::before,
-pre[class*="vim"]::before  { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.bash::before,
-pre[class*="bash"]::before  { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.cpp::before,
-pre[class*="cpp"]::before   { content: "󰙲"; color: var(--p-dim); }
-
-pre.sourceCode.lua::before,
-pre[class*="lua"]::before   { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.python::before,
-pre[class*="python"]::before { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.shell::before,
-pre[class*="shell"]::before  { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.java::before,
-pre[class*="java"]::before   { content: "󰬷"; color: var(--p-dim); }
-
-pre.sourceCode.file::before,
-pre[class*="file"]::before   { content: ""; color: var(--p-dim); }
-
-pre.sourceCode.log::before,
-pre[class*="log"]::before    { content: "󱂅"; color: var(--p-dim); }
-
-/* Fenced code block background and rounded corners */
-.sourceCode > pre,
-pre.sourceCode,
-pre[class*="bash"],
-pre[class*="cpp"],
-pre[class*="lua"],
-pre[class*="python"],
-pre[class*="vim"],
-pre[class*="shell"],
-pre[class*="java"],
-pre[class*="log"],
-pre[class*="file"] {
-  background-color: var(--p-well);
-  border: 1px solid var(--p-rule);
-  color: var(--p-text);
-  border-radius: 8px;
-  padding: 0.8em 1em;
-  margin: 0.8em 0;
-  overflow: auto;
-  -webkit-font-smoothing: antialiased;
-  /* box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); */
-  /* preserve code whitespace behavior; generators decide wrapping */
-  white-space: pre;
-  word-break: normal;
-}
-
-/* Ensure inner <code> does not add its own background or separate corners */
-.sourceCode > pre > code,
-pre.sourceCode > code,
-pre[class*="log"] code,
-pre[class*="file"] code {
-  background: transparent;
-  border-radius: inherit;
-  padding: 0;
-  display: block;
-}
-
-
-/* Tables: the frame hugs the table, a solid accent header, a raised first column as
-   row labels, hairline grid, and a dim dot in empty cells so blank tables read as
-   intentional. Separate borders keep the rounded frame intact. */
+/* ═══ tables ═══
+   The frame hugs the table, a solid accent header, a raised first column as
+   row labels, hairline grid, and a dim dot in empty cells so blank tables read
+   as intentional. No label column when the first column is all numbers
+   (document.lua adds .no-label) or inside ::: plain. */
 table { display: table; width: auto; max-width: 100%; border-collapse: separate; border-spacing: 0;
         margin: .8em 0; font-size: 0.95em; border: 1px solid var(--p-rule); border-radius: 4px;
-        background-color: var(--p-s0); break-inside: avoid; }
+        background-color: var(--p-s0); font-variant-numeric: tabular-nums; }
+caption { caption-side: bottom; font-size: .85em; color: var(--p-dim); padding-top: .4em; text-align: left; }
 thead tr, thead th { background: var(--p-accent); color: var(--p-bg); font-weight: 600; text-align: left; }
 thead th:first-child { border-top-left-radius: 3px; }
 thead th:last-child { border-top-right-radius: 3px; }
-th, td { padding: 12px 15px; border: none; color: var(--p-text); }
+th, td { padding: .6em .9em; border: none; color: var(--p-text); vertical-align: top; }
 thead th { color: var(--p-bg); }
 thead th + th { border-left: 1px solid var(--p-bg); }
 tbody td { background-color: var(--p-s0); border-top: 1px solid var(--p-rule); }
 tbody td + td { border-left: 1px solid var(--p-rule); }
 tbody td:first-child { background-color: var(--p-s1); font-weight: 600; }
+table.no-label tbody td:first-child, .plain tbody td:first-child { background-color: var(--p-s0); font-weight: inherit; }
 tbody td:empty::after { content: "\00B7"; color: var(--p-rule); }
-tbody tr:hover { background-color: transparent; }
 
-/* Section headers */
-h1{ margin:18px 0 10px 0; font-size:22px; color:var(--md-accent_pretty); }
-h2{ margin:16px 0 8px 0; font-size:18px; color:var(--md-accent_pretty-2); font-weight:600; }
-h3{ margin:16px 0 8px 0; font-size:16px; color:var(--md-accent_pretty-2); }
+/* ═══ task lists (document.lua turns - [ ] / - [x] into drawn boxes) ═══ */
+.task-list ul { list-style: none; padding-left: .2em; }
+.task-list li { position: relative; padding-left: 1.6em; }
+.task-box { position: absolute; left: 0; top: .32em; width: .95em; height: .95em; box-sizing: border-box;
+            border: 1.5px solid var(--p-dim); border-radius: 3px; background: var(--p-bg); }
+.task-box.done { background: var(--p-success); border-color: var(--p-success); }
+.task-box.done::after { content: ""; position: absolute; left: .24em; top: .04em; width: .22em; height: .46em;
+                        border: solid var(--p-bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+/* mixed lists keep pandoc's real checkboxes */
+ul.task-list { list-style: none; padding-left: .2em; }
+ul.task-list input[type="checkbox"] { width: .9em; height: .9em; margin: 0 .5em 0 0; vertical-align: -.08em; }
 
-/* Document title: the first H1, plus an optional subtitle paragraph directly
-   beneath it. Kept after the generic h1 rule so it wins the cascade. The
-   :first-of-type match also covers legacy docs wrapped in
-   <article class="enable_pretty_title">. */
-h1:first-of-type {
-  margin: 0 0 6px 0;
-  padding-top: 24px;
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 600;
-  font-size: 26px;
-  color: var(--md-accent_pretty-2);
+/* ═══ images, figures, diagrams, math ═══ */
+/* weasyprint has no box-shadow; a border gives the framing */
+img { max-width: 100%; height: auto; display: block; margin: 1em auto; border-radius: 8px; border: 1px solid var(--p-rule); }
+svg { max-width: 100%; height: auto; }
+figure { margin: 1em 0; text-align: center; break-inside: avoid; }
+figure > img { margin-bottom: .3em; }
+figcaption { font-size: .85em; color: var(--p-dim); margin-top: .3em; }
+
+/* ```dot / ```d2 / ```mermaid / ```svg → render.lua / document.lua */
+figure.diagram { margin: .9em 0; }
+figure.diagram img { border: none; border-radius: 0; }
+pre.diagram-error { border: 1px solid var(--p-danger); border-left-width: 6px; border-radius: 6px;
+  background: var(--p-danger-tint); color: var(--p-text); white-space: pre-wrap; padding: .7em 1em; }
+pre.diagram-error strong { color: var(--p-danger); }
+
+/* $…$ / $$…$$ → MathJax SVG (render.lua); paths use currentColor */
+.math svg { display: inline; vertical-align: middle; }
+.math.display { display: block; margin: .8em 0; text-align: center; overflow-x: auto; overflow-y: hidden; }
+.math.display svg { display: inline-block; }
+.math-error { font-family: var(--mono); font-size: .88em; color: var(--p-danger);
+              background: var(--p-danger-tint); padding: 0 .3em; border-radius: 3px; }
+
+/* ═══ footnotes (pandoc collects them at the end) ═══ */
+section.footnotes { margin-top: 2.2em; font-size: .86em; color: var(--p-dim); }
+section.footnotes hr { width: 30%; margin: 0 0 .6em; border-top-width: 1px; }
+section.footnotes ol { padding-left: 1.4em; }
+section.footnotes li p { margin: .2em 0; }
+a.footnote-back { font-family: "Hack Nerd Font", var(--sans); }
+@media print { a.footnote-back { display: none; } }   /* "↩" is no use on paper */
+
+/* ═══ table of contents (front matter `toc: true`); PDF adds page numbers ═══ */
+#TOC { margin: 1.2em 0 1.8em; padding: .8em 1.4em; border: 1px solid var(--p-rule); border-radius: 8px; background: var(--p-s0); }
+#TOC .toc-title { margin: 0 0 .4em; font-size: .78em; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--p-dim); }
+#TOC ul { list-style: none; margin: .1em 0; padding-left: 1.2em; }
+#TOC > ul { padding-left: 0; }
+#TOC li { margin: .15em 0; }
+#TOC a { color: var(--p-text); }
+#TOC > ul > li > a { font-weight: 600; }
+@media print {
+  #TOC a::after { content: leader('.') target-counter(attr(href), page); color: var(--p-dim); font-weight: normal; }
 }
-h1:first-of-type + p {
-  margin: 6px 0 0 0;
-  color: var(--md-muted);
-  font-size: 13px;
-}
-
-
-
-/* Color only the list marker (bullet/number), not the list item text */
-ul, ol {
-  color: inherit;
-}
-ul li::marker,
-ol li::marker {
-  color: var(--md-accent_pretty);
-}
-
-/* If you have nested lists and want markers to inherit the same accent color */
-ul ul li::marker,
-ol ol li::marker {
-  color: var(--md-accent_pretty);
-}
-
-hr {
-  border: none;
-  border-top: 2px solid var(--p-rule);
-  height: 1px;
-  margin: 1em 0;
-}
-
-/* Inline code chips */
-:not(pre) > code {
-  font-family: "Hack Nerd Font Mono", Menlo, Consolas, monospace;
-  font-size: 0.9em;
-  background: var(--p-well);
-  color: var(--p-accent2);
-  padding: 2px 6px;
-  border-radius: 5px;
-}
-
-/* Links */
-a {
-  color: var(--md-accent_pretty);
-  text-decoration: none;
-  border-bottom: 1px solid var(--p-accent);
-}
-
-/* Plain blockquotes. GitHub alerts become div.note / div.tip / ... (above),
-   so this only styles standard markdown quotes. */
-blockquote {
-  margin: 0.8em 0;
-  padding: 0.3em 1em;
-  border-left: 4px solid var(--p-accent);
-  color: var(--p-dim);
-}
-
-/* Images (weasyprint has no box-shadow; border gives the framing) */
-img {
-  max-width: 100%;
-  height: auto;
-  display: block;
-  margin: 1em auto;
-  border-radius: 8px;
-  border: 1px solid var(--p-rule);
-}
-
-/* Monospace font for fenced code */
-pre, pre > code {
-  font-family: "Hack Nerd Font Mono", Menlo, Consolas, monospace;
-}
-
-/* Optional table of contents: add --toc --toc-depth=2 to the pandoc call */
-nav#TOC {
-  border: 1px solid var(--p-rule);
-  border-radius: 8px;
-  padding: 12px 20px;
-  margin: 1em 0;
-}
-nav#TOC > h2 { margin-top: 0; }
-nav#TOC ul { list-style: none; padding-left: 1.2em; }
-nav#TOC > ul { padding-left: 0.5em; }
-nav#TOC a { border-bottom: none; }
 
 /* PDF pagination (ignored by browsers): plain pages; a document template
-   (below) swaps in its own `@page doc` */
+   (below) swaps in its own `@page doc`. Letter = this machine's en_CA locale;
+   front matter `paper: a4` overrides both. */
 @page {
+  size: letter;
   margin: 18mm 16mm;
   background-color: var(--p-bg);
   @bottom-center {
@@ -368,26 +352,24 @@ nav#TOC a { border-bottom: none; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   Document templates — SHARED by the kitchen-sink app (reading view + Export
-   PDF) and EXTERNAL_BUILD_AND_OPEN_PDF (nvim): this file is the single source,
-   both pipelines load it. ONE marker line in the markdown restyles the whole
-   document (screen reading view AND PDF export):
+   Document templates. ONE marker restyles the whole document (screen AND PDF):
 
-       <div class="doc tokyo-night" data-foot="Confidential"></div>
+       ---                               or anywhere in the body:
+       theme: tokyo-night                <div class="doc tokyo-night" data-foot="Confidential"></div>
+       footer: Confidential
+       ---
 
-   Put it anywhere (top is tidy). Templates: tokyo-night · paper · executive ·
-   terminal + 10 researched palettes (see below). No marker = the app-theme look above, untouched. Snippets:
-   `markdown_doc_tokyo_night` … in kitchen-sink/vim/snippets/markdown.json.
+   Templates: tokyo-night · paper · executive · terminal + 10 researched
+   palettes (below). No marker = the plain look above. Snippets:
+   `markdown_doc_*` in nvim/snippets/markdown.json; <leader>mds picks one.
 
-   Content conventions (same as friendly_document_styling.css):
+   Content conventions:
      # Title            → page-1 title + the running header on pages 2+
      paragraph under it → subtitle (running header, right side)
-     data-foot="…"      → footer text, left ("Page n of N" is on the right)
+     footer / data-foot → footer text, left ("Page n of N" is on the right)
 
    A template only sets --p-* colors + --t-* shape variables, so a new
-   template = ~15 lines. The app's own theme layer (kitchen-sink prose_theme.css)
-   uses the same --p-* names for its no-marker look; the gated block below gives
-   the plain nvim pipeline the same consumers. */
+   template = ~10 lines. */
 
 /* marker: zero-height, but present so string-set can read it */
 .doc { display: block; height: 0; margin: 0; padding: 0; overflow: hidden;
@@ -544,10 +526,10 @@ h1:first-of-type + p { string-set: doc-sub content(text); }
 :root:has(.doc) h1:first-of-type {
   background: var(--t-title-bg); color: var(--t-title-color);
   border-bottom: 2px solid var(--t-title-rule);
-  margin: 0 0 4px; padding: 14px 16px 10px; font-size: 28px; line-height: 1.2; letter-spacing: -.01em;
+  margin: 0 0 4px; padding: 14px 16px 10px; font-size: 1.75em; line-height: 1.2; letter-spacing: -.01em;
 }
 :root:has(.doc) h1:first-of-type + p {
-  color: var(--p-dim); font-size: 13px; margin: 8px 0 22px; padding: 0 16px;
+  color: var(--p-dim); font-size: .82em; margin: 8px 0 22px; padding: 0 16px;
 }
 :root:has(.doc) h2 { color: var(--p-accent); border-bottom: 1px solid var(--p-rule); padding-bottom: 4px; }
 :root:has(.doc) h3, :root:has(.doc) h4 { color: var(--p-accent2); }
@@ -584,31 +566,33 @@ h1:first-of-type + p { string-set: doc-sub content(text); }
   @top-left { content: none; border: none; } @top-right { content: none; border: none; }
 }
 
-/* — copy-friendly PDF: add `clean` to the marker (class="doc paper clean") and
-   the language / alert icons (private-use font glyphs, which copy as junk
-   characters) are dropped, so a copied snippet or sentence is only text — */
-:root:has(.doc.clean) pre::before, :root:has(.doc.clean) pre.sourceCode::before,
+/* — copy-friendly PDF: `clean: true` (or class="doc paper clean") drops the
+   icon-font glyphs (private-use characters copy as junk), so a copied snippet
+   or sentence is only text — */
+:root:has(.doc.clean) div.code::before { content: attr(data-lang); }
 :root:has(.doc.clean) div.note > div.title::before, :root:has(.doc.clean) div.tip > div.title::before,
 :root:has(.doc.clean) div.important > div.title::before, :root:has(.doc.clean) div.warning > div.title::before,
 :root:has(.doc.clean) div.caution > div.title::before { content: none !important; }
-/* a forced page break: <div class="pagebreak"></div> */
-.pagebreak { break-after: page; height: 0; margin: 0; }
 
 /* — page breaks (PDF) — headings never strand at a page bottom, short blocks
-   stay whole, paragraphs keep ≥3 lines on each side of a break, long URLs wrap */
+   stay whole, paragraphs keep ≥3 lines on each side of a break, long URLs
+   wrap. Tables may split (rows stay whole, the header repeats) instead of
+   jumping to the next page and leaving a gap. — */
 h1, h2, h3, h4, h5, h6 { break-after: avoid; break-inside: avoid; }
 p, li, blockquote { orphans: 3; widows: 3; }
-li, tr, table, figure, img, blockquote, dt, div.note, div.tip, div.important, div.warning, div.caution { break-inside: avoid; }
-pre { break-inside: avoid; white-space: pre-wrap; overflow-wrap: anywhere; }   /* weasyprint still splits one taller than a page */
-h2 + pre, h3 + pre, h2 + table, h3 + table, p:has(+ pre), p:has(+ table) { break-after: avoid; }
+li, tr, figure, img, blockquote, dt, details, div.note, div.tip, div.important, div.warning, div.caution { break-inside: avoid; }
+h2 + pre, h3 + pre, h2 + table, h3 + table, h2 + div.code, h3 + div.code,
+p:has(+ pre), p:has(+ table), p:has(+ div.code) { break-after: avoid; }
 thead { display: table-header-group; }
 a { overflow-wrap: anywhere; }
 
-/* — tables never run off the page (PDF) — cells wrap anywhere (URLs, code),
-   and wide tables (6+ / 10+ columns) shrink their text and padding so they
-   still read. Mirrored in kitchen-sink pylib/prose_pdf.json "fit_css", which
-   the app appends to every export whatever CSS is configured. */
 @media print {
+  /* code wraps on paper (scrolls on screen); weasyprint still splits a block taller than a page */
+  pre, pre > code.sourceCode { white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre { break-inside: avoid; }
+
+  /* tables never run off the page: cells wrap anywhere (URLs, code), and wide
+     tables (6+ / 10+ columns) shrink their text and padding so they still read */
   table { max-width: 100% !important; }
   th, td { overflow-wrap: anywhere !important; hyphens: manual !important; }
   th code, td code { white-space: normal !important; overflow-wrap: anywhere !important; }

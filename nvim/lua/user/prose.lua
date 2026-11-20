@@ -1,12 +1,15 @@
--- prose.lua — kitchen-sink's ◐ document-style picker, ported to nvim.
+-- prose.lua — document-style picker + winbar for markdown buffers.
 --
 --   <leader>mds / :ProseStyle [name]   pick a document style (tokyo-night,
---                                      paper, …): edits the
+--                                      paper, …). Edits front matter `theme:`
+--                                      when the file has front matter, else the
 --                                      `<div class="doc NAME">` marker on line 1.
---   <leader>mdo                        build + open the document (core.lua).
+--   <leader>mdo / mdp                  build + open the HTML / PDF (core.lua).
+--   <leader>mdw                        toggle rebuild on save (core.lua).
 --
--- Markdown buffers get a clickable winbar: `≡ Prose` (= <leader>mdo) and
--- `◐ style` (= <leader>mds). Set vim.g.prose_winbar = false to turn it off.
+-- Markdown buffers get a clickable winbar: `≡ Prose` (= <leader>mdo),
+-- `◐ style` (= <leader>mds) and `○ live` / `● live` (= <leader>mdw).
+-- Set vim.g.prose_winbar = false to turn it off.
 local M = {}
 
 local CSS = vim.fn.fnamemodify(vim.fn.resolve(vim.fn.stdpath('config')) .. '/../markdown_generator', ':p')
@@ -26,9 +29,29 @@ local function marker(template, foot)
   return ('<div class="doc %s"%s></div>'):format(template, foot ~= '' and (' data-foot="%s"'):format(foot) or '')
 end
 
+-- YAML front matter: { first = 1, last = closing-line, theme_line = n|nil, theme = s|nil }
+local function front_matter(buf)
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, 60, false)
+  if lines[1] ~= '---' then return nil end
+  for i = 2, #lines do
+    if lines[i] == '---' or lines[i] == '...' then
+      local fm = { last = i }
+      for j = 2, i - 1 do
+        local v = lines[j]:match('^theme:%s*(.-)%s*$')
+        if v then fm.theme_line, fm.theme = j, (v:gsub('^["\']', ''):gsub('["\']$', '')) end
+      end
+      return fm
+    end
+  end
+  return nil
+end
+
 function M.current_style(buf)
-  local m = parse_marker(vim.api.nvim_buf_get_lines(buf or 0, 0, 1, false)[1])
-  return m and m.template or nil
+  buf = buf or 0
+  local m = parse_marker(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1])
+  if m then return m.template end
+  local fm = front_matter(buf)
+  return fm and fm.theme ~= '' and fm.theme or nil
 end
 
 -- the style names the CSS defines (`:root:has(.NAME) { … --p-bg …}`)
@@ -47,9 +70,20 @@ function M.styles()
   return out
 end
 
--- set (template = name) or remove (template = nil) the marker on line 1
+-- set (template = name) or remove (template = nil) the style: front matter
+-- `theme:` when the file has front matter, else the marker on line 1
 function M.set_style(buf, template)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, 2, false)
+  local fm = front_matter(buf)
+  if fm then
+    if fm.theme_line then
+      local repl = template and { 'theme: ' .. template } or {}
+      vim.api.nvim_buf_set_lines(buf, fm.theme_line - 1, fm.theme_line, false, repl)
+    elseif template then
+      vim.api.nvim_buf_set_lines(buf, fm.last - 1, fm.last - 1, false, { 'theme: ' .. template })
+    end
+    return
+  end
   local old = parse_marker(lines[1])
   if not old and not template then return end
   if not old then
@@ -81,16 +115,19 @@ function M.pick_style()
   end)
 end
 
--- ── clickable winbar: ≡ Prose | ◐ style ───────────────────────────────────
+-- ── clickable winbar: ≡ Prose | ◐ style | ○ live ──────────────────────────
 function _G.ProseWinbarOpen() require('user.db_functions').markdown_open() end
 function _G.ProseWinbarStyle() M.pick_style() end
+function _G.ProseWinbarLive() require('user.db_functions').markdown_watch_toggle() end
 
 function M.winbar()
-  local function seg(fn, label)
-    return ('%%@%s@%%#Comment# %s %%*%%X'):format(fn, label)
+  local function seg(fn, label, hl)
+    return ('%%@%s@%%#%s# %s %%*%%X'):format(fn, hl or 'Comment', label)
   end
+  local live = require('user.db_functions').markdown_watching(0)
   return '%=' .. seg('v:lua.ProseWinbarOpen', '≡ Prose')
-    .. seg('v:lua.ProseWinbarStyle', '◐ ' .. (M.current_style(0) or 'style')) .. ' '
+    .. seg('v:lua.ProseWinbarStyle', '◐ ' .. (M.current_style(0) or 'style'))
+    .. seg('v:lua.ProseWinbarLive', live and '● live' or '○ live', live and 'DiagnosticOk' or 'Comment') .. ' '
 end
 
 function M.setup()

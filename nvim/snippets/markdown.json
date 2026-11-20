@@ -92,6 +92,60 @@
     ],
     "category": "Documents"
   },
+  "markdown_doc_report": {
+    "prefix": "markdown_doc_report",
+    "category": "Documents",
+    "description": "Report skeleton driven by front matter: TL;DR, metric tiles, TOC, diagram, risks",
+    "body": [
+      "---",
+      "title: ${1:Report Title}",
+      "subtitle: ${2:Prepared for Leadership · YYYY-MM-DD}",
+      "theme: ${3|paper,executive,tokyo-night,nord|}",
+      "footer: ${4:Confidential}",
+      "toc: 2",
+      "numbered: true",
+      "---",
+      "",
+      "::: tldr",
+      "${5:The conclusion and the decision you need, in two sentences.}",
+      ":::",
+      "",
+      "::: stats",
+      "- **${6:38%}** ${7:latency reduction}",
+      "- **${8:99.9%}** ${9:uptime}",
+      "- **${10:12}** ${11:services migrated}",
+      ":::",
+      "",
+      "## Context",
+      "",
+      "${12:What changed and why it matters.}",
+      "",
+      "## How it works",
+      "",
+      "```mermaid",
+      "flowchart LR",
+      "  A[${13:Client}] --> B[${14:Service}] --> C[(${15:Database})]",
+      "```",
+      "",
+      "## Results",
+      "",
+      "| Metric | Before | After |",
+      "|:-------|-------:|------:|",
+      "| p95 latency | 320 ms | 198 ms |",
+      "",
+      "## Risks",
+      "",
+      "::: risk",
+      "${16:What could go wrong, and the mitigation.}",
+      ":::",
+      "",
+      "## Next steps",
+      "",
+      "- [ ] ${17:Owner — action — date}",
+      "",
+      "$0"
+    ]
+  },
   "markdown_doc_tokyo_night": {
     "prefix": "markdown_doc_tokyo_night",
     "description": "Document template: dark navy, blue/violet accents",
@@ -440,6 +494,19 @@
     "description": "Table with left / center / right alignment",
     "category": "Tables"
   },
+  "markdown_csv_table": {
+    "prefix": "markdown_csv_table",
+    "category": "Tables",
+    "description": "CSV block rendered as a table (first row = header)",
+    "body": [
+      "```csv",
+      "${1:Name,Owner,Status}",
+      "${2:auth,Platform,ok}",
+      "${3:billing,Payments,watch}",
+      "```",
+      "$0"
+    ]
+  },
   "markdown_h1": {
     "prefix": "markdown_h1",
     "body": [
@@ -673,6 +740,31 @@
       "```$0"
     ]
   },
+  "markdown_math_block": {
+    "prefix": "markdown_math_block",
+    "category": "Math",
+    "description": "Display math block $$…$$",
+    "body": [
+      "\\$\\$",
+      "${1:a^2 + b^2 = c^2}",
+      "\\$\\$",
+      "$0"
+    ]
+  },
+  "markdown_math_aligned": {
+    "prefix": "markdown_math_aligned",
+    "category": "Math",
+    "description": "Aligned multi-line equations",
+    "body": [
+      "\\$\\$",
+      "\\\\begin{aligned}",
+      "${1:f(x)} &= ${2:(x+1)^2} \\\\\\\\",
+      "     &= ${3:x^2 + 2x + 1}",
+      "\\\\end{aligned}",
+      "\\$\\$",
+      "$0"
+    ]
+  },
   "markdown_frontmatter": {
     "prefix": "markdown_frontmatter",
     "body": [
@@ -684,6 +776,25 @@
       "$0"
     ],
     "category": "Layout"
+  },
+  "markdown_frontmatter_doc": {
+    "prefix": "markdown_frontmatter_doc",
+    "category": "Layout",
+    "description": "Front matter with every build option (theme, toc, numbering, footer, paper)",
+    "body": [
+      "---",
+      "title: ${1:Document Title}",
+      "subtitle: ${2:Who it is for · YYYY-MM-DD}",
+      "theme: ${3|paper,executive,tokyo-night,terminal,catppuccin-latte,catppuccin-mocha,nord,dracula,gruvbox-light,gruvbox-dark,solarized-light,solarized-dark,rose-pine,rose-pine-dawn|}",
+      "footer: ${4:Confidential}",
+      "toc: ${5|true,2,3,false|}",
+      "numbered: ${6|false,true|}",
+      "paper: ${7|letter,a4,letter landscape,a4 landscape|}",
+      "clean: ${8|false,true|}",
+      "---",
+      "",
+      "$0"
+    ]
   },
   "markdown_checklist_dated": {
     "prefix": "markdown_checklist_dated",
@@ -1289,6 +1400,39 @@
       "$0"
     ]
   },
+  "markdown_callout_tldr": {
+    "prefix": "markdown_callout_tldr",
+    "category": "Callouts",
+    "description": "Fenced TL;DR box (lead with the conclusion)",
+    "body": [
+      "::: tldr",
+      "${1:The conclusion in one or two sentences.}",
+      ":::",
+      "$0"
+    ]
+  },
+  "markdown_callout_summary": {
+    "prefix": "markdown_callout_summary",
+    "category": "Callouts",
+    "description": "Fenced summary box",
+    "body": [
+      "::: summary",
+      "${1:Summary of this section.}",
+      ":::",
+      "$0"
+    ]
+  },
+  "markdown_callout_fenced": {
+    "prefix": "markdown_callout_fenced",
+    "category": "Callouts",
+    "description": "Any callout or alert as a fenced div, with an optional custom title",
+    "body": [
+      "::: {.${1|risk,decision,action,example,question,breaking,deprecated,rollback,perf,summary,tldr,note,tip,important,warning,caution|} title=\"${2:Title}\"}",
+      "${3:Body text.}",
+      ":::",
+      "$0"
+    ]
+  },
   "markdown_badge_ok": {
     "prefix": "markdown_badge_ok",
     "category": "Inline",
@@ -1352,6 +1496,15 @@
       "<kbd>${1:Cmd}</kbd>$0"
     ]
   },
+  "markdown_math_inline": {
+    "prefix": "markdown_math_inline",
+    "category": "Inline",
+    "description": "Inline math $…$ (MathJax)",
+    "inline": true,
+    "body": [
+      "\\$${1:E = mc^2}\\$$0"
+    ]
+  },
   "markdown_tree_block": {
     "prefix": "markdown_tree_block",
     "category": "Code",
@@ -1371,6 +1524,59 @@
     "description": "Force a new page in the PDF",
     "body": [
       "<div class=\"pagebreak\"></div>",
+      "$0"
+    ]
+  },
+  "markdown_stats": {
+    "prefix": "markdown_stats",
+    "category": "Layout",
+    "description": "Row of metric tiles: big number + label",
+    "body": [
+      "::: stats",
+      "- **${1:38%}** ${2:p95 latency reduction}",
+      "- **${3:99.97%}** ${4:uptime}",
+      "- **${5:12}** ${6:services migrated}",
+      "- **${7:\\$41k}** ${8:annual saving}",
+      ":::",
+      "$0"
+    ]
+  },
+  "markdown_columns": {
+    "prefix": "markdown_columns",
+    "category": "Layout",
+    "description": "Two columns side by side (screen and PDF)",
+    "body": [
+      ":::: columns",
+      "::: column",
+      "${1:Left column}",
+      ":::",
+      "::: column",
+      "${2:Right column}",
+      ":::",
+      "::::",
+      "$0"
+    ]
+  },
+  "markdown_figure": {
+    "prefix": "markdown_figure",
+    "category": "Layout",
+    "description": "Image with a caption (alt text becomes the caption) and a width",
+    "body": [
+      "![${1:Caption text}](${2:image.png}){width=${3:60%}}",
+      "",
+      "$0"
+    ]
+  },
+  "markdown_definition": {
+    "prefix": "markdown_definition",
+    "category": "Layout",
+    "description": "Definition list",
+    "body": [
+      "${1:Term}",
+      ": ${2:Definition of the term.}",
+      "",
+      "${3:Another term}",
+      ": ${4:Its definition.}",
       "$0"
     ]
   },
@@ -1705,6 +1911,160 @@
       "}",
       "orders.user_id -> users.id",
       "```$0"
+    ]
+  },
+  "markdown_mermaid_flowchart": {
+    "prefix": "markdown_mermaid_flowchart",
+    "category": "Diagrams",
+    "description": "Mermaid flowchart",
+    "body": [
+      "```mermaid",
+      "flowchart ${1|LR,TD|}",
+      "  A[${2:Start}] --> B{${3:Decision?}}",
+      "  B -->|yes| C[${4:Do it}]",
+      "  B -->|no| D[${5:Skip}]",
+      "  C --> E[(${6:Store})]",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_sequence": {
+    "prefix": "markdown_mermaid_sequence",
+    "category": "Diagrams",
+    "description": "Mermaid sequence diagram",
+    "body": [
+      "```mermaid",
+      "sequenceDiagram",
+      "  autonumber",
+      "  participant C as ${1:Client}",
+      "  participant A as ${2:API}",
+      "  participant D as ${3:DB}",
+      "  C->>A: ${4:POST /orders}",
+      "  A->>D: ${5:insert}",
+      "  D-->>A: ok",
+      "  A-->>C: ${6:201 Created}",
+      "  Note over A,D: ${7:inside one transaction}",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_state": {
+    "prefix": "markdown_mermaid_state",
+    "category": "Diagrams",
+    "description": "Mermaid state diagram",
+    "body": [
+      "```mermaid",
+      "stateDiagram-v2",
+      "  [*] --> ${1:Draft}",
+      "  $1 --> ${2:Review}: submit",
+      "  $2 --> $1: changes",
+      "  $2 --> ${3:Published}: approve",
+      "  $3 --> [*]",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_er": {
+    "prefix": "markdown_mermaid_er",
+    "category": "Diagrams",
+    "description": "Mermaid entity-relationship diagram",
+    "body": [
+      "```mermaid",
+      "erDiagram",
+      "  ${1:USER} ||--o{ ${2:ORDER} : places",
+      "  $2 ||--|{ ${3:LINE_ITEM} : contains",
+      "  $1 {",
+      "    int id PK",
+      "    string email",
+      "  }",
+      "  $2 {",
+      "    int id PK",
+      "    int user_id FK",
+      "  }",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_class": {
+    "prefix": "markdown_mermaid_class",
+    "category": "Diagrams",
+    "description": "Mermaid class diagram",
+    "body": [
+      "```mermaid",
+      "classDiagram",
+      "  class ${1:Repository} {",
+      "    +find(id) Entity",
+      "    +save(e Entity) void",
+      "  }",
+      "  class ${2:SqlRepository}",
+      "  $1 <|-- $2",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_gantt": {
+    "prefix": "markdown_mermaid_gantt",
+    "category": "Diagrams",
+    "description": "Mermaid gantt chart",
+    "body": [
+      "```mermaid",
+      "gantt",
+      "  title ${1:Rollout}",
+      "  dateFormat YYYY-MM-DD",
+      "  section ${2:Build}",
+      "  ${3:Design} :done, a1, ${4:2026-01-05}, 5d",
+      "  ${5:Implement} :active, a2, after a1, 10d",
+      "  section ${6:Ship}",
+      "  ${7:Beta} :a3, after a2, 5d",
+      "  ${8:GA} :milestone, after a3, 0d",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_pie": {
+    "prefix": "markdown_mermaid_pie",
+    "category": "Diagrams",
+    "description": "Mermaid pie chart",
+    "body": [
+      "```mermaid",
+      "pie title ${1:Traffic by client}",
+      "  \"${2:API}\" : ${3:55}",
+      "  \"${4:Web}\" : ${5:30}",
+      "  \"${6:Jobs}\" : ${7:15}",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_mindmap": {
+    "prefix": "markdown_mermaid_mindmap",
+    "category": "Diagrams",
+    "description": "Mermaid mind map",
+    "body": [
+      "```mermaid",
+      "mindmap",
+      "  root((${1:Topic}))",
+      "    ${2:Goals}",
+      "      ${3:Goal A}",
+      "    ${4:Risks}",
+      "      ${5:Risk A}",
+      "    ${6:Open questions}",
+      "```",
+      "$0"
+    ]
+  },
+  "markdown_mermaid_timeline": {
+    "prefix": "markdown_mermaid_timeline",
+    "category": "Diagrams",
+    "description": "Mermaid timeline",
+    "body": [
+      "```mermaid",
+      "timeline",
+      "  title ${1:Project history}",
+      "  ${2:2025 Q4} : ${3:Kickoff}",
+      "  ${4:2026 Q1} : ${5:Beta} : ${6:First customers}",
+      "  ${7:2026 Q2} : ${8:GA}",
+      "```",
+      "$0"
     ]
   }
 }

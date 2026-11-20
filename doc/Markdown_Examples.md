@@ -179,114 +179,171 @@ and ordinary text.
 
 ----
 
-## Copy buttons on code blocks (what we learned)
+## The build pipeline (`<leader>mdo`)
 
-Every code block in generated HTML gets a one-click copy button (blue
-overlapping-squares icon) on its left side, injected at render time.
+`EXTERNAL_BUILD_AND_OPEN_PDF SRC.md OUT` (`~/.dotfiles/bash/external.sh`) writes
+`OUT.html` (self-contained: images embedded, safe to send), `OUT.pdf` and
+`OUT.png` next to the markdown:
 
-```bash
-# markdown_generator/copy_button.js  - injection + click handler
-# markdown_generator/copy_button.css - side-strip button styling
+```text
+pandoc -f gfm+definition_lists+fenced_divs+attributes+implicit_figures
+  → document.lua   front matter, title, TOC, numbering, code labels, task lists,
+                   ::: callouts, csv/svg fences, page breaks
+  → render.lua     ```dot ```d2 ```mermaid and $math$ → SVG (cached)
+  → .html (screen.css / screen.js: copy buttons, # permalinks)
+  → weasyprint .pdf → pdftoppm .png (background)
 ```
 
-Wired into the pandoc pipeline in `EXTERNAL_BUILD_AND_OPEN_PDF`
-(`~/.dotfiles/bash/external.sh`):
-
-```bash
-pandoc -s -f gfm -t html5 \
-  --include-in-header="$DOTDIR/markdown_generator/friendly_document_styling.css" \
-  --include-in-header="$DOTDIR/markdown_generator/copy_button.css" \
-  --include-after-body="$DOTDIR/markdown_generator/copy_button.js" \
-  -o out.html in.md
-```
+nvim: `<leader>mdo` build + open HTML · `<leader>mdp` build + open PDF ·
+`<leader>mdw` rebuild on every `:w` (winbar `○ live` / `● live`; Cmd+R the
+browser) · `<leader>mds` pick a style · `<leader>mdi` insert a snippet.
+Warnings (missing image, bad mermaid / math) arrive as a WARN notification
+even when the build succeeds. `MDGEN_OPEN=html|pdf|none` picks what opens when
+run from a shell.
 
 > [!NOTE]
-> `--include-in-header` and `--include-after-body` both insert files
-> VERBATIM - nothing is auto-wrapped for you. Following the repo convention
-> (`friendly_document_styling.css` does the same), the CSS include carries its
-> own `<style>...</style>` wrapper and the JS include its own
-> `<script>...</script>` wrapper. A bare file lands as visible text on the page
-> (or raw JS that never runs).
+> `--include-in-header` / `--include-after-body` insert files VERBATIM, so the
+> CSS files carry their own `<style>` wrapper and `screen.js` its own
+> `<script>`. pandoc's own default CSS is off (`-M document-css=false`; `-V`
+> does NOT work): every rule is in `friendly_document_styling.css`.
 
-> [!WARNING]
-> Don't position the button absolutely over the `<pre>`:
-> - the code blocks already have `::before` language icons (bash/cpp/lua logos)
->   from `friendly_document_styling.css` that the overlay collides with
-> - an overlay also blocks selecting/copying the code text by hand
->
-> The working design: JS wraps each `<pre>` in `<div class="codeblock">`
-> (`display: flex`) and appends the button as a SIBLING before the `<pre>` -
-> button on the left, code on the right, nothing overlapping.
+## Front matter = build options
 
-> [!TIP]
-> - The clipboard API needs a real user gesture: programmatic `.click()`
->   (e.g. from devtools) silently hangs; a real mouse click works. A
->   `document.execCommand("copy")` fallback covers browsers without the API.
-> - Copied text = `code.innerText` of the block.
-> - Firefox gotcha: `open file.html` reuses the existing tab WITHOUT
->   reloading - after regenerating HTML you must Cmd+R to see changes.
-> - weasyprint runs no JS, so the PDF output is unaffected by all of this.
+```yaml
+---
+title: Q3 Platform Review     # becomes the title if the body has no `# Title`
+subtitle: For Leadership      # (else "author · date") → the subtitle line
+theme: tokyo-night            # same as <div class="doc tokyo-night">
+footer: Confidential          # PDF footer (left); "Page n of N" on the right
+clean: true                   # copy-friendly PDF: no icon-font glyphs
+toc: true                     # contents box (PDF: with page numbers); or a depth 2 / 3
+numbered: true                # 1 / 1.1 / 1.1.1 headings (TOC too)
+paper: a4                     # default letter; also "a4 landscape"
+---
+```
+
+Snippets: `markdown_frontmatter_doc` (every option) and `markdown_doc_report`
+(a whole report). `<leader>mds` edits `theme:` when there is front matter.
+
+## Mermaid and math
+
+```mermaid
+flowchart LR
+  A[Markdown] --> B[pandoc] --> C{Mermaid / math?}
+  C -->|yes| D[render.mjs]
+  C -->|no| E[HTML]
+  D --> E --> F[PDF]
+```
+
+Inline $E = mc^2$, or a display block:
+
+$$
+\sum_{k=1}^{n} k = \frac{n(n+1)}{2}
+$$
+
+Both run in ONE node process per build (`markdown_generator/render.mjs`):
+MathJax for TeX, mermaid-cli + headless Chrome for diagrams, with the
+"classic" look and SVG-text labels because weasyprint can't draw
+`<foreignObject>`. Colors follow the document's theme, like dot / d2. The
+node packages (~500MB) live OUTSIDE the dotfiles in
+`~/.local/share/markdown_generator`, installed on first use by
+`EXTERNAL_MARKDOWN_NODE_SETUP` (re-runs when `markdown_generator/package.json`
+changes; uses Google Chrome.app instead of downloading Chromium). A bad diagram
+is a red box with mermaid's message. Prices like $5 and $10 stay text.
+Snippets: `markdown_mermaid_*` (flowchart, sequence, state, er, class, gantt,
+pie, mindmap, timeline), `markdown_math_inline`, `_math_block`, `_math_aligned`.
+
+## Report building blocks
+
+::: tldr
+Lead with the conclusion: `::: tldr` / `::: summary`.
+:::
+
+::: stats
+- **38%** p95 latency
+- **99.97%** uptime
+- **12** services
+:::
+
+::: {.risk title="Custom title"}
+Any callout or alert as a fenced div: `::: risk`, `::: warning`,
+`::: {.decision title="…"}`.
+:::
+
+```csv
+Block,Syntax
+Metric tiles,::: stats + a bullet list of **number** label
+Two columns,:::: columns / ::: column
+Captioned image,![caption](img.png){width=60%}
+CSV table,```csv fence (first row = header)
+Page break,::: pagebreak or \newpage
+```
+
+- [x] Task lists are drawn boxes (weasyprint can't draw checkboxes)
+- [ ] Every code fence gets an icon + language label (nvim-web-devicons glyphs)
+
+Term
+: Definition lists work too.
 
 ## Document templates (one marker restyles everything)
 
-Put one line anywhere in the markdown (nvim snippets `markdown_doc_tokyo_night`,
-`_paper`, … one per template; defined in kitchen-sink
-`vim/snippets/markdown.json`):
+Front matter `theme: NAME`, or one line anywhere in the markdown (nvim snippets
+`markdown_doc_tokyo_night`, `_paper`, … one per template):
 
 ```html
 <div class="doc tokyo-night" data-foot="Confidential"></div>
 ```
 
 - `# Title` = page-1 title and the running header on pages 2+; the paragraph
-  right under it = subtitle (header, right). `data-foot` = footer text; the
-  footer's right side is "Page n of N".
-- No marker = the plain style, unchanged. Templates live ONLY in
+  right under it = subtitle (header, right). `data-foot` / `footer:` = footer
+  text; the footer's right side is "Page n of N".
+- No marker = the plain style. Templates live ONLY in
   `markdown_generator/friendly_document_styling.css` (palette vars `--p-*`,
-  `--t-*`, `:root:has(.name)`); the kitchen-sink app loads that same file
-  (`[notes] pdf-css`), so reading view, Export PDF and
-  `EXTERNAL_BUILD_AND_OPEN_PDF` render identically. New template = copy a
-  `:root:has(.name) { … }` palette block.
+  `--t-*`, `:root:has(.name)`). New template = copy a `:root:has(.name) { … }`
+  palette block; `<leader>mds` and render.lua pick it up automatically.
 
 Templates: `tokyo-night` `paper` `executive` `terminal`, plus researched
 palettes (official hex values) `catppuccin-mocha` `catppuccin-latte` `dracula`
 `nord` `gruvbox-dark` `gruvbox-light` `solarized-dark` `solarized-light`
-`rose-pine` `rose-pine-dawn`. In the app, the ◐ chip on the Prose | nvim switch
-lists them (read from the stylesheet's palette blocks).
+`rose-pine` `rose-pine-dawn`.
 
 ## Developer callouts, badges and the insert picker
 
-Callouts (`<div class="callout KIND">`, a blank line, markdown, a blank line,
-`</div>`): `decision` `risk` `breaking` `deprecated` `action` `example`
-`question` `rollback` `perf`. The label is drawn by the CSS — don't repeat it
-in the text. Badges: `<span class="badge ok">Shipped</span>` (`ok warn bad
-info muted accent`). ` ```diff ` colors removed / added / hunk lines.
-Page break: `<div class="pagebreak"></div>`. All CSS is in
-`friendly_document_styling.css` (works with or without a style marker).
+Callouts (`::: KIND`, or `<div class="callout KIND">`, a blank line, markdown,
+a blank line, `</div>`): `summary` `tldr` `decision` `risk` `breaking`
+`deprecated` `action` `example` `question` `rollback` `perf`. The label is
+drawn by the CSS (override with `{title="…"}`) — don't repeat it in the text.
+Badges: `<span class="badge ok">Shipped</span>` (`ok warn bad info muted
+accent`). ` ```diff ` colors removed / added / hunk lines.
 
-nvim insert picker (kitchen-sink `vim/snippets.lua`): `<leader>i` (normal mode)
-or `:Insert` — fuzzy search over every snippet, grouped by
-`category`, with a preview. Type `3x4` for a table (3 body rows x 4 columns),
-`clipboard` to turn copied CSV / TSV into a table. Skeleton snippets:
-`markdown_doc_adr`, `_postmortem`, `_runbook`, `_pr`, `_status`, `_professional`,
-plus `markdown_api_endpoint`, `markdown_changelog_entry`.
+nvim insert picker (`nvim/lua/user/snippet_picker.lua`): `<leader>mdi` or
+`:Insert` — fuzzy search over every snippet, grouped by `category`, with a
+preview. Type `3x4` for a table (3 body rows x 4 columns), `clipboard` to turn
+copied CSV / TSV into a table. Skeleton snippets: `markdown_doc_report`,
+`_adr`, `_postmortem`, `_runbook`, `_pr`, `_status`, `_professional`, plus
+`markdown_api_endpoint`, `markdown_changelog_entry`.
 
-## Diagrams (Graphviz + D2)
+## Diagrams (Graphviz, D2, Mermaid)
 
-` ```dot ` / ` ```graphviz ` (Graphviz) and ` ```d2 ` fences become inline diagrams
-in the prose view, Export PDF and `EXTERNAL_BUILD_AND_OPEN_PDF`, coloured from the
-document's style marker (no marker = neutral grays). Filter:
-`markdown_generator/diagrams.lua` (kitchen-sink `[notes] pdf-filter`; default =
-beside `pdf-css`; `none` = off). Needs `brew install graphviz d2`. Don't write
-colors in the diagram — write nodes and edges only. A syntax error renders as a red
-box with the tool's message and your own line number. Snippets (category Diagrams):
-`markdown_dot_flowchart`, `_dot_architecture`, `_d2_flowchart`, `_d2_architecture`,
-`_d2_sequence`, `_d2_erd`. Cached by content in `~/.cache/kitchen-sink/diagrams`.
+` ```dot ` / ` ```graphviz ` (Graphviz), ` ```d2 ` and ` ```mermaid ` fences
+become diagrams coloured from the document's style (no style = the plain
+palette). Filter: `markdown_generator/render.lua`. Needs `brew install graphviz
+d2` (mermaid: see above). Don't write colors in the diagram — write nodes and
+edges only. A syntax error renders as a red box with the tool's message and
+your own line number. Snippets (category Diagrams): `markdown_dot_*`,
+`markdown_d2_*`, `markdown_mermaid_*`. Cached by content in
+`~/.cache/markdown_generator` (bump `VERSION` in render.lua after changing its
+output).
 
-## One stylesheet (how it is managed)
+## Copy buttons and permalinks (screen only)
 
-`markdown_generator/friendly_document_styling.css` is the only place the rules live.
-Every color is a `--p-*` variable: the `:root` block at its top = the plain light
-style; the kitchen-sink app appends its theme's `:root { --p-* }` after it; a
-`<div class="doc NAME">` marker overrides both with `:root:has(.NAME)`. kitchen-sink's
-`prose_theme.css` is now empty of rules. `copy_button.css` is shared the same way.
-New template = one palette block in that file.
+`screen.js` wraps each `<pre>` in `<div class="codeblock">` (`display: flex`)
+with the copy button as a sibling on the left — never an overlay, so the code
+stays selectable. Hovering an h2–h6 shows a `#` permalink; Cmd+P opens every
+`<details>` first. weasyprint runs no JS, so the PDF is unaffected.
+
+> [!TIP]
+> - The clipboard API needs a real user gesture: programmatic `.click()`
+>   silently hangs; a real mouse click works (`execCommand("copy")` fallback).
+> - Firefox gotcha: `open file.html` reuses the existing tab WITHOUT
+>   reloading - after regenerating HTML you must Cmd+R to see changes.
