@@ -12,8 +12,19 @@
 local bx = require('bash_external')
 
 local DEFS_PATH = vim.fn.stdpath('cache') .. '/bash_external_defs.sh'
+-- the source of the dump: when it's newer than the dump, the dump is stale
+-- (e.g. a renamed file in external.sh would otherwise break actions for 24h)
+local SRC_PATH = vim.fn.fnamemodify(vim.fn.resolve(vim.fn.stdpath('config')) .. '/../bash/external.sh', ':p')
 local ready = false
 local pending = {}
+
+local function stale()
+    local dump, src = vim.uv.fs_stat(DEFS_PATH), vim.uv.fs_stat(SRC_PATH)
+    if not dump then return true end
+    if not src then return false end
+    local s, d = src.mtime, dump.mtime
+    return s.sec > d.sec or (s.sec == d.sec and s.nsec > d.nsec)
+end
 
 local function gen_async()
     vim.system({ 'bash', '-lc', 'EXTERNAL_DEFS_DUMP ' .. bx.sh(DEFS_PATH) }, function(ret)
@@ -38,9 +49,10 @@ end
 
 local M = {}
 
--- Path to the defs file, generating it synchronously if it doesn't exist yet.
+-- Path to the defs file, generating it synchronously if it doesn't exist yet
+-- or external.sh changed since it was written (one stat per action call).
 function M.path()
-    if not ready and vim.fn.filereadable(DEFS_PATH) == 0 then
+    if stale() then
         gen_sync()
     end
     return DEFS_PATH
@@ -71,7 +83,7 @@ function M.preload()
     -- Reuse the dumped defs file for a day instead of spawning a login shell
     -- on every nvim start.
     local st = vim.uv.fs_stat(DEFS_PATH)
-    if st and (os.time() - st.mtime.sec) < 24 * 3600 then
+    if st and not stale() and (os.time() - st.mtime.sec) < 24 * 3600 then
         ready = true
         return
     end
