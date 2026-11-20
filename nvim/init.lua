@@ -69,6 +69,13 @@ vim.opt.hidden = true
 vim.opt.autowrite = true
 vim.opt.autowriteall = true
 vim.opt.sessionoptions = { 'blank', 'buffers', 'curdir', 'folds', 'help', 'tabpages', 'winsize' }
+-- Jumplist (Ctrl-O / Ctrl-I): browser-style stack, and start each instance
+-- empty so ShaDa doesn't leak jumps to files from other nvim instances.
+vim.opt.jumpoptions = 'stack,view'
+vim.api.nvim_create_autocmd('VimEnter', {
+    group = vim.api.nvim_create_augroup('user-clearjumps', { clear = true }),
+    callback = function() vim.cmd('clearjumps') end,
+})
 vim.api.nvim_create_autocmd({ 'BufLeave', 'FocusLost', 'CursorHold', 'CursorHoldI' }, {
     group = vim.api.nvim_create_augroup('user-autowrite', { clear = true }),
     callback = function()
