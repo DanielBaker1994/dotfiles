@@ -122,7 +122,7 @@ int main(){ std::cout << "hello"; }
 
 
 
-![](/Users/danielbaker/.dotfiles/doc/RenderedPhotoExample.png)
+![](~/.dotfiles/doc/RenderedPhotoExample.png)
 
 
 
