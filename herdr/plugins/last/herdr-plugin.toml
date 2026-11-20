@@ -1,6 +1,7 @@
 # tmux-style "last" jumps: records focus history from herdr events.
 #   (the "Last workspace" action has no key; run it from the action palette)
-#   sidebar spaces are kept ordered by most recent access (workspace.move on focus)
+#   sidebar spaces float to the top when you change something in them (pane/tab
+#   created, closed, split, moved, tab renamed) - merely switching does not
 #   prefix+l → last tab in this workspace (tmux: last window)
 #   agent pair → read by prefix+a (herdr-pick agents) to start on the last agent;
 #                the "Last agent" action has no key (action palette)
@@ -24,6 +25,35 @@ command = ["./last.sh", "record"]
 [[events]]
 on = "pane.focused"
 command = ["./last.sh", "agent-record"]
+
+# interaction = changing a space; each of these moves it to the top of the sidebar
+[[events]]
+on = "pane.created"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "pane.split"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "pane.closed"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "pane.moved"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "tab.created"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "tab.closed"
+command = ["./last.sh", "touch"]
+
+[[events]]
+on = "tab.renamed"
+command = ["./last.sh", "touch"]
 
 [[actions]]
 id = "workspace"

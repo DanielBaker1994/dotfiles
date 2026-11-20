@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# last.sh record | workspace | tab | agent-record | agent
+# last.sh record | touch | workspace | tab | agent-record | agent
 #
 # tmux-style "last" jumps, driven by Herdr's focus events.
 #
@@ -60,9 +60,10 @@ push_mru() {
     to_top "$state/mru" "$1 $now" "$1" 100
 }
 
-# Keep the sidebar's spaces ordered by most recent access: the workspace that
-# just took focus moves to the top. herdr's CLI has no move command, so this
-# speaks the socket API (workspace.move). Only when the workspace changed.
+# Keep the sidebar's spaces ordered by most recent *interaction*: a space moves
+# to the top when you change something in it (new/closed/split/moved pane, new/
+# closed/renamed tab), not merely when you look at it. herdr's CLI has no move
+# command, so this speaks the socket API (workspace.move).
 move_to_top() {
     local sock="${HERDR_SOCKET_PATH:-$HOME/.config/herdr/herdr.sock}"
     printf '{"id":"last-top","method":"workspace.move","params":{"workspace_id":"%s","insert_index":0}}\n' "$1" |
@@ -71,12 +72,20 @@ move_to_top() {
 
 record() {
     [ -n "${HERDR_WORKSPACE_ID:-}" ] || return 0
-    local top=""
-    read -r top _ 2>/dev/null <"$state/mru" || true
-    [ "$top" = "$HERDR_WORKSPACE_ID" ] || move_to_top "$HERDR_WORKSPACE_ID"
     push_mru "$HERDR_WORKSPACE_ID"
     push ws "$HERDR_WORKSPACE_ID"
     [ -n "${HERDR_TAB_ID:-}" ] && push "tab-$HERDR_WORKSPACE_ID" "$HERDR_TAB_ID"
+}
+
+# structural event in a workspace: float it to the top of the sidebar
+touch_ws() {
+    local ws="${HERDR_WORKSPACE_ID:-}" ctx="${HERDR_PLUGIN_CONTEXT_JSON:-}" top=""
+    if [ -z "$ws" ] && [[ $ctx =~ \"workspace_id\":\"([^\"]+)\" ]]; then ws="${BASH_REMATCH[1]}"; fi
+    [ -n "$ws" ] || return 0
+    read -r top 2>/dev/null <"$state/top" || true
+    [ "$top" = "$ws" ] && return 0
+    move_to_top "$ws"
+    printf '%s\n' "$ws" >"$state/top"
 }
 
 # pane.focused: remember the pane when it hosts an agent. Plain shell panes
@@ -112,6 +121,7 @@ jump() {
 
 case "${1:-}" in
     record) record ;;
+    touch) touch_ws ;;
     # pane.focused: keep the last agent pane (no-op for plain shell panes)
     agent-record) record_agent ;;
     workspace)
