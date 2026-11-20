@@ -213,6 +213,8 @@ pub struct App {
     phase: u64,
     last_tick: Instant,
     geo: Geo,
+    /// screen line (below the head) -> view index; only filled when rows wrap
+    row_map: Vec<usize>,
     last_click: (Instant, i64),
     pending_preview: Option<(String, Item, Instant)>,
     prev_cache: HashMap<String, (Instant, Vec<PreviewPart>, String)>,
@@ -270,6 +272,7 @@ pub fn run(cfg: Config, start_mode: &str) -> i32 {
         phase: 0,
         last_tick: Instant::now(),
         geo: Geo::default(),
+        row_map: Vec::new(),
         last_click: (Instant::now(), -1),
         pending_preview: None,
         prev_cache: HashMap::new(),
@@ -1672,7 +1675,11 @@ impl App {
             && y >= g.list_y as i64
             && y < (g.list_y + g.rows_h) as i64
         {
-            (self.top as i64 + (y - g.list_y as i64)) as i64
+            let off = (y - g.list_y as i64) as usize;
+            if !self.row_map.is_empty() {
+                return self.row_map.get(off).map(|&i| i as i64).unwrap_or(-1);
+            }
+            (self.top as i64 + off as i64) as i64
         } else {
             -1
         }
@@ -1802,7 +1809,9 @@ impl App {
         }
         let view_len = self.view.len();
         let max_top = view_len.saturating_sub(rows_h);
-        self.top = self.top.min(max_top);
+        if !(self.mode == "agents" && cfg.num("wrap_agents", 1) != 0 && drag.is_none()) {
+            self.top = self.top.min(max_top);
+        }
 
         let range = drag.and_then(|d| d.dest.as_ref()).and_then(|dest| self.dest_range(dest));
         let flash_ms = cfg.num("flash_ms", 900).max(1) as u128;
@@ -1814,7 +1823,76 @@ impl App {
         let sel_bg = st.bg_codes("selection_bg");
 
         let mut rows: Vec<String> = Vec::with_capacity(rows_h);
-        for i in 0..rows_h {
+        self.row_map.clear();
+        let wrap = self.mode == "agents" && cfg.num("wrap_agents", 1) != 0 && drag.is_none();
+        if wrap {
+            let avail = iw.saturating_sub(2).max(8);
+            let wrapped = |v: &ViewRow| -> Vec<String> {
+                let title = self
+                    .model
+                    .pane(&v.it.target)
+                    .map(|p| p.title.clone())
+                    .unwrap_or_default();
+                let indent = if title.is_empty() {
+                    4
+                } else {
+                    v.it.plain
+                        .rfind(&title)
+                        .map(|b| ansi::width(&v.it.plain[..b]))
+                        .unwrap_or(4)
+                };
+                wrap_cols(
+                    &ui::highlight(&v.it.display, &v.pos),
+                    &v.it.plain,
+                    avail,
+                    indent.min(avail / 2),
+                )
+            };
+            // keep the whole selected row on screen
+            if self.sel < self.top {
+                self.top = self.sel;
+            }
+            while self.top < self.sel {
+                let used: usize = (self.top..=self.sel)
+                    .filter_map(|j| self.view.get(j))
+                    .map(|v| wrapped(v).len())
+                    .sum();
+                if used <= rows_h {
+                    break;
+                }
+                self.top += 1;
+            }
+            self.top = self.top.min(view_len.saturating_sub(1));
+            let mut idx = self.top;
+            while rows.len() < rows_h {
+                let v = match self.view.get(idx) {
+                    Some(v) => v,
+                    None => break,
+                };
+                let is_sel = idx == self.sel;
+                for (k, line) in wrapped(v).into_iter().enumerate() {
+                    if rows.len() >= rows_h {
+                        break;
+                    }
+                    self.row_map.push(idx);
+                    if is_sel {
+                        let edge = if k == 0 {
+                            st.fg("selection_edge", &st.edge)
+                        } else {
+                            " ".to_string()
+                        };
+                        rows.push(ansi::with_bg(
+                            &format!("{edge} {}", ansi::fit(&line, avail)),
+                            &sel_bg,
+                        ));
+                    } else {
+                        rows.push(format!("  {line}"));
+                    }
+                }
+                idx += 1;
+            }
+        }
+        for i in 0..if wrap { 0 } else { rows_h } {
             let idx = self.top + i;
             let v = match self.view.get(idx) {
                 Some(v) => v,
@@ -2072,4 +2150,80 @@ fn now_stamp() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs().to_string())
         .unwrap_or_else(|_| "0".into())
+}
+
+/// Break a styled row into lines of at most `width` columns, preferring spaces
+/// (break columns come from `plain`, which has the same layout as `styled`).
+/// Continuation lines are indented by `indent` columns; SGR state carries over
+/// because `ansi::slice` keeps every style code.
+fn wrap_cols(styled: &str, plain: &str, width: usize, indent: usize) -> Vec<String> {
+    let chars: Vec<(usize, char)> = {
+        let mut col = 0;
+        plain
+            .chars()
+            .map(|c| {
+                let at = col;
+                col += ansi::char_width(c);
+                (at, c)
+            })
+            .collect()
+    };
+    let total = ansi::width(plain);
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    let mut first = true;
+    loop {
+        let w = if first { width } else { width.saturating_sub(indent).max(1) };
+        if total - start <= w {
+            out.push(piece(styled, start, usize::MAX, first, indent));
+            break;
+        }
+        let limit = start + w;
+        // last space inside (start, limit]
+        let brk = chars
+            .iter()
+            .rev()
+            .find(|(c, ch)| *ch == ' ' && *c > start && *c <= limit)
+            .map(|(c, _)| *c);
+        let end = match brk {
+            Some(c) if c > start + w / 3 => c,
+            _ => limit,
+        };
+        out.push(piece(styled, start, end, first, indent));
+        start = end;
+        // swallow the space we broke on
+        while chars.iter().any(|(c, ch)| *c == start && *ch == ' ') {
+            start += 1;
+        }
+        first = false;
+    }
+    out
+}
+
+fn piece(styled: &str, start: usize, end: usize, first: bool, indent: usize) -> String {
+    let body = ansi::slice(styled, start, end);
+    if first {
+        body
+    } else {
+        format!("{}{body}", " ".repeat(indent))
+    }
+}
+
+#[cfg(test)]
+mod wrap_tests {
+    use super::*;
+
+    #[test]
+    fn wraps_on_spaces_with_hanging_indent() {
+        let plain = "● a › 1  claude  fix the very long agent summary that overflows";
+        let styled = format!("\x1b[33m{plain}\x1b[0m");
+        let lines = wrap_cols(&styled, plain, 30, 5);
+        assert!(lines.len() >= 2);
+        for l in &lines {
+            assert!(ansi::width(l) <= 30, "{:?}", ansi::strip(l));
+        }
+        assert!(ansi::strip(&lines[1]).starts_with("     "));
+        let joined: String = lines.iter().map(|l| ansi::strip(l).trim().to_string()).collect::<Vec<_>>().join(" ");
+        assert_eq!(joined, plain);
+    }
 }
