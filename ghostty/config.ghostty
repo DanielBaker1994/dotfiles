@@ -32,6 +32,9 @@ keybind = cmd+enter=unbind
 # Disable Ctrl+Cmd+F (the other default toggle_fullscreen shortcut).
 keybind = ctrl+cmd+f=unbind
 
+# Disable Close All Windows (cmd+alt+shift+w), easy to hit by accident.
+keybind = cmd+alt+shift+w=unbind
+
 
 keybind = cmd+shift+j=write_scrollback_file:paste,plain
 font-family = "Hack Nerd Font"
