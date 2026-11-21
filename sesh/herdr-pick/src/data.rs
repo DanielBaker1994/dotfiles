@@ -458,17 +458,9 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
 }
 
 fn list_agents(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
-    let rank = |s: &str| -> i32 {
-        match s {
-            "blocked" => 0,
-            "done" => 1,
-            "working" => 2,
-            "idle" => 3,
-            _ => 4,
-        }
-    };
+    // most recently changed first, stale agents sink to the bottom
     let mut panes: Vec<&Pane> = model.panes.iter().filter(|p| p.agent.is_some()).collect();
-    panes.sort_by(|a, b| (rank(&a.status), a.id.clone()).cmp(&(rank(&b.status), b.id.clone())));
+    panes.sort_by(|a, b| b.seq.cmp(&a.seq).then_with(|| a.id.cmp(&b.id)));
     if panes.is_empty() {
         return vec![mk_item(st.dim(&cfg.text("no_agents")), ItemKind::None, "", "", false)];
     }

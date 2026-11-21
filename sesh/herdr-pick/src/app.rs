@@ -802,7 +802,7 @@ impl App {
             self.sel = 1;
         }
         // prefix+a keeps the old "last agent" toggle: the list stays sorted
-        // blocked-first, but the cursor starts on the agent you were in
+        // most-recent-first, but the cursor starts on the agent you were in
         // before this one, so prefix+a enter jumps back like it used to
         if keep_sel == 0 && self.mode == "agents" && query.is_empty() {
             if let Some(i) = self.last_agent_row() {

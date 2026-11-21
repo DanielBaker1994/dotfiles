@@ -39,6 +39,9 @@ pub struct Pane {
     pub title: String,
     pub cwd: String,
     pub focused: bool,
+    /// herdr's global state_change_seq for agent panes (higher = changed more
+    /// recently); 0 for non-agent panes
+    pub seq: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -138,6 +141,10 @@ impl Model {
 
         let tab_ids: Vec<&str> = tabs.iter().map(|t| t.id.as_str()).collect();
         let mut per_tab: HashMap<String, usize> = HashMap::new();
+        let seqs: HashMap<String, i64> = arr("agents")
+            .iter()
+            .map(|a| (s(a, "pane_id"), i(a, "state_change_seq")))
+            .collect();
         let panes: Vec<Pane> = arr("panes")
             .iter()
             .filter(|p| tab_ids.contains(&s(p, "tab_id").as_str()))
@@ -165,6 +172,7 @@ impl Model {
                     title: s(p, "terminal_title_stripped"),
                     cwd,
                     focused: b(p, "focused"),
+                    seq: seqs.get(&s(p, "pane_id")).copied().unwrap_or(0),
                 }
             })
             .collect();

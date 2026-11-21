@@ -50,6 +50,12 @@ export DEV_WORKSPACE="$DEV_NOTES/Workspace"
 #much nicer man pages from neovim
 export MANPAGER="nvim +Man!"
 
+# Default editor. herdr's prefix+e scrollback popup runs `${EDITOR:-vi}`, and
+# the macOS /usr/bin/vi has no clipboard config; nvim sets clipboard=unnamedplus
+# in init.lua, so yanks there reach the system clipboard.
+export EDITOR=nvim
+export VISUAL=nvim
+
 if [[ -f $HOME/.bashrc ]]; then
     source "$HOME/.bashrc"
 fi

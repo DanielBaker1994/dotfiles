@@ -1,7 +1,7 @@
 onboarding = false
 
 [theme]
-name = "tokyo-night"
+name = "rose-pine"
 
 auto_switch = false
 [theme.custom]
@@ -143,7 +143,7 @@ command = "local.last.tab"
 description = "last tab"
 
 # prefix+a: the prefix+w picker opened on agents only (herdr-pick agents),
-# blocked/done first. The cursor starts on the last agent (local.last plugin's
+# most recently updated first. The cursor starts on the last agent (local.last plugin's
 # pair), so prefix+a enter is still the old "toggle to last agent".
 [[keys.command]]
 key = "prefix+a"
@@ -153,7 +153,7 @@ width = "90%"
 height = "85%"
 
 [ui.toast]
-delivery = "terminal"
+delivery = "herdr"
 
 [ui.sound]
 enabled = false
