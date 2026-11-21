@@ -14,6 +14,9 @@ default_shell = ""
 new_cwd = "follow"
 
 [keys]
+detach = ""
+
+
 # Pane focus with the prefix; direct ctrl+h/j/k/l live in the keys.command
 # entries below (vim-aware: forwarded back into Vim when Vim owns the pane,
 # else move focus — the herdr analogue of tmux.conf's is_vim bindings).

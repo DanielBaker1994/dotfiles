@@ -1828,24 +1828,11 @@ impl App {
         if wrap {
             let avail = iw.saturating_sub(2).max(8);
             let wrapped = |v: &ViewRow| -> Vec<String> {
-                let title = self
-                    .model
-                    .pane(&v.it.target)
-                    .map(|p| p.title.clone())
-                    .unwrap_or_default();
-                let indent = if title.is_empty() {
-                    4
-                } else {
-                    v.it.plain
-                        .rfind(&title)
-                        .map(|b| ansi::width(&v.it.plain[..b]))
-                        .unwrap_or(4)
-                };
                 wrap_cols(
                     &ui::highlight(&v.it.display, &v.pos),
                     &v.it.plain,
                     avail,
-                    indent.min(avail / 2),
+                    2,
                 )
             };
             // keep the whole selected row on screen
@@ -2156,7 +2143,22 @@ fn now_stamp() -> String {
 /// (break columns come from `plain`, which has the same layout as `styled`).
 /// Continuation lines are indented by `indent` columns; SGR state carries over
 /// because `ansi::slice` keeps every style code.
+///
+/// A literal newline in the row (e.g. an agent's summary on its own line) is a
+/// hard break: each segment wraps independently, and blank segments are dropped
+/// so an empty summary leaves no ghost line.
 fn wrap_cols(styled: &str, plain: &str, width: usize, indent: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    for (s, p) in styled.split('\n').zip(plain.split('\n')) {
+        if p.trim().is_empty() {
+            continue;
+        }
+        out.extend(wrap_seg(s, p, width, indent));
+    }
+    out
+}
+
+fn wrap_seg(styled: &str, plain: &str, width: usize, indent: usize) -> Vec<String> {
     let chars: Vec<(usize, char)> = {
         let mut col = 0;
         plain
@@ -2225,5 +2227,23 @@ mod wrap_tests {
         assert!(ansi::strip(&lines[1]).starts_with("     "));
         let joined: String = lines.iter().map(|l| ansi::strip(l).trim().to_string()).collect::<Vec<_>>().join(" ");
         assert_eq!(joined, plain);
+    }
+
+    #[test]
+    fn hard_break_puts_summary_on_its_own_line() {
+        let plain = "● a › 1  claude\n  adding a logout button";
+        let styled = format!("\x1b[33m{plain}\x1b[0m");
+        let lines = wrap_cols(&styled, plain, 60, 2);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(ansi::strip(&lines[0]), "● a › 1  claude");
+        assert_eq!(ansi::strip(&lines[1]), "  adding a logout button");
+    }
+
+    #[test]
+    fn empty_summary_drops_the_blank_line() {
+        let plain = "● a › 1  claude\n  ";
+        let lines = wrap_cols(plain, plain, 60, 2);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(ansi::strip(&lines[0]), "● a › 1  claude");
     }
 }

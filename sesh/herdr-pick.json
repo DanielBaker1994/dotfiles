@@ -131,7 +131,7 @@
     "ws": "{icon} {label:22} {tabs:4} {agents:20} {last}",
     "tab": "  {branch} {icon} {number} {text}{splits}{active}",
     "pane": "  {pipe}   {branch} {grip} {icon} {text}  {id}",
-    "agent": "{icon} {ws} {sep} {number}  {agent}  {title}",
+    "agent": "{icon} {ws} {sep} {number}  {agent}\n  {title}",
     "cfg": "{icon} {name}  {saved}",
     "dir": "{icon} {path}  {tag}"
   },

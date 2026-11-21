@@ -36,6 +36,13 @@ keybind = ctrl+cmd+f=unbind
 keybind = cmd+alt+shift+w=unbind
 
 
+keybind = cmd+w=unbind
+keybind = cmd+opt+w=unbind
+keybind = super+shift+w=unbind
+keybind = super+alt+i=unbind
+
+
+
 keybind = cmd+shift+j=write_scrollback_file:paste,plain
 font-family = "Hack Nerd Font"
 
