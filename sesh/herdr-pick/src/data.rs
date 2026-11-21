@@ -1,5 +1,5 @@
 // Data backend: the port of connect-herdr.sh's list / state / preview / label /
-// help / kill / go / browser. Where the shell script leaned on jq and python,
+// help / kill / go. Where the shell script leaned on jq and python,
 // this builds the rows natively and keeps every command in the config.
 
 use crate::ansi;
@@ -176,6 +176,8 @@ pub fn fetch_state(cfg: &Config) -> Result<Value, String> {
                 "ws": s.get("workspaces").cloned().unwrap_or_else(|| json!([])),
                 "tabs": s.get("tabs").cloned().unwrap_or_else(|| json!([])),
                 "panes": s.get("panes").cloned().unwrap_or_else(|| json!([])),
+                // state_change_seq per agent pane: the "most recent first" order
+                "agents": s.get("agents").cloned().unwrap_or_else(|| json!([])),
             }));
         }
     }
@@ -186,6 +188,10 @@ pub fn fetch_state(cfg: &Config) -> Result<Value, String> {
         "ws": w.pointer("/result/workspaces").cloned().unwrap_or_else(|| json!([])),
         "tabs": t.pointer("/result/tabs").cloned().unwrap_or_else(|| json!([])),
         "panes": p.pointer("/result/panes").cloned().unwrap_or_else(|| json!([])),
+        "agents": herdr_json(cfg, "agent_list", &[])
+            .ok()
+            .and_then(|a| a.pointer("/result/agents").cloned())
+            .unwrap_or_else(|| json!([])),
     }))
 }
 
@@ -434,7 +440,7 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
                 let grip = st.fg("dim", &cfg.icons.grip);
                 let icon = status_icon(cfg, st, &p.status);
                 let text = if p.agent.is_some() {
-                    st.fg("agent", &model.pane_text(p))
+                    agent_label(st, p)
                 } else {
                     model.pane_text(p)
                 };
@@ -457,6 +463,24 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
     items
 }
 
+/// "claude · opus 5.5 · medium · 94k tok / 92k cached", one color per piece
+/// (style.tokens agent, agent_model, agent_effort, agent_usage)
+fn agent_label(st: &Style, p: &Pane) -> String {
+    let dot = st.dim(" · ");
+    let mut out = st.fg("agent", p.agent.as_deref().unwrap_or(""));
+    for (tok, val) in [
+        ("agent_model", &p.model),
+        ("agent_effort", &p.effort),
+        ("agent_usage", &p.usage),
+    ] {
+        if !val.is_empty() {
+            out.push_str(&dot);
+            out.push_str(&st.fg(tok, val));
+        }
+    }
+    out
+}
+
 fn list_agents(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
     // most recently changed first, stale agents sink to the bottom
     let mut panes: Vec<&Pane> = model.panes.iter().filter(|p| p.agent.is_some()).collect();
@@ -472,8 +496,8 @@ fn list_agents(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
             .unwrap_or_default();
         let sep = st.dim(&cfg.icons.sep);
         let number = st.fg("tab_number", &model.tab_position(&p.tab_id).to_string());
-        let agent = st.fg("agent", p.agent.as_deref().unwrap_or(""));
-        let title = st.fg("dim", &p.title);
+        let agent = agent_label(st, p);
+        let title = st.fg("agent_title", &p.title);
         let display = ui::fill_tmpl(
             &cfg.row("agent"),
             &[
@@ -933,44 +957,6 @@ pub fn act(cfg: &Config, text: &str) -> Result<(), String> {
         }
         ItemKind::None => Ok(()),
     }
-}
-
-pub fn browser(cfg: &Config, _st: &Style) -> Result<(), String> {
-    print!("{}", cfg.text("browser_prompt"));
-    let _ = std::io::stdout().flush();
-    let mut line = String::new();
-    if std::io::stdin().read_line(&mut line).is_err() {
-        return Ok(());
-    }
-    let input = line.trim().trim_end_matches('/');
-    if input.is_empty() {
-        return Ok(());
-    }
-    let s = match input.find("://") {
-        Some(i) => &input[i + 3..],
-        None => input,
-    };
-    let s = if s.to_lowercase().starts_with("www.") {
-        &s[4..]
-    } else {
-        s
-    };
-    let host = s.split('/').next().unwrap_or("");
-    let mut label = host.split('.').next().unwrap_or("").to_string();
-    if let Some(first) = label.chars().next() {
-        let mut it = label.chars();
-        it.next();
-        label = format!("{}{}", first.to_uppercase(), it.as_str());
-    }
-    let name = proc::subst_str(&cfg.conn("browser_label"), &[("label", &label)]);
-    let cmd = proc::subst_str(
-        &cfg.conn("browser_run"),
-        &[
-            ("terminal_browser", &cfg.expand_path(&cfg.bins.terminal_browser)),
-            ("url", input),
-        ],
-    );
-    connect(cfg, &name, &cfg.home(), &cmd)
 }
 
 pub fn log_move(cfg: &Config, line: &str) {

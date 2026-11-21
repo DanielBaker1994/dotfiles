@@ -12,8 +12,7 @@
     "sesh": "sesh",
     "zoxide": "zoxide",
     "fd": "fd",
-    "ls": "ls",
-    "terminal_browser": "$HOME/.local/bin/terminal-browser"
+    "ls": "ls"
   },
 
   "commands": {
@@ -21,6 +20,7 @@
     "workspace_list": ["workspace", "list"],
     "tab_list": ["tab", "list"],
     "pane_list": ["pane", "list"],
+    "agent_list": ["agent", "list"],
     "workspace_focus": ["workspace", "focus", "{id}"],
     "workspace_create": ["workspace", "create", "--cwd", "{path}", "--label", "{label}", "--focus"],
     "workspace_close": ["workspace", "close", "{id}"],
@@ -77,9 +77,7 @@
   },
 
   "connect": {
-    "first_pane": "{id}:p1",
-    "browser_label": "Browser{label}",
-    "browser_run": "{terminal_browser} open '{url}'"
+    "first_pane": "{id}:p1"
   },
 
   "ui": {
@@ -96,13 +94,15 @@
       "last": "LAST", "sort_mark": "▾"
     },
     "hints": [
-      { "key": "^s", "label": "spaces", "active_modes": ["ws"] },
-      { "key": "^a", "label": "all", "active_modes": ["all"] },
-      { "key": "^t", "label": "agents", "active_modes": ["agents"] },
-      { "key": "^x", "label": "dirs", "active_modes": ["dirs"] },
+      { "key": "enter", "label": "open", "modes": ["ws", "all", "dirs"] },
+      { "key": "^s", "label": "spaces", "active_modes": ["ws"], "modes": ["ws", "all", "dirs"] },
+      { "key": "^a", "label": "all", "active_modes": ["all"], "modes": ["ws", "all", "dirs"] },
+      { "key": "^x", "label": "dirs", "active_modes": ["dirs"], "modes": ["ws", "all", "dirs"] },
       { "key": "^m", "label": "expand", "alt": "collapse", "modes": ["ws", "all"] },
-      { "key": "^r", "label": "sort: {sort}", "modes": ["ws", "all"] },
-      { "key": "?", "label": "more", "last": true }
+      { "key": "^g", "label": "move", "modes": ["ws", "all"] },
+      { "key": "^z", "label": "undo move", "modes": ["ws", "all"] },
+      { "key": "^d", "label": "close", "modes": ["ws", "all", "dirs"] },
+      { "key": "?", "label": "help", "modes": ["ws", "all", "dirs"] }
     ],
     "hint_sep": "  ",
     "info_fmt": "{shown}/{total}",
@@ -141,7 +141,7 @@
     "herdr_no_server": "herdr: no server running at {socket}",
     "herdr_start": "herdr: start it first — `herdr` to attach, or `herdr server` headless.",
     "needs_terminal": "herdr-pick: needs a terminal",
-    "usage": "usage: herdr-pick [agents | list [MODE|--json] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | go-id WORKSPACE_ID | browser | new | help]",
+    "usage": "usage: herdr-pick [agents | list [MODE|--json] | state | preview LINE | label LINE | kill LINE | go LINE|PATH | go-id WORKSPACE_ID | new | help]",
     "config_missing": "herdr-pick: config not found (looked at {paths})",
     "config_bad": "herdr-pick: bad config {path}: {err}",
     "drag_status": "drag a split or tab onto a workspace or tab  {key}",
@@ -177,7 +177,6 @@
     "saved": "saved",
     "recent": "recent",
     "no_preview": "(no preview)",
-    "browser_prompt": "Website URL: ",
     "new_prompt": "new space › ",
     "new_pick": "type a path (~/…) or a name — zoxide dirs below",
     "new_exists": "open",
@@ -206,11 +205,9 @@
       "ctrl+m": "expand",
       "ctrl+e": "expand",
       "ctrl+a": "mode:all",
-      "ctrl+t": "mode:agents",
       "ctrl+x": "mode:dirs",
       "ctrl+s": "mode:ws",
       "ctrl+r": "sort",
-      "ctrl+b": "browser",
       "ctrl+d": "kill",
       "ctrl+u": "clear-query",
       "ctrl+w": "delete-word",
@@ -294,7 +291,11 @@
       "ws": "accent2",
       "tab_number": "accent",
       "tab_text": "info",
-      "agent": "warning",
+      "agent": "#d97757",
+      "agent_model": "#7aa2f7",
+      "agent_effort": "#e0af68",
+      "agent_usage": "#73daca",
+      "agent_title": "#c0caf5",
       "dir": "info",
       "cfg": "warning",
       "tree": "dim",
@@ -318,5 +319,5 @@
     "pulse_steps": 4
   },
 
-  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^t        agents     only agents, the ones that need you first\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^b        web        ask for a URL, open it in a browser workspace\n  ^d        close      close workspace / tab, forget a directory\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
+  "help": "{b}What's in the list{r}\n\n  {y}●{r} {B}name{r}        {b}open{r}    a herdr workspace that is running now\n     ├ {m}2{r} {o}claude{r}           its tabs, with the agent running in each\n     │   ├ {d}⠿{r} ○ {o}claude{r}     and each tab's splits (enter focuses the tab)\n  {d}\ue615{r} {y}name{r}  {d}saved{r}           a session from sesh/sesh.toml: opens a\n                          workspace at its path + runs its startup command\n  {c}\uf114{r} path  {d}recent{r}          a directory you use a lot (zoxide):\n                          opens a new workspace there\n\n{b}Directories{r}\n  ^a lists every existing zoxide directory (frecent ones, score >= {min_score} or a\n  git repo, first; top {max_dirs}). ^x lists them with scores. ^d on a\n  directory forgets it in zoxide for good (also for z / cd).\n\n{b}Moving splits{r}\n  drag a {d}⠿{r} split row, or a whole tab row, with the mouse onto a workspace (→ new tab\n  there) or a tab / another split (→ split into that tab). It moves\n  as soon as you let go (a tab's splits move together and land side by\n  side; moving a tab does not undo). Keys instead: select the row,\n  ^g, ↑/↓ to a workspace or tab, enter.\n\n{b}Agent status{r}\n  {y}●{r} working   {g}○{r} idle   {g}✓{r} done   {red}▲{r} needs input\n\n{b}Keys{r}\n  enter     switch to it (workspace / tab / agent), or create it\n  ^s        spaces     only the open herdr workspaces (the start view)\n  ^a        all        open workspaces + saved sessions + frecent dirs\n  ^m        expand     show every workspace's tabs + splits (drag to move);\n                       again to collapse back to one line per workspace\n                       (^e does the same where the terminal can't tell ^m from enter)\n  ^z        undo       put the last moved split back\n  ^g        move       move the selected split with the keys (↑/↓, enter)\n  ^x        dirs       every zoxide directory, with its score\n  ^r        sort       open workspaces: recent → name → status\n  ^d        close      close workspace / tab, forget a directory\n  tab ^n    down       shift-tab ^p   up\n  esc       quit       ? this help (move the cursor to go back)\n"
 }

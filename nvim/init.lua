@@ -369,18 +369,49 @@ if not vim.g.lazy_did_setup then
             config = function()
                 local telescope = require('telescope')
                 local telescope_actions = require('telescope.actions')
+                local telescope_layout = require('telescope.actions.layout')
                 telescope.setup({
                     defaults = {
                         mappings = {
+                            i = {
+                                ['<M-p>'] = telescope_layout.toggle_preview,
+                                ['<C-l>'] = telescope_layout.cycle_layout_next,
+                                -- recall earlier prompts (shared across all
+                                -- pickers; saved in stdpath('data')/telescope_history)
+                                ['<C-Up>'] = telescope_actions.cycle_history_prev,
+                                ['<C-Down>'] = telescope_actions.cycle_history_next,
+                            },
                             n = {
                                 ['<Esc>'] = {
                                     telescope_actions.close,
                                     type = 'action',
                                     opts = { nowait = true },
                                 },
+                                ['<M-p>'] = telescope_layout.toggle_preview,
+                                ['<C-l>'] = telescope_layout.cycle_layout_next,
                             },
                         },
-                        path_display = { "smart" },
+                        -- filename first so the name survives a narrow list;
+                        -- also much cheaper than "smart" on big result sets
+                        path_display = { 'filename_first' },
+                        -- flex: side-by-side when wide, preview stacked
+                        -- full-width on top when narrower than flip_columns.
+                        -- preview_cutoff = 0 so the preview never silently
+                        -- vanishes (default hides it under 120 cols).
+                        layout_strategy = 'flex',
+                        layout_config = {
+                            width = 0.95,
+                            height = 0.95,
+                            flex = { flip_columns = 160 },
+                            horizontal = { preview_width = 0.55, preview_cutoff = 0 },
+                            vertical = { preview_height = 0.6, preview_cutoff = 0 },
+                        },
+                        cycle_layout_list = { 'horizontal', 'vertical' },
+                        dynamic_preview_title = true,
+                        -- keep the last 10 pickers (prompt + results) so
+                        -- <leader>sR can reopen any of them, not just the last
+                        cache_picker = { num_pickers = 10 },
+                        history = { limit = 500 },
                     },
                     pickers = {
                         find_files = { follow = true },
@@ -389,11 +420,18 @@ if not vim.g.lazy_did_setup then
                 })
                 pcall(telescope.load_extension, 'fzf')
                 pcall(telescope.load_extension, 'ui-select')
-                pcall(telescope.load_extension, 'live_grep_args')
+
+                -- Wrap long lines in the preview: the grep previewer puts the
+                -- cursor at column 0 of the match line, so with nowrap a
+                -- match far right on a long line is off-screen.
+                vim.api.nvim_create_autocmd('User', {
+                    group = vim.api.nvim_create_augroup('user-telescope-preview', { clear = true }),
+                    pattern = 'TelescopePreviewerLoaded',
+                    callback = function() vim.wo.wrap = true end,
+                })
             end,
         },
         'nvim-telescope/telescope-ui-select.nvim',
-        'nvim-telescope/telescope-live-grep-args.nvim',
         { 'nvim-telescope/telescope-fzf-native.nvim', build = 'make',                                    cond = vim.fn.executable('make') == 1 },
         'nvim-pack/nvim-spectre',
         {

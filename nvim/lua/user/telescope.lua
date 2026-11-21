@@ -76,6 +76,8 @@ local ignored_globs = {
     -- '!src/**/*test*',
 }
 
+local MIN_GREP_CHARS = 2
+
 local function add_glob_args(args, value)
     for _, glob in ipairs(vim.split(value or '', ',')) do
         glob = vim.trim(glob)
@@ -93,7 +95,9 @@ local function build_rg_args(prompt, opts, file_mode)
     end
 
     local pieces = vim.split(prompt, '  ')
-    if not pieces[1] or pieces[1] == '' then
+    -- Don't grep until the pattern has MIN_GREP_CHARS characters: a 1-char
+    -- pattern matches nearly every line in the tree and floods the picker.
+    if not pieces[1] or #pieces[1] < MIN_GREP_CHARS then
         return nil
     end
 
@@ -188,6 +192,53 @@ local function prompt_filename(prompt)
     return (vim.split(prompt or '', '  ')[1] or ''):gsub('%s+$', '')
 end
 
+-- The glob section of the prompt (everything after the first double space),
+-- whitespace-normalised. It's the only part that changes the rg --files
+-- command, so it's the cache key for the file list.
+local function prompt_globs(prompt)
+    local pieces = vim.split(vim.trim(prompt or ''), '  ')
+    if #pieces < 2 then
+        return ''
+    end
+    return vim.trim((table.concat(pieces, ' ', 2):gsub('%s+', ' ')))
+end
+
+-- Finder for `sf`: runs `rg --files` ONCE per distinct glob section and lets
+-- the sorter filter the cached list in memory as you type. (An async_job
+-- finder would kill and re-spawn rg, re-listing the whole tree, on every
+-- keystroke.) Changing the globs runs rg again for that glob set; going back
+-- to a glob set you've already used reuses its list.
+local function cached_files_finder(opts, entry_maker)
+    local cache = {}
+    local current
+    return setmetatable({
+        close = function()
+            for _, f in pairs(cache) do
+                f:close()
+            end
+            cache = {}
+        end,
+    }, {
+        -- picker code reads finder.results (e.g. delete_selection)
+        __index = function(_, k)
+            if k == 'results' then
+                return current and current.results or {}
+            end
+        end,
+        __call = function(_, prompt, process_result, process_complete)
+            local key = prompt_globs(prompt)
+            if not cache[key] then
+                cache[key] = finders.new_oneshot_job(build_files_args(prompt, opts), {
+                    entry_maker = entry_maker,
+                    cwd = opts.cwd,
+                })
+            end
+            current = cache[key]
+            return current(prompt, process_result, process_complete)
+        end,
+    })
+end
+
 -- Score with telescope's fzf-native (C) matcher while keeping the two-space
 -- glob-suffix stripping. Falls back to the pure-Lua fzy sorter if the fzf
 -- extension isn't available.
@@ -246,7 +297,7 @@ local function make_count_entry(opts)
 end
 
 -- Switch the open picker to another one over the same opts, carrying the
--- current prompt text over. Bound to <C-u> so you can flip between the file
+-- current prompt text over. Bound to <C-t> so you can flip between the file
 -- view (M.files) and the grep view (M.live_multigrep) on the same set of
 -- files. The two-space glob syntax parses identically in both, so the prompt
 -- carries across cleanly.
@@ -282,6 +333,8 @@ function M.live_multigrep(opts)
         opts.cwd = opts.cwd or vim.uv.cwd()
     end
 
+    -- cwd MUST be passed to the finder: without it rg runs in nvim's cwd while
+    -- the entry makers resolve the (relative) results against opts.cwd.
     local finder
     if file_mode then
         finder = finders.new_async_job {
@@ -289,6 +342,7 @@ function M.live_multigrep(opts)
                 return build_rg_args(prompt, opts, true)
             end,
             entry_maker = make_count_entry(opts),
+            cwd = opts.cwd,
         }
     else
         finder = finders.new_async_job {
@@ -296,6 +350,7 @@ function M.live_multigrep(opts)
                 return build_rg_args(prompt, opts, false)
             end,
             entry_maker = make_entry.gen_from_vimgrep(opts),
+            cwd = opts.cwd,
         }
     end
 
@@ -312,7 +367,9 @@ function M.live_multigrep(opts)
     end
 
     pickers.new(opts, {
-        debounce = 50,
+        -- each debounced keystroke kills + re-spawns rg; 120ms keeps typing
+        -- from launching a search per character
+        debounce = 120,
         prompt_title = picker_title(opts, 'Grep Files', file_mode and 'counts' or 'lines'),
         finder = finder,
         previewer = file_mode and conf.file_previewer(opts) or conf.grep_previewer(opts),
@@ -325,9 +382,17 @@ function M.live_multigrep(opts)
         attach_mappings = function(prompt_bufnr, map)
             actions.select_default:replace(actions.file_edit)
 
-            -- <C-u>: toggle grep lines <-> files-with-match-counts.
-            map('i', '<C-u>', toggle_mode)
-            map('n', '<C-u>', toggle_mode)
+            -- <M-u>: toggle grep lines <-> files-with-match-counts.
+            -- (Not <C-u>: that's telescope's preview-scroll-up, the partner
+            -- of <C-d>.)
+            map('i', '<M-u>', toggle_mode)
+            map('n', '<M-u>', toggle_mode)
+
+            -- <C-Space>: freeze the current rg results and fuzzy-filter them
+            -- (path + line text) instead of re-running rg per keystroke.
+            -- The rg pattern stays shown as the prompt prefix.
+            map('i', '<C-Space>', actions.to_fuzzy_refine)
+            map('n', '<C-Space>', actions.to_fuzzy_refine)
 
             -- <C-t>: flip to the find-files view over the same scope.
             map('i', '<C-t>', function()
@@ -359,12 +424,7 @@ function M.files(opts)
     opts = vim.deepcopy(opts or {})
     opts.cwd = opts.cwd or vim.uv.cwd()
 
-    local finder = finders.new_async_job {
-        command_generator = function(prompt)
-            return build_files_args(prompt, opts)
-        end,
-        entry_maker = make_entry.gen_from_file(opts),
-    }
+    local finder = cached_files_finder(opts, make_entry.gen_from_file(opts))
 
     pickers.new(opts, {
         debounce = 50,
@@ -418,8 +478,8 @@ function M.live_multigrep_qf(opts)
 
     -- Show the unique quickfix files as a normal file picker (one entry per
     -- file, standard content preview), fuzzy-filterable by name. The two-space
-    -- glob syntax from `sf` also works here, and <C-g>/<C-f> toggle between
-    -- the file and grep views (titles carry a "QF " prefix).
+    -- glob syntax from `sf` also works here, and <C-t> toggles between the
+    -- file and grep views (titles carry a "QF " prefix).
     local merged = vim.deepcopy(opts or {})
     merged.search_dirs = nil
     merged.search_files = files

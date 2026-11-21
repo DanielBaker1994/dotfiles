@@ -100,11 +100,6 @@ fn main() {
             let st = style::Style::new(&cfg);
             exit(newspace::run(&cfg, &st));
         }
-        Some("browser") => {
-            ensure(&cfg);
-            let st = style::Style::new(&cfg);
-            let _ = data::browser(&cfg, &st);
-        }
         Some(_) => {
             eprintln!("{}", cfg.text("usage"));
             exit(2);

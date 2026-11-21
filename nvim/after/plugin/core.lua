@@ -61,6 +61,11 @@ vim.keymap.set('n', '<leader>sk', telescope_builtin.keymaps, { desc = '[S]earch 
 vim.keymap.set('n', '<leader>sf', user_telescope.files, { desc = '[S]earch [F]iles <space><space>**globs' })
 vim.keymap.set('n', '<leader>ss', telescope_builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
 vim.keymap.set('n', '<leader>sr', telescope_builtin.resume, { desc = '[S]esume Telescope' })
+vim.keymap.set('n', '<leader>sR', telescope_builtin.pickers,
+    { desc = '[S]earch: [R]esume one of the last 10 pickers' })
+vim.keymap.set('n', '<leader>s.', function()
+    telescope_builtin.oldfiles({ only_cwd = true, prompt_title = 'Recent Files (cwd)' })
+end, { desc = '[S]earch recent files [.] (this cwd, across sessions)' })
 vim.keymap.set('n', '<leader>sw', telescope_builtin.grep_string, { desc = '[S]earch current [W]ord' })
 
 vim.keymap.set("n", "<leader>sg", user_telescope.live_multigrep, { desc = 'Live multigrep <space><space>**filetype' })

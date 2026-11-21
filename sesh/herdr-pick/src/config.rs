@@ -43,7 +43,6 @@ pub struct Bins {
     #[allow(dead_code)]
     pub fd: String,
     pub ls: String,
-    pub terminal_browser: String,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -135,8 +134,6 @@ pub struct Hint {
     pub modes: Vec<String>,
     #[serde(default)]
     pub active_modes: Vec<String>,
-    #[serde(default)]
-    pub last: bool,
 }
 
 #[derive(Deserialize, Clone, Debug)]

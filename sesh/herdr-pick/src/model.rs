@@ -39,6 +39,12 @@ pub struct Pane {
     pub title: String,
     pub cwd: String,
     pub focused: bool,
+    /// claude's effort level (agent-tabs plugin's $effort pane token), "" if unknown
+    pub effort: String,
+    /// claude's model ("sonnet 5.5", agent-tabs plugin's $model token), "" if unknown
+    pub model: String,
+    /// "79k tok / 78k cached" (agent-tabs plugin's $usage token), "" if unknown
+    pub usage: String,
     /// herdr's global state_change_seq for agent panes (higher = changed more
     /// recently); 0 for non-agent panes
     pub seq: i64,
@@ -172,6 +178,9 @@ impl Model {
                     title: s(p, "terminal_title_stripped"),
                     cwd,
                     focused: b(p, "focused"),
+                    effort: tok(p, "effort"),
+                    model: tok(p, "model"),
+                    usage: tok(p, "usage"),
                     seq: seqs.get(&s(p, "pane_id")).copied().unwrap_or(0),
                 }
             })
@@ -286,7 +295,15 @@ impl Model {
 
     pub fn pane_text(&self, p: &Pane) -> String {
         if let Some(a) = &p.agent {
-            a.clone()
+            let extra: Vec<&str> = [p.model.as_str(), p.effort.as_str(), p.usage.as_str()]
+                .into_iter()
+                .filter(|x| !x.is_empty())
+                .collect();
+            if extra.is_empty() {
+                a.clone()
+            } else {
+                format!("{a} · {}", extra.join(" · "))
+            }
         } else if !p.title.is_empty() {
             p.title.clone()
         } else {
@@ -312,6 +329,15 @@ impl Model {
     pub fn short_id(id: &str) -> String {
         id.split(':').last().unwrap_or(id).to_string()
     }
+}
+
+/// A pane token (plugin-reported metadata) as a string, "" if absent.
+fn tok(p: &serde_json::Value, name: &str) -> String {
+    p.get("tokens")
+        .and_then(|t| t.get(name))
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .to_string()
 }
 
 pub fn base_name(path: &str) -> String {

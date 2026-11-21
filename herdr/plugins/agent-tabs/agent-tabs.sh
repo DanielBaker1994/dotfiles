@@ -145,7 +145,7 @@ plan() {
         --argjson w "$("$herdr" workspace list 2>/dev/null || echo '{}')" \
         --argjson wsw "$WS_WIDTH" \
         --arg off "$1" '
-        def ws($n): if length > $n then .[:$n - 1] + "…" else . + ("⠀" * ($n - length)) end;
+        def ws($n): if length > $n then .[:$n - 1] + "…" else . end;
         def esc: gsub("(?<c>[\\\\^$.|?*+()\\[\\]{}])"; "\\\(.c)");
         ($d + $u) as $icons
         # + the glyphs of earlier versions, so old prefixes get cleaned up
@@ -184,26 +184,56 @@ plan() {
            end) as $prefix
         | (if $prefix == "" then $base else $prefix + " " + $base end) as $label
         | (if $label != $tab.label then "tab\t\($tab.tab_id)\t\($label)" else empty end),
-          ($agents[] | "meta\t\(.pane_id)\t\($short)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))")'
+          ($agents[] | "meta\t\(.pane_id)\t\($short)\t\($icons[.agent] // $icons["agent.default"])\t\($wsname[.workspace_id] // "" | ws($width))\t\(if .agent == "claude" then .agent_session.value // "-" else "-" end)")'
+}
+
+# effort_of SESSION_ID -> "<model>\t<effort>\t<usage>" for a claude session.
+#   model  = of its last reply (transcript), claude-sonnet-5-5 -> "sonnet 5.5"
+#   effort = settings.json modelSettings[model], else the global effortLevel
+#   usage  = "79k tok / 78k cached": context size of the last reply (input +
+#            cache tokens) and the part of it read from the prompt cache
+effort_of() {
+    local f tail model usage effort
+    f="$(compgen -G "$HOME/.claude/projects/*/$1.jsonl" | head -1)"
+    [ -n "$f" ] || return 0
+    tail="$(tail -c 200000 "$f")"
+    model="$(grep -o '"model":"[^"]*"' <<<"$tail" | tail -1 | cut -d'"' -f4)"
+    usage="$(grep -o '"usage":{[^}]*' <<<"$tail" | tail -1 | awk -F'[:,]' '
+        function k(n) { return n >= 1000 ? sprintf("%.0fk", n / 1000) : n }
+        { for (i = 1; i < NF; i++) {
+            if ($i ~ /"input_tokens"/) a = $(i + 1)
+            if ($i ~ /cache_creation_input_tokens/) c = $(i + 1)
+            if ($i ~ /cache_read_input_tokens/) r = $(i + 1) }
+          printf "%s tok / %s cached", k(a + c + r), k(r) }')"
+    effort="$(jq -r --arg m "$model" '.modelSettings[$m].effortLevel // .effortLevel // empty' \
+        "$HOME/.claude/settings.json" 2>/dev/null || true)"
+    model="$(sed -E 's/^claude-//; s/-[0-9]{8}$//; s/-([0-9]+)-([0-9]+)$/ \1.\2/; s/-([0-9]+)$/ \1/' <<<"$model")"
+    printf '%s\t%s\t%s' "$model" "$effort" "$usage"
 }
 
 # sync [1]: 1 = ask every pane for its process (see procs)
 sync() {
-    local off=0 kind id label icon ws seen=" " last
+    local off=0 kind id label icon ws sess effort model usage info rest seen=" " last
     [ -e "$state/off" ] && off=1
-    while IFS=$'\t' read -r kind id label icon ws; do
+    while IFS=$'\t' read -r kind id label icon ws sess; do
         case "$kind" in
             tab) "$herdr" tab rename "$id" "$label" >/dev/null 2>&1 || true ;;
             meta)
                 seen+="$id "
+                effort="" model="" usage=""
+                if [ "${sess:--}" != "-" ]; then
+                    info="$(effort_of "$sess")"
+                    model="${info%%$'\t'*}" rest="${info#*$'\t'}"
+                    effort="${rest%%$'\t'*}" usage="${rest#*$'\t'}"
+                fi
                 # builtin read, not $(cat): this runs for every agent pane on every focus
                 last=""
                 IFS= read -r last 2>/dev/null <"$state/meta/$id" || true
-                [ "$last" = "$label $icon $ws" ] && continue
+                [ "$last" = "$label $icon $ws $model $effort $usage" ] && continue
                 # pane id first: herdr 0.9 rejects options before it
                 "$herdr" pane report-metadata "$id" --source agent-tabs \
-                    --token "tab_name=$label" --token "agent_icon=$icon" --token "ws=$ws" \
-                    >/dev/null 2>&1 && printf '%s' "$label $icon $ws" >"$state/meta/$id"
+                    --token "tab_name=$label" --token "agent_icon=$icon" --token "ws=$ws" --token "effort=$effort" --token "model=$model" --token "usage=$usage" \
+                    >/dev/null 2>&1 && printf '%s' "$label $icon $ws $model $effort $usage" >"$state/meta/$id"
                 ;;
         esac
     done < <(plan "$off" "${1:-}")

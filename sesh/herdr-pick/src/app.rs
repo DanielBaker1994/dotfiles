@@ -662,11 +662,6 @@ impl App {
                 let mode = self.mode.clone();
                 self.load_list(&mode, true);
             }
-            "browser" => {
-                self.term.restore();
-                let _ = data::browser(&self.cfg, &self.st);
-                self.quit_code = Some(0);
-            }
             "kill" => self.do_kill(),
             "clear-query" => {
                 self.query.clear();
@@ -687,11 +682,15 @@ impl App {
                 self.query.pop();
                 self.refilter(0);
             }
-            "help" => self.show_help(),
+            "help" if self.mode != "agents" => self.show_help(),
             "undo" => self.undo_move(),
             "start-move" => self.start_move(),
             a if a.starts_with("mode:") => {
                 let m = a[5..].to_string();
+                // prefix+a (agents) is its own picker: no mode switching in or out of it
+                if self.mode == "agents" || m == "agents" {
+                    return;
+                }
                 if m == "ws" {
                     self.expanded = false;
                     self.query.clear();
@@ -1690,34 +1689,11 @@ impl App {
     fn draw_pick(&mut self, w: usize, h: usize) -> Vec<String> {
         let cfg = &self.cfg;
         let st = &self.st;
-        let narrow_w = cfg.num("narrow_width", 110).max(1) as usize;
-        let narrow = w < narrow_w;
-        let pct = cfg.num("list_width_ratio", 55).clamp(0, 100) as usize;
-        let list_w = if narrow { w } else { w - w * pct / 100 };
-        let list_h = if narrow { h - h / 2 } else { h };
-        let inner = list_h.saturating_sub(2);
-        let iw = list_w.saturating_sub(2);
-        let drag_owned = self.drag.clone();
-        let drag = drag_owned.as_ref().filter(|d| d.active);
-        let status = match &self.status {
-            Some(s) if Instant::now() < s.until => Some(s.text.clone()),
-            _ => None,
-        };
-
-        // hints
+        // every hint, wrapped over as many lines as the full width needs (none dropped)
         let sep = &cfg.ui.hint_sep;
-        let mut hint = String::new();
-        let last_hint = cfg.ui.hints.iter().find(|h| h.last);
-        let more = last_hint
-            .map(|h| {
-                format!(
-                    "{} {}",
-                    ansi::bold(&h.key),
-                    st.fg("hint", &h.label)
-                )
-            })
-            .unwrap_or_default();
-        for item in cfg.ui.hints.iter().filter(|h| !h.last) {
+        let mut hint_lines: Vec<String> = Vec::new();
+        let mut cur = String::new();
+        for item in cfg.ui.hints.iter() {
             if !item.modes.is_empty() && !item.modes.iter().any(|m| m == &self.mode) {
                 continue;
             }
@@ -1737,23 +1713,37 @@ impl App {
                     st.fg("hint", &label)
                 }
             );
-            let probe = if hint.is_empty() {
-                format!("{part}{sep}{more}")
-            } else {
-                format!("{hint}{sep}{part}{sep}{more}")
-            };
-            if ansi::width(&probe) <= iw.saturating_sub(2) {
-                if !hint.is_empty() {
-                    hint.push_str(sep);
-                }
-                hint.push_str(&part);
+            if !cur.is_empty() && ansi::width(&format!("{cur}{sep}{part}")) > w.saturating_sub(2) {
+                hint_lines.push(std::mem::take(&mut cur));
             }
+            if !cur.is_empty() {
+                cur.push_str(sep);
+            }
+            cur.push_str(&part);
         }
-        if !hint.is_empty() {
-            hint.push_str(sep);
+        if !cur.is_empty() {
+            hint_lines.push(cur);
         }
-        hint.push_str(&more);
 
+        // the hint strip spans the whole popup, above both the list and the preview
+        let hint_h = hint_lines.len();
+        let h = h.saturating_sub(hint_h);
+
+        let narrow_w = cfg.num("narrow_width", 110).max(1) as usize;
+        let narrow = w < narrow_w;
+        let pct = cfg.num("list_width_ratio", 55).clamp(0, 100) as usize;
+        let list_w = if narrow { w } else { w - w * pct / 100 };
+        let list_h = if narrow { h - h / 2 } else { h };
+        let inner = list_h.saturating_sub(2);
+        let iw = list_w.saturating_sub(2);
+        let drag_owned = self.drag.clone();
+        let drag = drag_owned.as_ref().filter(|d| d.active);
+        let status = match &self.status {
+            Some(s) if Instant::now() < s.until => Some(s.text.clone()),
+            _ => None,
+        };
+
+        // hints
         // head
         let prompt = st.fg(
             "prompt",
@@ -1785,18 +1775,24 @@ impl App {
             st.bold(&st.fg("hint_active", &cfg.text("moving_label"))),
             st.fg("hint", &cfg.text("moving_hint"))
         );
-        let head1 = if self.moving {
-            moving_label
-        } else {
-            status.unwrap_or_else(|| hint.clone())
-        };
+        // a status / moving message takes the first hint line (the head keeps its height)
+        let mut hint_rows = hint_lines;
+        // (prefix+a has no strip: nothing to replace)
+        if !hint_rows.is_empty() {
+            if self.moving {
+                hint_rows[0] = moving_label;
+            } else if let Some(sx) = status {
+                hint_rows[0] = sx;
+            }
+        }
         let tog = self.mode == "all" || self.mode == "ws";
         let head2 = if tog {
             ui::table_head(cfg, st, &self.sort, iw)
         } else {
             st.fg("table_head", &"─".repeat(iw))
         };
-        let head: Vec<String> = vec![head0, head1, head2];
+        let head: Vec<String> = vec![head0, head2];
+        let head_len = head.len();
 
         let rows_h = (inner.saturating_sub(head.len())).max(1);
         if drag.is_none() {
@@ -1809,7 +1805,7 @@ impl App {
         }
         let view_len = self.view.len();
         let max_top = view_len.saturating_sub(rows_h);
-        if !(self.mode == "agents" && cfg.num("wrap_agents", 1) != 0 && drag.is_none()) {
+        if !(matches!(self.mode.as_str(), "agents" | "ws" | "all") && cfg.num("wrap_agents", 1) != 0 && drag.is_none()) {
             self.top = self.top.min(max_top);
         }
 
@@ -1824,15 +1820,24 @@ impl App {
 
         let mut rows: Vec<String> = Vec::with_capacity(rows_h);
         self.row_map.clear();
-        let wrap = self.mode == "agents" && cfg.num("wrap_agents", 1) != 0 && drag.is_none();
+        // long rows wrap onto a new line (agents, spaces, all/expanded tree) instead of being cut off
+        let wrap = matches!(self.mode.as_str(), "agents" | "ws" | "all")
+            && cfg.num("wrap_agents", 1) != 0
+            && drag.is_none();
         if wrap {
             let avail = iw.saturating_sub(2).max(8);
             let wrapped = |v: &ViewRow| -> Vec<String> {
+                // tree rows (tab / split) hang under their own text
+                let hang = if matches!(v.it.kind, ItemKind::Tab | ItemKind::Pane) {
+                    v.it.plain.len() - v.it.plain.trim_start().len() + 4
+                } else {
+                    2
+                };
                 wrap_cols(
                     &ui::highlight(&v.it.display, &v.pos),
                     &v.it.plain,
                     avail,
-                    2,
+                    hang,
                 )
             };
             // keep the whole selected row on screen
@@ -1869,7 +1874,7 @@ impl App {
                             " ".to_string()
                         };
                         rows.push(ansi::with_bg(
-                            &format!("{edge} {}", ansi::fit(&line, avail)),
+                            &format!("{edge}{sel_bg} {}", ansi::fit(&line, avail)),
                             &sel_bg,
                         ));
                     } else {
@@ -1959,7 +1964,7 @@ impl App {
                     && self.flash.as_ref().map(|f| f.pane_id == v.it.target).unwrap_or(false)
                 {
                     rows.push(ansi::with_bg(
-                        &format!("  {}{bg}", ansi::fit(&text, iw.saturating_sub(2))),
+                        &format!("{bg}  {}", ansi::fit(&text, iw.saturating_sub(2))),
                         bg,
                     ));
                     continue;
@@ -1968,7 +1973,7 @@ impl App {
             if idx == self.sel && drag.is_none() {
                 let edge = st.fg("selection_edge", &st.edge);
                 rows.push(ansi::with_bg(
-                    &format!("{edge} {}", ansi::fit(&text, iw.saturating_sub(2))),
+                    &format!("{edge}{sel_bg} {}", ansi::fit(&text, iw.saturating_sub(2))),
                     &sel_bg,
                 ));
             } else {
@@ -1978,7 +1983,9 @@ impl App {
 
         let mut left_lines = head;
         left_lines.extend(rows);
-        let left = ui::box_lines(&left_lines, list_w, list_h, &cfg.ui.border_label, st, cfg);
+        // prefix+a: no "herdr sessions · ? help" title either
+        let border_label = if self.mode == "agents" { "" } else { cfg.ui.border_label.as_str() };
+        let left = ui::box_lines(&left_lines, list_w, list_h, border_label, st, cfg);
 
         let pw = if narrow { w } else { w - list_w };
         let ph = if narrow { h - list_h } else { h };
@@ -2008,16 +2015,20 @@ impl App {
         let pv = ui::box_lines(&pv_lines, pw, ph, &self.preview.label, st, cfg);
 
         self.geo = Geo {
-            list_y: 1 + 3,
+            list_y: hint_h + 1 + head_len,
             list_w,
             rows_h,
             pv_x: if narrow { 0 } else { list_w },
-            pv_y: if narrow { list_h } else { 0 },
+            pv_y: hint_h + if narrow { list_h } else { 0 },
             pw,
             ph,
         };
 
-        let mut lines: Vec<String> = if narrow {
+        let mut lines: Vec<String> = hint_rows
+            .iter()
+            .map(|l| format!(" {l}"))
+            .collect();
+        lines.extend(if narrow {
             let mut v = left;
             v.extend(pv);
             v
@@ -2025,8 +2036,8 @@ impl App {
             left.iter()
                 .enumerate()
                 .map(|(i, l)| format!("{l}{}", pv.get(i).cloned().unwrap_or_default()))
-                .collect()
-        };
+                .collect::<Vec<_>>()
+        });
 
         if let Some(d) = drag {
             if d.y >= 0 && (d.y as usize) < lines.len() {
