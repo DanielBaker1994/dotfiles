@@ -347,3 +347,61 @@ stays selectable. Hovering an h2–h6 shows a `#` permalink; Cmd+P opens every
 >   silently hangs; a real mouse click works (`execCommand("copy")` fallback).
 > - Firefox gotcha: `open file.html` reuses the existing tab WITHOUT
 >   reloading - after regenerating HTML you must Cmd+R to see changes.
+
+----
+
+## Telescope search filters
+
+`<leader>sg` (grep), `<leader>sf` (files) and `<leader>sq` (quickfix files),
+from `nvim/lua/user/telescope.lua`. Result counts below are real, from a run in
+`~/.dotfiles`.
+
+> [!IMPORTANT]
+> The live grep prompt is an rg pattern, so `!word` does **not** exclude there:
+> `vim.notify !WARN` searches for that literal text and finds **0**. Press
+> `<C-Space>` first, then filter.
+
+### Grep, then filter with `<C-Space>`
+
+| Steps | Results |
+| ----- | ------- |
+| `<leader>sg`, type `vim.notify` | 60 |
+| `<C-Space>`, then `!WARN` | 44: drops lines containing WARN |
+| `!WARN !ERROR` | 31: drops both |
+| `!telescope.lua` | 52: paths match too, so this drops that file |
+| `'WARN !telescope` | 12: WARN lines, not in telescope files |
+
+### File search: filters work straight away
+
+| Prompt | Results |
+| ------ | ------- |
+| `lua` | 39 |
+| `lua !user` | 29: drops anything with `user` in the path |
+| `lua  !**/user/**` | 29: same files, using an rg glob after two spaces |
+
+### Filter syntax
+
+| You type | Meaning | Where it works |
+| -------- | ------- | -------------- |
+| `word` | loose match (letters in order) | after `<C-Space>`, `sf` |
+| `'word` | exact text | after `<C-Space>`, `sf` |
+| `!word` | exclude exact text | after `<C-Space>`, `sf` |
+| `^word` / `word$` | starts / ends with | after `<C-Space>`, `sf` |
+| `foo  !glob` | rg skips those files (two spaces) | live `sg` and `sf` |
+
+### Narrowing across grep and files
+
+1. `<leader>sg`, type `vim.notify` → 60 lines.
+2. `<C-Space>`, type `'WARN` → 16 lines. Title: `Grep Files › vim.notify`.
+3. `<C-t>` → file search over just those files: `Find Files (8 files from grep)`.
+4. Type `user` → 6 files.
+5. `<C-t>` → grep re-runs `vim.notify` over those 6 files → 31 lines.
+
+> [!TIP]
+> - `<C-Space>` again stacks another filter. Extra words in one prompt do the
+>   same but stay editable (backspace widens again).
+> - `<M-u>` in grep: matching lines ↔ files with match counts.
+> - `<leader>sR` reopens any of the last 10 pickers, so every `<C-t>` stage
+>   can be revisited. `<C-Up>` / `<C-Down>` recall earlier prompts.
+> - To drop things from grep results: `<C-Space>` then `!word`. To keep rg
+>   out of folders from the start: the two-space `!glob`.

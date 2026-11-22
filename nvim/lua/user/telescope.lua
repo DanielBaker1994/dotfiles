@@ -1,3 +1,36 @@
+-- Custom telescope pickers: <leader>sf (files), <leader>sg (grep),
+-- <leader>sq (files from the quickfix list). Examples with result counts:
+-- doc/Markdown_Examples.md, "Telescope search filters".
+--
+-- Keys inside sf / sg / sq:
+--   <C-Space>  freeze the current results and fuzzy-filter them; press
+--              again to stack another filter. Ignored on an empty prompt or
+--              zero results. The title shows the trail: `Grep Files › a › b`.
+--   <C-t>      grep <-> files, scoped to the files in the CURRENT results
+--              (after any filters). Back to grep re-runs the original rg
+--              pattern over the narrowed files. From an unfiltered sf it
+--              greps the whole tree, carrying the prompt.
+--   <M-u>      sg only: matching lines <-> files with match counts.
+--   <C-y>      copy the selected entry's absolute path.
+--   <C-q>      send results to quickfix (then <leader>sq to search in them).
+-- Global: <M-p> toggle preview, <C-l> side-by-side/stacked layout,
+--   <C-Up>/<C-Down> prompt history, <leader>sR reopen one of the last 10
+--   pickers (every <C-t> stage is in there), <leader>s. recent files.
+--
+-- What the prompt means:
+--   live sg prompt   an rg regex. `!word` does NOT exclude here; it's
+--                    searched literally.
+--   after <C-Space>  fzf syntax over path + line text:
+--   and in sf          word    loose match (letters in order)
+--                      'word   exact text
+--                      !word   exclude lines/paths containing word
+--                      ^word / word$   starts / ends with
+--   `foo  globs`     (TWO spaces) comma-separated rg -g globs, live in sg
+--                    and sf: `foo  !**/test/**` keeps rg out of test dirs.
+--
+-- So: drop things from grep results -> <C-Space> then !word. Keep rg out of
+-- folders from the start -> the two-space !glob.
+
 local pickers = require "telescope.pickers"
 local finders = require "telescope.finders"
 local make_entry = require "telescope.make_entry"
