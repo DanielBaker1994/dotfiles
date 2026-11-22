@@ -311,6 +311,106 @@ local function switch_picker(bufnr, fn, opts)
     end)
 end
 
+-- <C-Space> in both pickers: freeze the current results and fuzzy-filter
+-- them (stackable). Wraps telescope's refine with two changes:
+--   * refuses on an empty prompt or zero results. Freezing an empty grep
+--     list leaves a dead picker: rg no longer runs, so typing shows nothing.
+--   * keeps the original title and appends each frozen prompt as a trail
+--     (`Grep Files (6 files from file list) › vim.notify › 'WARN`) instead of
+--     telescope's `Fuzzy over (<last prompt>)`.
+-- Returns true if it froze.
+local function freeze_results(prompt_bufnr)
+    local picker = action_state.get_current_picker(prompt_bufnr)
+    local line = vim.trim(action_state.get_current_line(prompt_bufnr))
+    if line == '' then
+        vim.notify('<C-Space>: type something first, then freeze it', vim.log.levels.INFO)
+        return false
+    end
+    if picker.manager:num_results() == 0 then
+        vim.notify('<C-Space>: no results to filter', vim.log.levels.INFO)
+        return false
+    end
+    picker.__freeze_trail = picker.__freeze_trail or {}
+    table.insert(picker.__freeze_trail, line)
+    require('telescope.actions.generate').refine(prompt_bufnr, {
+        prompt_title = picker.prompt_title .. ' › ' .. table.concat(picker.__freeze_trail, ' › '),
+        sorter = conf.generic_sorter({}),
+    })
+    return true
+end
+
+-- Make absolute paths under `cwd` relative to it. rg runs in cwd, so the
+-- paths still resolve, and fuzzy filename matching then scores against
+-- "lua/user/cd.lua" instead of "/Users/<you>/.../lua/user/cd.lua", where
+-- every file matches a query like "user". Paths outside cwd stay absolute.
+local function relative_to(files, cwd)
+    if not cwd or cwd == '' then
+        return files
+    end
+    local prefix = vim.fn.fnamemodify(cwd, ':p')
+    if not prefix:match('/$') then
+        prefix = prefix .. '/'
+    end
+    local out = {}
+    for i, f in ipairs(files) do
+        out[i] = vim.startswith(f, prefix) and f:sub(#prefix + 1) or f
+    end
+    return out
+end
+
+-- Upper bound on files handed to rg as arguments when scoping (keeps the
+-- command line well under macOS ARG_MAX).
+local MAX_SCOPE_FILES = 4000
+
+-- Unique absolute paths of every entry the picker currently holds: the
+-- matching results, after any <C-Space> filters (not just the visible rows;
+-- the entry manager keeps all of them).
+local function current_result_files(prompt_bufnr)
+    local picker = action_state.get_current_picker(prompt_bufnr)
+    local seen, files = {}, {}
+    for entry in picker.manager:iter() do
+        local p = entry.path or entry.filename or entry.value
+        if type(p) == 'string' and p ~= '' then
+            p = vim.fn.fnamemodify(p, ':p')
+            if not seen[p] then
+                seen[p] = true
+                files[#files + 1] = p
+            end
+        end
+    end
+    return files
+end
+
+-- <C-t>, scoped: open `fn` over only the files in the current results, with
+-- an empty prompt (the old prompt was a grep pattern / filename filter, not
+-- something the other view can use). Each hop narrows further, so
+-- grep -> files -> grep -> ... keeps shrinking the scope.
+-- Returns false (without switching) if there's nothing usable to scope to.
+local function switch_scoped(prompt_bufnr, fn, opts, from_kind, default_text)
+    local files = current_result_files(prompt_bufnr)
+    if #files == 0 then
+        return false
+    end
+    if #files > MAX_SCOPE_FILES then
+        vim.notify(('%d files is too many to scope to (max %d); narrow first'):format(#files, MAX_SCOPE_FILES),
+            vim.log.levels.WARN)
+        return false
+    end
+    local new_opts = vim.deepcopy(opts)
+    new_opts.cwd = new_opts.cwd or vim.uv.cwd()
+    new_opts.search_dirs = nil
+    new_opts.search_files = relative_to(files, new_opts.cwd)
+    new_opts.default_text = default_text
+    new_opts.prompt_title = nil
+    new_opts.qf = nil
+    new_opts.scope_label = ('%d file%s from %s'):format(#files, #files == 1 and '' or 's', from_kind)
+    actions.close(prompt_bufnr)
+    vim.schedule(function()
+        fn(new_opts)
+    end)
+    return true
+end
+
 -- Prompt border title. A `QF ` prefix marks pickers opened from the quickfix;
 -- ` [counts]` marks the files-with-match-counts view. opts.prompt_title, when
 -- set (custom titles elsewhere), is used verbatim.
@@ -320,7 +420,10 @@ local function picker_title(opts, kind, mode)
     end
     local base = opts.qf and ('QF ' .. kind) or kind
     if mode == 'counts' then
-        return base .. ' [counts]'
+        base = base .. ' [counts]'
+    end
+    if opts.scope_label then
+        base = base .. ' (' .. opts.scope_label .. ')'
     end
     return base
 end
@@ -390,17 +493,28 @@ function M.live_multigrep(opts)
 
             -- <C-Space>: freeze the current rg results and fuzzy-filter them
             -- (path + line text) instead of re-running rg per keystroke.
-            -- The rg pattern stays shown as the prompt prefix.
-            map('i', '<C-Space>', actions.to_fuzzy_refine)
-            map('n', '<C-Space>', actions.to_fuzzy_refine)
+            -- See freeze_results for the empty-prompt guard and title trail.
+            map('i', '<C-Space>', freeze_results)
+            map('n', '<C-Space>', freeze_results)
 
-            -- <C-t>: flip to the find-files view over the same scope.
-            map('i', '<C-t>', function()
-                switch_picker(prompt_bufnr, M.files, opts)
-            end)
-            map('n', '<C-t>', function()
-                switch_picker(prompt_bufnr, M.files, opts)
-            end)
+            -- <C-t>: flip to the find-files view over ONLY the files in the
+            -- current results (after any <C-Space> filters). With no results
+            -- yet, flip over the same scope, carrying the prompt.
+            local function to_files()
+                -- Remember the rg pattern (the first frozen prompt if
+                -- <C-Space> was used, else the live prompt) so <C-t> back
+                -- from the file view re-runs it instead of opening empty.
+                local picker = action_state.get_current_picker(prompt_bufnr)
+                local trail = picker.__freeze_trail
+                local pattern = (trail and trail[1]) or action_state.get_current_line(prompt_bufnr)
+                local carry = vim.deepcopy(opts)
+                carry.grep_text = vim.trim(pattern) ~= '' and pattern or opts.grep_text
+                if not switch_scoped(prompt_bufnr, M.files, carry, 'grep') then
+                    switch_picker(prompt_bufnr, M.files, opts)
+                end
+            end
+            map('i', '<C-t>', to_files)
+            map('n', '<C-t>', to_files)
 
             map('i', '<C-v>', actions.select_vertical)
             map('n', '<C-v>', actions.select_vertical)
@@ -434,13 +548,34 @@ function M.files(opts)
         sorter = files_sorter,
         attach_mappings = function(prompt_bufnr, map)
             actions.select_default:replace(actions.file_edit)
-            -- <C-t>: flip to the grep view over the same files.
-            map('i', '<C-t>', function()
-                switch_picker(prompt_bufnr, M.live_multigrep, opts)
-            end)
-            map('n', '<C-t>', function()
-                switch_picker(prompt_bufnr, M.live_multigrep, opts)
-            end)
+
+            -- <C-Space>: freeze the current file list and fuzzy-filter it
+            -- again (stackable). Marks the list as narrowed for <C-t>.
+            local refined = false
+            local function refine(bufnr)
+                if freeze_results(bufnr) then
+                    refined = true
+                end
+            end
+            map('i', '<C-Space>', refine)
+            map('n', '<C-Space>', refine)
+
+            -- <C-t>: flip to the grep view. If the list has been narrowed
+            -- (typed filter, <C-Space>, or an already-scoped/QF picker),
+            -- grep ONLY the files currently listed; otherwise grep the same
+            -- scope as before, carrying the prompt (no point handing rg
+            -- every file in the tree as arguments).
+            local function to_grep()
+                local narrowed = refined or opts.search_files ~= nil
+                    or prompt_filename(action_state.get_current_line(prompt_bufnr)) ~= ''
+                -- opts.grep_text: the rg pattern from the grep picker we
+                -- came from (if any), re-run over the narrowed files.
+                if not (narrowed and switch_scoped(prompt_bufnr, M.live_multigrep, opts, 'file list', opts.grep_text)) then
+                    switch_picker(prompt_bufnr, M.live_multigrep, opts)
+                end
+            end
+            map('i', '<C-t>', to_grep)
+            map('n', '<C-t>', to_grep)
             map('i', '<C-v>', actions.select_vertical)
             map('n', '<C-v>', actions.select_vertical)
             -- <C-y>: copy selected entry's absolute path to clipboard.
@@ -481,8 +616,9 @@ function M.live_multigrep_qf(opts)
     -- glob syntax from `sf` also works here, and <C-t> toggles between the
     -- file and grep views (titles carry a "QF " prefix).
     local merged = vim.deepcopy(opts or {})
+    merged.cwd = merged.cwd or vim.uv.cwd()
     merged.search_dirs = nil
-    merged.search_files = files
+    merged.search_files = relative_to(files, merged.cwd)
     merged.qf = true
     M.files(merged)
 end
