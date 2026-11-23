@@ -145,25 +145,16 @@ local function lualine_folder_icon()
     return icons.get('directory', vim.fn.getcwd(winnr, tabnr))
 end
 
--- Normal-mode delete/change goes to the black-hole register so it never
--- clobbers the system clipboard; a visual-mode cut (d/x) DOES go to the system
--- clipboard so the selection can be pasted in another app. Visual p replaces
--- the selection without yanking it. (s/S are left alone here: mini.surround
--- owns the s-prefixed mappings in this config.)
+-- Delete/change/paste-over never touch the clipboard: d/D/c/C/x/X (normal and
+-- visual) go to the black-hole register, and visual p replaces the selection
+-- without yanking it. Only y yanks to the system clipboard. (s/S are left
+-- alone: mini.surround owns the s-prefixed mappings in this config.)
 if clipboard_ok then
     vim.keymap.set('n', 'p', '"+p', { noremap = true, silent = true })
 end
 vim.keymap.set('v', 'p', 'P', { noremap = true, silent = true })
 for _, k in ipairs({ 'd', 'D', 'c', 'C', 'x', 'X' }) do
-    vim.keymap.set('n', k, '"_' .. k, { noremap = true, silent = true })
-end
-for _, k in ipairs({ 'c', 'C' }) do
-    vim.keymap.set('v', k, '"_' .. k, { noremap = true, silent = true })
-end
-if clipboard_ok then
-    for _, k in ipairs({ 'd', 'D', 'x', 'X' }) do
-        vim.keymap.set('v', k, '"+' .. k, { noremap = true, silent = true })
-    end
+    vim.keymap.set({ 'n', 'v' }, k, '"_' .. k, { noremap = true, silent = true })
 end
 
 -- Half-page scroll keeps the cursor centred.
