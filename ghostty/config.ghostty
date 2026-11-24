@@ -80,3 +80,13 @@ window-save-state = always
 quick-terminal-position = top
 quick-terminal-screen = mouse
 quick-terminal-animation-duration = 0.1
+
+# ---- background: Mt Fuji through Japanese maple (photo) ----
+# "Lake Kawaguchiko and Mount Fuji at sunset during the Momijigari period",
+# Wikimedia Commons, CC BY 2.0. Drawn in every pane; unfocused panes are dimmed
+# by unfocused-split-opacity above, so the active one reads strongest.
+# Tune background-image-opacity (0.1 subtle .. 0.3 obvious).
+background-image = ~/.dotfiles/ghostty/images/fuji-photo.jpg
+background-image-opacity = 0.05
+background-image-position = center
+background-image-fit = cover

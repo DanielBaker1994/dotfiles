@@ -303,6 +303,7 @@ if not vim.g.lazy_did_setup then
                         }
                     }
                 })
+                require('user.bgimage').setup()
             end,
         },
         'tpope/vim-fugitive',
