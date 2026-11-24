@@ -785,12 +785,12 @@ if not vim.g.lazy_did_setup then
 end -- if not vim.g.lazy_did_setup
 
 -- Search highlights: tokyonight's default blue Search bg disappears over the
--- background photo. Use bright bg + black fg so matches stay readable; the
--- current match (CurSearch/IncSearch) is orange to stand out from the rest.
+-- background photo. Use bold white fg on saturated dark bgs so matches stay
+-- readable; the current match (CurSearch/IncSearch) is red-orange to stand out.
 local function set_search_hl()
-    vim.api.nvim_set_hl(0, 'Search', { fg = '#000000', bg = '#e0af68', bold = true })
-    vim.api.nvim_set_hl(0, 'CurSearch', { fg = '#000000', bg = '#ff9e64', bold = true })
-    vim.api.nvim_set_hl(0, 'IncSearch', { fg = '#000000', bg = '#ff9e64', bold = true })
+    vim.api.nvim_set_hl(0, 'Search', { fg = '#ffffff', bg = '#6d28d9', bold = true })
+    vim.api.nvim_set_hl(0, 'CurSearch', { fg = '#ffffff', bg = '#c2410c', bold = true })
+    vim.api.nvim_set_hl(0, 'IncSearch', { fg = '#ffffff', bg = '#c2410c', bold = true })
 end
 vim.api.nvim_create_autocmd('ColorScheme', { callback = set_search_hl })
 vim.cmd.colorscheme('tokyonight-night')
