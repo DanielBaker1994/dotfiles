@@ -18,6 +18,13 @@ function aerospacelist() {
     aerospace layout h_tiles
 }
 
+# Kill and relaunch AeroSpace so every window/workspace is re-tiled into place.
+refresh_aerospace() {
+    pkill -x AeroSpace
+    while pgrep -x AeroSpace >/dev/null; do sleep 0.1; done
+    open -a AeroSpace && echo "AeroSpace restarted"
+}
+
 # Close herdr workspaces ("spaces") by label.
 #   close_spaces kitchen-sink quickterm      # explicit names
 #   close_spaces                             # uses $CLOSE_SPACES

@@ -60,6 +60,7 @@ selection-foreground = #c0caf5
 
 # Command palette: types `close_spaces` + Enter into the focused shell (herdr workspaces)
 command-palette-entry = title:"Close Spaces",description:"Close the herdr workspaces listed in CLOSE_SPACES_DEFAULT.",action:"text:close_spaces\n"
+command-palette-entry = title:"Refresh AeroSpace",description:"Kill and reopen AeroSpace so all windows fall back into place.",action:"text:refresh_aerospace\n"
 
 # ---- shell integration / agents ----
 # Ping (macOS notification) when a command finishes after 30s while Ghostty is
