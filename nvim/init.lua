@@ -349,7 +349,6 @@ if not vim.g.lazy_did_setup then
                     { '<leader>p', group = 'Paste / Parent' },
                     { '<leader>y', group = 'Yank' },
                     { '<leader>c', group = 'Code / Config' },
-                    { '<leader>o', group = 'Oil' },
                     { '<leader>r', group = 'Reload' },
                 })
             end
