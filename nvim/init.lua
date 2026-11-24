@@ -783,7 +783,18 @@ if not vim.g.lazy_did_setup then
         },
     })
 end -- if not vim.g.lazy_did_setup
+
+-- Search highlights: tokyonight's default blue Search bg disappears over the
+-- background photo. Use bright bg + black fg so matches stay readable; the
+-- current match (CurSearch/IncSearch) is orange to stand out from the rest.
+local function set_search_hl()
+    vim.api.nvim_set_hl(0, 'Search', { fg = '#000000', bg = '#e0af68', bold = true })
+    vim.api.nvim_set_hl(0, 'CurSearch', { fg = '#000000', bg = '#ff9e64', bold = true })
+    vim.api.nvim_set_hl(0, 'IncSearch', { fg = '#000000', bg = '#ff9e64', bold = true })
+end
+vim.api.nvim_create_autocmd('ColorScheme', { callback = set_search_hl })
 vim.cmd.colorscheme('tokyonight-night')
+set_search_hl()
 
 vim.keymap.set('n', '<leader>pi', function()
     -- ASSET_PICTURES_DIRECTORY_GLOBAL is fetched/cached by the bash_external
