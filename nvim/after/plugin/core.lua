@@ -297,7 +297,10 @@ end, { desc = 'Close buffers outside the current workspace' })
 vim.keymap.set('n', '<leader>obw', ':!open %:p:h<CR>', { desc = "[O]pen [B]buffer [W]indow", silent = true })
 vim.keymap.set('n', '<leader>obe',
     function()
-        vim.cmd("Oil " .. vim.fn.expand('%:p:h'))
+        -- No path: oil opens the open buffer's directory (and puts the cursor
+        -- on the file); from an oil buffer it re-opens that listing; from an
+        -- unnamed buffer it falls back to the cwd.
+        require('oil').open()
     end
     , { desc = "[O]pen [B]buffer [E]explorer (Oil)", silent = true })
 
