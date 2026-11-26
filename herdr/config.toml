@@ -190,3 +190,17 @@ type = "popup"
 command = "~/.dotfiles/sesh/connect-herdr.sh new"
 width = "70%"
 height = "60%"
+
+# tmux next-layout / previous-layout: cycle the tab's panes through
+# columns -> rows -> main-left (plugin: ~/.dotfiles/herdr/plugins/cycle-layout)
+[[keys.command]]
+key = "prefix+space"
+type = "plugin_action"
+command = "local.cycle-layout.next"
+description = "next layout"
+
+[[keys.command]]
+key = "prefix+backspace"
+type = "plugin_action"
+command = "local.cycle-layout.prev"
+description = "previous layout"

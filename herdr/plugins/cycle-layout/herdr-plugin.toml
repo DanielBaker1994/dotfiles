@@ -1,0 +1,20 @@
+# tmux next-layout (prefix+Space): cycle the tab's panes through
+# columns -> rows -> main-left. Bound in ~/.dotfiles/herdr/config.toml.
+id = "local.cycle-layout"
+name = "Cycle layout"
+version = "0.1.0"
+min_herdr_version = "0.9.0"
+description = "Rebuild the focused tab's panes as columns, rows, or main-left"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "next"
+title = "Next layout"
+contexts = ["global"]
+command = ["bash", "cycle.sh", "next"]
+
+[[actions]]
+id = "prev"
+title = "Previous layout"
+contexts = ["global"]
+command = ["bash", "cycle.sh", "prev"]

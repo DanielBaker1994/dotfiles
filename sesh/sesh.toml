@@ -9,16 +9,5 @@ path = "~/.dotfiles"
 startup_command = "nvim ~/.dotfiles"
 
 [[session]]
-name = "interview_prep"
-path = "~/interview_prep"
-startup_command = "echo 'gl to me :)'"
-
-
-[[session]]
-name = "raycast"
-path = "~/Documents/Raycast"
-
-[[session]]
-name = "BrowserCats"
-path = "~"
-startup_command = "terminal-browser open cats.com"
+name = "GrammarCheck"
+path = "/tmp/"
