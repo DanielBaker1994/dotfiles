@@ -120,6 +120,16 @@ _sl_placeholders() {
     ok "created empty ~/external/sesh.toml (sesh import target)"
 }
 
+# AeroSpace reads ~/.aerospace.toml BEFORE ~/.config/aerospace/aerospace.toml,
+# so a stray one silently shadows ours. Move it aside.
+_sl_shadows() {
+    local f="$HOME/.aerospace.toml" b
+    { [ -e "$f" ] || [ -L "$f" ]; } || return 0
+    [ "$(readlink "$f" 2>/dev/null)" = "$SL_DIR/aerospace/aerospace.toml" ] && return 0
+    b="$BACKUP_PREFIX-shadow-$(date +%s)"; mkdir -p "$b"
+    mv "$f" "$b/" && warn "moved shadowing ~/.aerospace.toml -> $b/"
+}
+
 validate_sym_links() {
     local mode="${1:-prompt}"
     _sl_build_manifest
@@ -153,6 +163,11 @@ validate_sym_links() {
         bad=$((bad + 1))
     fi
 
+    if [ -e "$HOME/.aerospace.toml" ] || [ -L "$HOME/.aerospace.toml" ]; then
+        printf '  \033[31m\342\234\230\033[0m %s  \033[2m(shadows our aerospace config; run --fix)\033[0m\n' "~/.aerospace.toml"
+        bad=$((bad + 1))
+    fi
+
     if [ "$bad" -eq 0 ] && [ "$stale" -eq 0 ]; then
         ok "all $total symlinks OK"
         return 0
@@ -166,6 +181,7 @@ validate_sym_links() {
             _sl_placeholders
             _sl_repair "${bad_idx[@]}"
             _sl_remove_stale
+            _sl_shadows
             return 0
             ;;
         *)
@@ -198,6 +214,7 @@ ensure_sym_links() {
     fi
     _sl_placeholders
     _sl_remove_stale
+    _sl_shadows
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then

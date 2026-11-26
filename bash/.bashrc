@@ -236,3 +236,13 @@ export PATH="$HOME/.local/bin:$PATH" # herdr, claude, etc.
 if [ -f "$HOME/.config/kitchen-sink/bin/utils.sh" ]; then
     source "$HOME/.config/kitchen-sink/bin/utils.sh"
 fi
+
+# Self-heal the aerospace config link on every interactive shell (macOS), so a
+# machine never falls back to AeroSpace's default config. Cheap: only runs
+# symlinks.sh when the link is wrong or ~/.aerospace.toml shadows it.
+if [[ $- == *i* && "$(uname)" == Darwin && -f "$HOME/.dotfiles/symlinks.sh" ]]; then
+    if [ "$(readlink "$HOME/.config/aerospace/aerospace.toml" 2>/dev/null)" != "$HOME/.dotfiles/aerospace/aerospace.toml" ] \
+        || [ -e "$HOME/.aerospace.toml" ]; then
+        bash "$HOME/.dotfiles/symlinks.sh" --fix
+    fi
+fi
