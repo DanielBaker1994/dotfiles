@@ -1,8 +1,8 @@
 -- Full-editor background photo behind the text, using the kitty graphics
 -- protocol directly (no image.nvim: it re-encodes, re-sends the whole PNG and
 -- auto-clears on BufLeave/TabEnter). The terminal reads the file itself (t=f),
--- so only a tiny escape is written. z=-1 draws above cell backgrounds, under
--- text. Opacity is baked into a small cropped copy (blended onto the bg colour)
+-- so only a tiny escape is written. z=-1073741825 draws BELOW cell backgrounds, so Normal must be transparent
+-- (see init.lua) and Visual/CursorLine/Search bgs paint over the photo. Opacity is baked into a small cropped copy (blended onto the bg colour)
 -- because the protocol has none.
 -- Photo: "Toshogu Shrine, Nikko - ToshoguShrine7875.jpg", Wikimedia Commons, CC0.
 local M = {}
@@ -34,7 +34,7 @@ local function place(path)
     local cols, rows = vim.o.columns, vim.o.lines
     -- save cursor, home, transmit+display by file path, restore cursor
     write(ESC .. '7' .. ESC .. '[1;1H'
-        .. kitty(('a=T,f=100,t=f,i=7331,p=1,z=-1,c=%d,r=%d,C=1,q=2'):format(cols, rows), vim.base64.encode(path))
+        .. kitty(('a=T,f=100,t=f,i=7331,p=1,z=-1073741825,c=%d,r=%d,C=1,q=2'):format(cols, rows), vim.base64.encode(path))
         .. ESC .. '8')
     last = path
 end

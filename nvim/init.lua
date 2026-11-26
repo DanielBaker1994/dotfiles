@@ -584,7 +584,7 @@ if not vim.g.lazy_did_setup then
             'folke/tokyonight.nvim',
             name = 'tokyonight',
             priority = 1000,
-            opts = { style = 'night' },
+            opts = { style = 'night', transparent = true, styles = { sidebars = 'transparent', floats = 'dark' } },
         },
         {
             'akinsho/toggleterm.nvim',
@@ -791,6 +791,13 @@ local function set_search_hl()
     vim.api.nvim_set_hl(0, 'Search', { fg = '#ffffff', bg = '#6d28d9', bold = true })
     vim.api.nvim_set_hl(0, 'CurSearch', { fg = '#ffffff', bg = '#c2410c', bold = true })
     vim.api.nvim_set_hl(0, 'IncSearch', { fg = '#ffffff', bg = '#c2410c', bold = true })
+    -- Visual selection: a clearly lighter tokyonight blue than the default
+    -- #283457 (fg untouched, so syntax colors stay). Distinct from the purple
+    -- Search / orange CurSearch above.
+    vim.api.nvim_set_hl(0, 'Visual', { bg = '#3d59a1' })
+    -- Cursor line: faint band + bright bold line number so the row is findable.
+    vim.api.nvim_set_hl(0, 'CursorLine', { bg = '#2f3652' })
+    vim.api.nvim_set_hl(0, 'CursorLineNr', { fg = '#ff9e64', bold = true })
 end
 vim.api.nvim_create_autocmd('ColorScheme', { callback = set_search_hl })
 vim.cmd.colorscheme('tokyonight-night')
