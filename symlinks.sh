@@ -33,6 +33,7 @@ _sl_manifest() {
         "$HOME/.config/lazygit/config.yml|$SL_DIR/lazygit/config.yml" \
         "$HOME/.config/ghostty|$SL_DIR/ghostty" \
         "$HOME/.gitconfig|$SL_DIR/git/.gitconfig" \
+        "$HOME/.config/aerospace/aerospace.toml|$SL_DIR/aerospace/aerospace.toml" \
         "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty|$SL_DIR/ghostty/config.ghostty"
 }
 

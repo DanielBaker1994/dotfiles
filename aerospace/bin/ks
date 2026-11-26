@@ -1,0 +1,50 @@
+#!/bin/bash
+# Run a kitchen-sink bin/ script from an AeroSpace binding or callback, but only
+# if it is really there. A bad path doesn't fail silently: it is logged
+# (`log show --last 1h --predicate 'eventMessage CONTAINS "not run"'`,
+# or Console.app), and hotkeys also show a notification, at most once a minute
+# per script.
+#
+#   ks [-q] SCRIPT [ARGS...]     e.g.  ks kitchen_sink.sh screenshot
+#     -q   quiet: log only, no notification (workspace/focus callbacks)
+#
+# KS_ROOT overrides the kitchen-sink home (default ~/.config/kitchen-sink, a
+# checkout or a symlink to one). Links are resolved first, so a dangling
+# ~/.config/kitchen-sink or a bin/ script that links to a removed file counts
+# as missing; `exec` then runs the real path.
+quiet=0
+[ "${1:-}" = "-q" ] && { quiet=1; shift; }
+name="${1:-}"
+[ -n "$name" ] || { echo "usage: ks [-q] SCRIPT [ARGS...]" >&2; exit 2; }
+shift
+case "$name" in */*|.*) echo "ks: '$name' must be a bare bin/ script name" >&2; exit 2 ;; esac
+
+root="${KS_ROOT:-$HOME/.config/kitchen-sink}"
+real="$(cd "$root" 2>/dev/null && pwd -P)"
+f="$real/bin/$name"
+
+why=""
+if [ -z "$real" ]; then
+    if [ -L "$root" ]; then why="$root is a broken link (-> $(readlink "$root"))"
+    else why="$root does not exist"; fi
+elif [ -L "$f" ] && [ ! -e "$f" ]; then
+    why="$f is a broken link (-> $(readlink "$f"))"
+elif [ ! -f "$f" ]; then
+    why="$f does not exist"
+elif [ ! -x "$f" ]; then
+    why="$f is not executable"
+fi
+
+if [ -n "$why" ]; then
+    logger -t aerospace-ks "$name not run: $why"
+    if [ "$quiet" = 0 ]; then
+        stamp="${TMPDIR:-/tmp}/aerospace-ks.$name.warned"
+        if [ -z "$(find "$stamp" -mmin -1 2>/dev/null)" ]; then
+            : >"$stamp"
+            msg="${why//\\/\\\\}"; msg="${msg//\"/\\\"}"
+            /usr/bin/osascript -e "display notification \"$msg\" with title \"AeroSpace: $name not run\"" >/dev/null 2>&1 &
+        fi
+    fi
+    exit 127
+fi
+exec "$f" "$@"
