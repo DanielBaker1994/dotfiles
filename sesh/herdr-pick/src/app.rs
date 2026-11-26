@@ -795,43 +795,12 @@ impl App {
         let max = self.view.len().saturating_sub(1);
         // 0 = "from the top": the cursor's start for this query
         self.sel = if keep_sel == 0 { 0 } else { keep_sel.min(max) };
-        // prefix+w is for going back: with the sidebar's order the current
-        // space is row 0, so start the cursor on the one before it
-        if keep_sel == 0 && (self.mode == "ws" || self.mode == "all") && self.sort == "recent" && query.is_empty() && max >= 1 {
-            self.sel = 1;
-        }
-        // prefix+a keeps the old "last agent" toggle: the list stays sorted
-        // most-recent-first, but the cursor starts on the agent you were in
-        // before this one, so prefix+a enter jumps back like it used to
-        if keep_sel == 0 && self.mode == "agents" && query.is_empty() {
-            if let Some(i) = self.last_agent_row() {
-                self.sel = i;
-            }
-        }
+        // prefix+w and prefix+a agree: the list is most-recent-first with
+        // where you are ("here") as row 0, and the cursor starts on it; one
+        // step down is the one you came from.
         self.schedule_preview();
         self.place_flash_cursor();
         self.dirty = true;
-    }
-
-    /// row of the agent pane to jump back to: the local.last plugin keeps
-    /// "CURRENT PREVIOUS" agent pane ids; when the focused pane is CURRENT
-    /// (we are in an agent) that is PREVIOUS, else the last agent visited
-    fn last_agent_row(&self) -> Option<usize> {
-        let raw = std::fs::read_to_string(self.cfg.path("agent_file")).ok()?;
-        let mut ids = raw.split_whitespace();
-        let (cur, prev) = (ids.next()?, ids.next());
-        let focused = self
-            .model
-            .workspaces
-            .iter()
-            .find(|w| w.focused)
-            .and_then(|w| w.active_tab_id.as_deref())
-            .and_then(|t| self.model.tab_pane(t))
-            .map(|p| p.id.as_str());
-        let want = if focused == Some(cur) { prev? } else { cur };
-        self.view
-            .iter()
-            .position(|r| r.it.kind == ItemKind::Agent && r.it.target == want)
     }
 
     fn place_flash(&mut self) {
@@ -1862,11 +1831,26 @@ impl App {
                     None => break,
                 };
                 let is_sel = idx == self.sel;
-                for (k, line) in wrapped(v).into_iter().enumerate() {
+                // the active row carries a small gold marker, right-aligned, on
+                // the middle line of its cell
+                let badge = cfg.text("here");
+                let bw = ansi::width(&badge) + 1;
+                let wl = wrapped(v);
+                let mid = wl.len().saturating_sub(1) / 2;
+                for (k, line) in wl.into_iter().enumerate() {
                     if rows.len() >= rows_h {
                         break;
                     }
                     self.row_map.push(idx);
+                    let line = if v.it.active && k == mid && avail > bw + 8 {
+                        format!(
+                            "{}{}\x1b[1m{badge}\x1b[22m\x1b[39m ",
+                            ansi::fit(&line, avail - bw),
+                            st.fg_codes("here_fg"),
+                        )
+                    } else {
+                        line
+                    };
                     if is_sel {
                         let edge = if k == 0 {
                             st.fg("selection_edge", &st.edge)

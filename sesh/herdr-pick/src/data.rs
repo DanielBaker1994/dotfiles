@@ -58,6 +58,8 @@ pub struct Item {
     pub target: String,
     pub search: String,
     pub more: bool,
+    /// the row you are in right now; the list draws a full-height badge on it
+    pub active: bool,
 }
 
 pub fn mk_item(display: String, kind: ItemKind, target: &str, search: &str, more: bool) -> Item {
@@ -72,6 +74,7 @@ pub fn mk_item(display: String, kind: ItemKind, target: &str, search: &str, more
         target: target.to_string(),
         search: search_plain,
         more,
+        active: false,
     }
 }
 
@@ -97,6 +100,7 @@ pub fn item_from_line(line: &str) -> Item {
         target,
         search: search.trim().to_string(),
         more: false,
+        active: false,
     }
 }
 
@@ -353,7 +357,7 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
             st.fg("agent", &agents_txt)
         };
         let last = if w.focused {
-            cfg.text("here")
+            String::new()
         } else {
             match mru.iter().find(|(id, _)| id == &w.id) {
                 Some((_, t)) => age_text(cfg, now_epoch() - t),
@@ -371,7 +375,9 @@ fn list_ws(cfg: &Config, st: &Style, model: &Model, sort: &str) -> Vec<Item> {
                 ("last", last),
             ],
         );
-        items.push(mk_item(display, ItemKind::Ws, &w.id, &q, false));
+        let mut it = mk_item(display, ItemKind::Ws, &w.id, &q, false);
+        it.active = w.focused;
+        items.push(it);
 
         for (ti, tab) in tabs.iter().enumerate() {
             let last_tab = ti + 1 == tabs.len();
@@ -485,6 +491,22 @@ fn list_agents(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
     // most recently changed first, stale agents sink to the bottom
     let mut panes: Vec<&Pane> = model.panes.iter().filter(|p| p.agent.is_some()).collect();
     panes.sort_by(|a, b| b.seq.cmp(&a.seq).then_with(|| a.id.cmp(&b.id)));
+    // same rule as prefix+w: where you are is row 0, marked "here"; the rest
+    // stays most-recent-first and the cursor starts on the one before
+    let here: Option<String> = model
+        .workspaces
+        .iter()
+        .find(|w| w.focused)
+        .and_then(|w| w.active_tab_id.as_deref())
+        .and_then(|t| model.tab_pane(t))
+        .filter(|p| p.agent.is_some())
+        .map(|p| p.id.clone());
+    if let Some(h) = &here {
+        if let Some(i) = panes.iter().position(|p| &p.id == h) {
+            let p = panes.remove(i);
+            panes.insert(0, p);
+        }
+    }
     if panes.is_empty() {
         return vec![mk_item(st.dim(&cfg.text("no_agents")), ItemKind::None, "", "", false)];
     }
@@ -510,7 +532,9 @@ fn list_agents(cfg: &Config, st: &Style, model: &Model) -> Vec<Item> {
             ],
         );
         let search = ws.map(|w| w.label.clone()).unwrap_or_default();
-        items.push(mk_item(display, ItemKind::Agent, &p.id, &search, false));
+        let mut it = mk_item(display, ItemKind::Agent, &p.id, &search, false);
+        it.active = here.as_deref() == Some(p.id.as_str());
+        items.push(it);
     }
     items
 }

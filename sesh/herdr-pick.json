@@ -184,7 +184,7 @@
     "new_none": "(no matching directory — enter creates what you typed)",
     "new_hint": "tab / ^y complete  ↑/↓ choose  enter open/create  esc cancel",
     "shell": "shell",
-    "here": "here",
+    "here": "★",
     "none": "-"
   },
 
@@ -279,6 +279,7 @@
       "selection_edge": "accent",
       "target_bg": "mantle",
       "target_fg": "accent",
+      "here_fg": "#ffcc33",
       "chip_bg": "accent",
       "chip_fg": "crust",
       "chip_bad_bg": "danger",

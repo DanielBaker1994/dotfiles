@@ -16,14 +16,33 @@ here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 bin="${HERDR_PICK_BIN:-$here/bin/herdr-pick}"
 log="${TMPDIR:-/tmp}/herdr-pick-build.log"
 
-# one quiet build attempt when the binary isn't there (HERDR_PICK_NO_BUILD=1
-# skips it — used to preview the error path)
-if [ ! -x "$bin" ] && [ "${HERDR_PICK_NO_BUILD:-0}" != "1" ]; then
-    printf 'herdr-pick: first run — building the picker, one moment…\n'
-    if command -v cargo >/dev/null 2>&1; then
-        "$here/build-herdr-pick.sh" >"$log" 2>&1 || true
+# build when the binary is missing OR older than any of its sources
+# (src/*.rs, Cargo.toml/lock) — so editing the Rust can't leave prefix+w/a on
+# stale code. HERDR_PICK_NO_BUILD=1 skips it (used to preview the error path).
+is_stale() {
+    [ -n "$(find "$here/herdr-pick/src" "$here/herdr-pick/Cargo.toml" "$here/herdr-pick/Cargo.lock" \
+        -type f -newer "$bin" -print -quit 2>/dev/null)" ]
+}
+if [ "${HERDR_PICK_NO_BUILD:-0}" != "1" ]; then
+    if [ ! -x "$bin" ]; then
+        printf 'herdr-pick: first run — building the picker, one moment…\n'
+        rebuilt=1
+    elif is_stale; then
+        printf 'herdr-pick: sources changed — rebuilding, one moment…\n'
+        rebuilt=1
     else
-        : >"$log"
+        rebuilt=0
+    fi
+    if [ "$rebuilt" = 1 ]; then
+        if command -v cargo >/dev/null 2>&1; then
+            "$here/build-herdr-pick.sh" >"$log" 2>&1 || true
+        else
+            : >"$log"
+        fi
+        if [ -x "$bin" ] && is_stale; then
+            printf 'herdr-pick: REBUILD FAILED — running the OLD binary (log: %s)\n' "$log"
+            sleep 2
+        fi
     fi
 fi
 

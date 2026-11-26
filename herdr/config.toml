@@ -142,9 +142,9 @@ type = "plugin_action"
 command = "local.last.tab"
 description = "last tab"
 
-# prefix+a: the prefix+w picker opened on agents only (herdr-pick agents),
-# most recently updated first. The cursor starts on the last agent (local.last plugin's
-# pair), so prefix+a enter is still the old "toggle to last agent".
+# prefix+a: the prefix+w picker opened on agents only (herdr-pick agents).
+# Same rule as prefix+w: most recent first, the current agent is row 0 marked
+# "here" and the cursor starts on it; one step down is where you came from.
 [[keys.command]]
 key = "prefix+a"
 type = "popup"
