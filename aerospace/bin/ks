@@ -1,12 +1,12 @@
 #!/bin/bash
-# Run a kitchen-sink bin/ script from an AeroSpace binding or callback, but only
+# Run a kitchen-sink bin/ script from an AeroSpace binding, but only
 # if it is really there. A bad path doesn't fail silently: it is logged
 # (`log show --last 1h --predicate 'eventMessage CONTAINS "not run"'`,
 # or Console.app), and hotkeys also show a notification, at most once a minute
 # per script.
 #
 #   ks [-q] SCRIPT [ARGS...]     e.g.  ks kitchen_sink.sh screenshot
-#     -q   quiet: log only, no notification (workspace/focus callbacks)
+#     -q   quiet: log only, no notification (for callbacks)
 #
 # KS_ROOT overrides the kitchen-sink home (default ~/.config/kitchen-sink, a
 # checkout or a symlink to one). Links are resolved first, so a dangling

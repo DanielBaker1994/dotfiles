@@ -34,6 +34,7 @@ _sl_manifest() {
         "$HOME/.config/ghostty|$SL_DIR/ghostty" \
         "$HOME/.gitconfig|$SL_DIR/git/.gitconfig" \
         "$HOME/.config/aerospace/aerospace.toml|$SL_DIR/aerospace/aerospace.toml" \
+        "$HOME/.config/borders/bordersrc|$SL_DIR/borders/bordersrc" \
         "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty|$SL_DIR/ghostty/config.ghostty"
 }
 
