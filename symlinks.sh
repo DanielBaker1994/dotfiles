@@ -32,7 +32,7 @@ _sl_manifest() {
         "$HOME/.config/herdr/config.toml|$SL_DIR/herdr/config.toml" \
         "$HOME/.config/lazygit/config.yml|$SL_DIR/lazygit/config.yml" \
         "$HOME/.config/ghostty|$SL_DIR/ghostty" \
-        "$HOME/.gitconfig|$SL_DIR/git/.gitconfig" \
+        "$HOME/.config/git/config|$SL_DIR/git/config" \
         "$HOME/.config/aerospace/aerospace.toml|$SL_DIR/aerospace/aerospace.toml" \
         "$HOME/.config/borders/bordersrc|$SL_DIR/borders/bordersrc" \
         "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty|$SL_DIR/ghostty/config.ghostty"
@@ -130,6 +130,26 @@ _sl_shadows() {
     mv "$f" "$b/" && warn "moved shadowing ~/.aerospace.toml -> $b/"
 }
 
+# ~/.gitconfig used to be a symlink to this repo, so every machine got this
+# repo's user.name/email. It is machine-local now (only aliases are shared, via
+# ~/.config/git/config). If it is still a link into the repo, turn it into a
+# real file with the same identity/credential settings, minus the aliases.
+_sl_gitconfig_migrate() {
+    local f="$HOME/.gitconfig"
+    [ -L "$f" ] || return 0
+    case "$(readlink "$f")" in "$SL_DIR"/*) ;; *) return 0 ;; esac
+    local tmp; tmp="$(mktemp)"
+    if ! cp -L "$f" "$tmp" 2>/dev/null; then
+        rm -f "$tmp"
+        warn "~/.gitconfig links to a missing file; leaving it (set identity: git config --global user.name/email)"
+        return 0
+    fi
+    rm "$f" && mv "$tmp" "$f"
+    git config -f "$f" --remove-section alias 2>/dev/null
+    git config -f "$f" --remove-section filter.lfs 2>/dev/null
+    warn "~/.gitconfig is now a machine-local file (was a link into the repo); check user.name/email"
+}
+
 validate_sym_links() {
     local mode="${1:-prompt}"
     _sl_build_manifest
@@ -182,6 +202,7 @@ validate_sym_links() {
             _sl_repair "${bad_idx[@]}"
             _sl_remove_stale
             _sl_shadows
+            _sl_gitconfig_migrate
             return 0
             ;;
         *)
@@ -189,7 +210,7 @@ validate_sym_links() {
                 printf '\n  Fix %d link(s) and remove %d stale? [y/N] ' "$bad" "$stale"
                 read -r ans
                 case "$ans" in
-                    y|Y|yes|YES) _sl_placeholders; _sl_repair "${bad_idx[@]}"; _sl_remove_stale; return 0 ;;
+                    y|Y|yes|YES) _sl_placeholders; _sl_repair "${bad_idx[@]}"; _sl_remove_stale; _sl_gitconfig_migrate; return 0 ;;
                 esac
             else
                 warn "not a terminal — re-run with --fix to repair"
@@ -215,6 +236,7 @@ ensure_sym_links() {
     _sl_placeholders
     _sl_remove_stale
     _sl_shadows
+    _sl_gitconfig_migrate
 }
 
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
