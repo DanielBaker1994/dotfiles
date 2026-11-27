@@ -1,12 +1,10 @@
 # Owned by ~/.dotfiles (linked to ~/.config/aerospace/aerospace.toml by
-# ~/.dotfiles/symlinks.sh). kitchen-sink scripts run via aerospace/bin/ks.
+# ~/.dotfiles/symlinks.sh).
 exec-on-workspace-change = [
   '/opt/homebrew/bin/bash', '-c', '~/.dotfiles/aerospace/bin/no_stray_workspaces.sh & ~/.dotfiles/aerospace/bin/stack_border.sh &'
 ]
 
-# The focused window id for kitchen-sink.
 on-focus-changed = [
-  'exec-and-forget [ -n "$AEROSPACE_WINDOW_ID" ] && printf %s "$AEROSPACE_WINDOW_ID" >"${TMPDIR:-/tmp}/ws-aerospace-focus"',
   'exec-and-forget ~/.dotfiles/aerospace/bin/stack_border.sh'
 ]
 
@@ -44,9 +42,6 @@ on-window-detected = [
   # Never "tiling" (side-by-side splits). Per-app rules below only pick a workspace.
   { run = ['layout h_accordion'], check-further-callbacks = true },
 
-  # kitchen-sink lives on workspace 2 (Ghostty keeps 1); an accordion keeps
-  # it full size beside anything else there.
-  { if = 'test %{app-bundle-id} = dev.danielbaker.kitchen-sink', run = ['move-node-to-workspace 2'] },
 
 
 { if = 'test %{app-bundle-id} = com.mitchellh.ghostty && test %{window-title} = ws-settings', run = ['layout floating'] },
@@ -94,17 +89,8 @@ N = ['main']
 
 [mode.main.binding]
 
-    # Hyper+S (palette) and Hyper+X (screenshot) go to the quick agent
-    # (`kitchen-sink quick`, socket $TMPDIR/ks-quick.sock): one socket write
-    # when it is up, a LaunchServices cold start of the agent otherwise. They
-    # work with the main app not running (see AGENTS.md, "Quick agent").
-    # Every kitchen-sink call goes through bin/ks, which checks the script
-    # exists (links resolved) and notifies instead of failing silently.
-    alt-cmd-ctrl-shift-s = 'exec-and-forget ~/.dotfiles/aerospace/bin/ks kitchen_sink.sh'
-
-    alt-cmd-ctrl-shift-x = 'exec-and-forget ~/.dotfiles/aerospace/bin/ks kitchen_sink.sh screenshot'
-
-    alt-cmd-ctrl-shift-slash = 'exec-and-forget ~/.dotfiles/aerospace/bin/ks ws-settings open'
+    # Hyper+S / Hyper+X / Hyper+/ belong to kitchen-sink (it registers them
+    # itself; [app] quick-hotkey-* in its commands.toml), not to AeroSpace.
 
     alt-slash = 'layout tiles horizontal vertical'
 
