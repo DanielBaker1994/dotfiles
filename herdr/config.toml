@@ -55,6 +55,12 @@ workspace_picker = ""
 
 edit_scrollback = "prefix+e"
 
+# prefix+? enters copy mode (like prefix+[); press ? again to type a backward
+# search, n/N to repeat. herdr can't chain "copy mode + start search" on one key.
+# The keybind help panel moves to prefix+/.
+copy_mode = ["prefix+[", "prefix+?"]
+help = "prefix+/"
+
 move_tab_previous = "prefix+<"
 move_tab_next = "prefix+>"
 
@@ -191,16 +197,20 @@ command = "~/.dotfiles/sesh/connect-herdr.sh new"
 width = "70%"
 height = "60%"
 
-# tmux next-layout / previous-layout: cycle the tab's panes through
-# columns -> rows -> main-left (plugin: ~/.dotfiles/herdr/plugins/cycle-layout)
+# tmux rotate-window: each press moves every pane one slot back (top-left
+# first) and wraps the first pane to the end, so N presses bring each pane to
+# the top/main slot. Keeps the layout and split sizes.
+# (plugin: ~/.dotfiles/herdr/plugins/cycle-layout/rotate.sh)
 [[keys.command]]
 key = "prefix+space"
 type = "plugin_action"
-command = "local.cycle-layout.next"
-description = "next layout"
+command = "local.cycle-layout.rotate"
+description = "rotate panes"
 
+# tmux next-layout: rebuild the tab's panes as columns -> rows -> main-left
+# (local.cycle-layout.prev still exists, unbound)
 [[keys.command]]
 key = "prefix+backspace"
 type = "plugin_action"
-command = "local.cycle-layout.prev"
-description = "previous layout"
+command = "local.cycle-layout.next"
+description = "next layout"

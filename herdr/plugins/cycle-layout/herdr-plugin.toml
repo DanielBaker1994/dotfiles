@@ -18,3 +18,9 @@ id = "prev"
 title = "Previous layout"
 contexts = ["global"]
 command = ["bash", "cycle.sh", "prev"]
+
+[[actions]]
+id = "rotate"
+title = "Rotate panes"
+contexts = ["global"]
+command = ["bash", "rotate.sh", "next"]
