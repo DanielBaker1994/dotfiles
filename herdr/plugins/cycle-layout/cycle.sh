@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Cycle the focused tab through: columns -> rows -> main-left (tmux next-layout).
+# Cycle the focused tab through: columns -> rows -> main-left, then rotate the
+# pane order by one and start again, so every pane reaches the first slot.
 # herdr has no layout API, so panes are re-attached with `pane move`.
 set -euo pipefail
 herdr="${HERDR_BIN_PATH:-herdr}"
@@ -21,12 +22,21 @@ if n < 2:
     sys.exit(0)
 
 dirs = {s["direction"] for s in lay["splits"]}
-# current shape: all "right" = columns, all "down" = rows, else main-left/other
+# current shape: all "right" = columns, all "down" = rows, else main-left/other.
+# With 2 panes main-left == columns, so only columns/rows are cycled.
+shapes = 2 if n == 2 else 3
 if dirs == {"right"}: state = 0
 elif dirs == {"down"}: state = 1
-else: state = 2
+else: state = 2 % shapes
 step = 1 if direction == "next" else -1
-target = (state + step) % 3
+target = (state + step) % shapes
+# Wrapping past the last shape also rotates the pane order by one, so every
+# pane gets a turn in the first (left/top/main) slot:
+#   a|b -> a/b -> b|a -> b/a -> a|b
+if direction == "next" and target == 0:
+    ids = ids[1:] + ids[:1]
+elif direction == "prev" and state == 0:
+    ids = ids[-1:] + ids[:-1]
 
 def run(*args):
     r = subprocess.run([herdr, *args], check=True, capture_output=True, text=True)

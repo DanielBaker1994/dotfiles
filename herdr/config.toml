@@ -197,20 +197,18 @@ command = "~/.dotfiles/sesh/connect-herdr.sh new"
 width = "70%"
 height = "60%"
 
-# tmux rotate-window: each press moves every pane one slot back (top-left
-# first) and wraps the first pane to the end, so N presses bring each pane to
-# the top/main slot. Keeps the layout and split sizes.
-# (plugin: ~/.dotfiles/herdr/plugins/cycle-layout/rotate.sh)
+# Cycle the tab's panes columns -> rows -> main-left, then rotate the pane
+# order by one and go again, so every pane gets the left/top slot:
+#   a|b -> a/b -> b|a -> b/a -> a|b
+# (plugin: ~/.dotfiles/herdr/plugins/cycle-layout)
 [[keys.command]]
 key = "prefix+space"
 type = "plugin_action"
-command = "local.cycle-layout.rotate"
-description = "rotate panes"
+command = "local.cycle-layout.next"
+description = "next layout / rotate"
 
-# tmux next-layout: rebuild the tab's panes as columns -> rows -> main-left
-# (local.cycle-layout.prev still exists, unbound)
 [[keys.command]]
 key = "prefix+backspace"
 type = "plugin_action"
-command = "local.cycle-layout.next"
-description = "next layout"
+command = "local.cycle-layout.prev"
+description = "previous layout / rotate"

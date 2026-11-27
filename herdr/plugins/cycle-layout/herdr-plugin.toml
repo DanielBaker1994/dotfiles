@@ -1,5 +1,5 @@
-# tmux next-layout (prefix+Space): cycle the tab's panes through
-# columns -> rows -> main-left. Bound in ~/.dotfiles/herdr/config.toml.
+# prefix+Space: cycle the tab's panes through
+# columns -> rows -> main-left, rotating the pane order on each wrap. Bound in ~/.dotfiles/herdr/config.toml.
 id = "local.cycle-layout"
 name = "Cycle layout"
 version = "0.1.0"
@@ -18,9 +18,3 @@ id = "prev"
 title = "Previous layout"
 contexts = ["global"]
 command = ["bash", "cycle.sh", "prev"]
-
-[[actions]]
-id = "rotate"
-title = "Rotate panes"
-contexts = ["global"]
-command = ["bash", "rotate.sh", "next"]
